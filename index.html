@@ -1,0 +1,2339 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14324f">
+<title>Onze financiën (live)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<style>
+/* Layout: one column for the phone, a fixed tab bar at the bottom, cards stacked per tab. */
+:root {
+  color-scheme: light;
+  --bg: #f3f5f8;
+  --card: #ffffff;
+  --ink: #12202e;
+  --ink-2: #4b5866;
+  --ink-3: #7a8693;
+  --line: #dfe4ea;
+  --accent: #14324f;
+  --accent-ink: #ffffff;
+  --soft: #e8eef5;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --good: #0f7b4a; --bad: #b3261e;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f151b; --card: #18212a; --ink: #eef2f6; --ink-2: #b4bfca; --ink-3: #8794a1;
+    --line: #2a3541; --accent: #8fb8e6; --accent-ink: #0f151b; --soft: #22303d;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --good: #4cc38a; --bad: #ff8a80;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f151b; --card: #18212a; --ink: #eef2f6; --ink-2: #b4bfca; --ink-3: #8794a1;
+  --line: #2a3541; --accent: #8fb8e6; --accent-ink: #0f151b; --soft: #22303d;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --good: #4cc38a; --bad: #ff8a80;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  font-size: 15px; line-height: 1.45; -webkit-text-size-adjust: 100%;
+}
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: 22px; }
+h2 { font-size: 18px; }
+h3 { font-size: 15px; }
+.num, input[type="number"], td, .tile b { font-variant-numeric: tabular-nums; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+
+header.top {
+  position: sticky; top: 0; z-index: 5; background: var(--accent); color: var(--accent-ink);
+  padding: calc(12px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
+  display: flex; align-items: center; gap: 12px;
+}
+header.top .titles { flex: 1; min-width: 0; }
+header.top .src { font-size: 12px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btn {
+  border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 999px;
+  padding: 7px 14px; cursor: pointer; font-weight: 600; font-size: 14px;
+}
+header.top .btn { background: transparent; color: var(--accent-ink); border-color: currentColor; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+main { max-width: 720px; margin: 0 auto; padding: 14px 16px calc(120px + env(safe-area-inset-bottom)); display: grid; gap: 14px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.muted { color: var(--ink-2); }
+.small { font-size: 13px; }
+.tiny { font-size: 12px; color: var(--ink-3); }
+
+.banner { border-radius: var(--radius); padding: 12px 14px; background: var(--soft); border: 1px dashed var(--ink-3); display: grid; gap: 8px; }
+.banner strong { font-family: var(--font-display); }
+.panel { display: none; }
+.panel.open { display: grid; }
+.filerow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.filerow .btn { flex: none; }
+body.nodata main > section { display: none !important; }
+.sub { display: none; gap: 14px; }
+.sub.active { display: grid; }
+
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px; min-width: 0; }
+.tile span { font-size: 12px; color: var(--ink-2); }
+.tile b { font-family: var(--font-display); font-size: 21px; font-weight: 700; overflow-wrap: anywhere; }
+.tile em { font-style: normal; font-size: 12px; color: var(--ink-3); }
+.pos { color: var(--good); } .neg { color: var(--bad); }
+
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg { display: inline-flex; background: var(--soft); border-radius: 999px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: transparent; padding: 6px 12px; border-radius: 999px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 5px 11px; font-size: 13px; cursor: pointer; color: var(--ink); }
+.chip i { width: 14px; height: 3px; border-radius: 2px; background: var(--c); display: inline-block; }
+.chip i.dash { width: 16px; border-radius: 0; background: repeating-linear-gradient(90deg, var(--c) 0 5px, transparent 5px 8px); }
+.chip[aria-pressed="false"] { color: var(--ink-3); }
+.chip[aria-pressed="false"] i { background: var(--line); }
+
+.chart { position: relative; width: 100%; touch-action: pan-y; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart text { fill: var(--ink-3); font-size: 11px; font-family: var(--font-body); }
+.tip {
+  position: absolute; pointer-events: none; background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.14);
+  display: none; min-width: 150px; z-index: 2;
+}
+.tip .t { font-weight: 600; margin-bottom: 4px; }
+.tip .r { display: flex; justify-content: space-between; gap: 12px; }
+.tip .r i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--c); }
+details.table summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.tablewrap { overflow-x: auto; margin-top: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--ink-2); font-weight: 600; }
+
+.field { display: grid; gap: 4px; }
+.field .lbl { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.field .lbl output { font-weight: 600; font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--s1); height: 28px; }
+.big { font-family: var(--font-display); font-size: 36px; font-weight: 700; line-height: 1.1; }
+.delta { font-size: 14px; font-weight: 600; }
+.stackbar { display: flex; height: 18px; border-radius: 6px; overflow: hidden; gap: 2px; background: var(--card); }
+.stackbar div { background: var(--c); min-width: 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--ink-2); }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--c); margin-right: 6px; vertical-align: -1px; }
+.rows { display: grid; }
+.rows .r { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.rows .r:last-child { border-bottom: 0; }
+.rows .r.total { font-weight: 700; }
+.rows .r span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.bars { display: grid; gap: 8px; }
+.bar .top { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.bar .track { height: 8px; background: var(--soft); border-radius: 4px; overflow: hidden; margin-top: 3px; }
+.bar .fill { height: 100%; background: var(--s1); border-radius: 0 4px 4px 0; }
+
+details.group { border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+details.group > summary { list-style: none; cursor: pointer; padding: 12px 14px; display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+details.group > summary::-webkit-details-marker { display: none; }
+details.group > summary::before { content: "▸"; color: var(--ink-3); margin-right: 8px; transition: transform .15s; display: inline-block; }
+details.group[open] > summary::before { transform: rotate(90deg); }
+details.group > summary .name { flex: 1; }
+.items { padding: 0 14px 10px; display: grid; gap: 6px; }
+.item { display: grid; grid-template-columns: minmax(0, 1fr) auto 76px; gap: 4px 8px; align-items: center; font-size: 14px; padding: 6px 0; border-top: 1px solid var(--line); }
+.item .edit { display: flex; align-items: center; gap: 6px; }
+.item input { width: 92px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); text-align: right; }
+.item input.changed { border-color: var(--s2); }
+.item .amt { text-align: right; white-space: nowrap; }
+.item .per { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.item .pm { grid-column: 1 / -1; font-size: 12px; color: var(--ink-3); margin-top: -4px; }
+
+nav.tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--card); border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(6, auto); justify-content: space-evenly;
+  padding: 6px max(4px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left));
+}
+nav.tabs a { text-decoration: none; color: var(--ink-3); display: grid; justify-items: center; gap: 2px; font-size: 10.5px; font-weight: 600; padding: 4px 6px; border-radius: 10px; }
+nav.tabs a svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+nav.tabs a[aria-current="page"] { color: var(--accent); background: var(--soft); }
+section[data-view] { display: none; gap: 14px; }
+section[data-view].active { display: grid; }
+.note { font-size: 12px; color: var(--ink-3); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="titles">
+    <h1>Onze financiën</h1>
+    <div class="src" id="srcLabel">Voorbeeldgegevens</div>
+  </div>
+  <button class="btn" id="dataBtn" type="button" aria-expanded="false" aria-controls="dataPanel">Gegevens</button>
+</header>
+
+<main>
+  <div class="banner panel" id="dataPanel">
+    <strong>Gegevens laden</strong>
+    <div class="small muted">De app gebruikt twee bestanden, elk met een eigen knop. Ze worden alleen op dit toestel gelezen en nergens naartoe gestuurd.</div>
+    <div class="filerow">
+      <div><b>1. Financieel overzicht</b><div class="tiny">financieel_overzicht.xlsx: salarissen, bruto-netto, uitgaven, vermogen</div><div class="small" id="stMain"></div></div>
+      <label class="btn primary" for="fileMain">Kiezen</label>
+    </div>
+    <div class="filerow">
+      <div><b>2. Externe data</b><div class="tiny">externe_data.xlsx: cao-afspraken en parameters, en de openbare cijfers als reserve</div><div class="small" id="stExt"></div></div>
+      <label class="btn primary" for="fileExt">Kiezen</label>
+    </div>
+    <div class="filerow">
+      <div><b>3. Openbare cijfers</b><div class="tiny">inflatie, koopkracht en percentielen van CBS, modaal van Wikipedia: haalt de app zelf op bij het openen</div><div class="small" id="stLive"></div></div>
+      <button class="btn" type="button" id="liveBtn">Ververs</button>
+    </div>
+    <input type="file" id="fileMain" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+    <input type="file" id="fileExt" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+    <div class="controls"><button class="btn" type="button" id="forgetBtn">Vergeet gegevens</button></div>
+    <label class="small"><input type="checkbox" id="rememberChk"> Onthoud de gegevens op dit toestel, zodat ik de bestanden niet elke keer hoef te kiezen</label>
+    <div class="small" id="loadMsg" role="status"></div>
+  </div>
+
+  <div class="banner" id="demoBanner">
+    <strong>Kies je bestanden</strong>
+    <div class="small muted">De app bevat zelf geen gegevens. Kies de twee bestanden; ze worden alleen op dit toestel gelezen.</div>
+    <div class="controls"><label class="btn primary" for="fileMain">1. Financieel overzicht</label><label class="btn primary" for="fileExt">2. Externe data</label></div>
+  </div>
+  <div class="banner" id="extBanner" style="display:none">
+    <strong>Er ontbreken gegevens</strong>
+    <div class="small" id="extMsg"></div>
+    <div><label class="btn primary" for="fileExt">Externe data kiezen</label></div>
+  </div>
+
+  <!-- ============ NU ============ -->
+  <section data-view="nu" class="active" aria-label="Hoe staan we ervoor">
+    <div class="tiles" id="kpis"></div>
+    <h2 style="padding:4px 2px 0">Maandbudget</h2>
+    <div class="tiles" id="mTiles"></div>
+    <div class="card">
+      <div class="card-head"><h2>Waar gaat het geld heen?</h2></div>
+      <div class="bars" id="mBars"></div>
+      <div class="note">Per maand, als deel van de totale inkomsten, volgens het tabblad in_uit van de Excel. Jaar-, kwartaal- en weekbedragen zijn omgerekend naar een maand.</div>
+    </div>
+    <h2 style="padding:0 2px">Uitgaven</h2>
+    <div class="bars" id="mGroups" style="gap:10px"></div>
+    <h2 style="padding:0 2px">Inkomsten</h2>
+    <div id="mIncome"></div>
+  </section>
+
+  <!-- ============ NEDERLAND ============ -->
+  <section data-view="nederland" aria-label="Ontwikkelingen in Nederland">
+    <div class="tiny" style="padding:0 2px">Alleen algemene cijfers (CBS, CPB en de cao Nederlandse Universiteiten), zonder gegevens van jullie zelf. Tik op een grafiek voor de waarden per jaar.</div>
+    <div class="card cao-only">
+      <div class="small muted">Cao-verhogingen in de grafieken hieronder:</div>
+      <div class="seg" role="group" aria-label="EJU-verhogingen meetellen">
+        <button type="button" data-eju="1" aria-pressed="true">Incl. EJU-verhogingen</button>
+        <button type="button" data-eju="0" aria-pressed="false">Alleen maandloon</button>
+      </div>
+      <div class="note ejuNote"></div>
+    </div>
+
+    <div class="card" id="nl-perjaar">
+      <div class="card-head"><h2>Inflatie en cao per jaar</h2></div>
+      <div class="controls" id="nl1Chips"></div>
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Periode">
+          <button type="button" data-nrange="10" aria-pressed="true">10 jaar</button>
+          <button type="button" data-nrange="0" aria-pressed="false">Alles</button>
+        </div>
+      </div>
+      <div class="chart" id="nl1Chart"></div>
+      <details class="table"><summary>Toon alle cao-verhogingen</summary><div class="tablewrap" id="nl1Table"></div></details>
+      <div class="note">Tik op een jaar om ook de losse cao-verhogingen met hun datum te zien. Cao-verhoging per jaar volgens de cao Nederlandse Universiteiten, gemeten zoals CBS de inflatie meet: jaargemiddelde tegenover het jaargemiddelde ervoor. Vaste euro-bedragen zijn omgerekend met het modale maandsalaris van <span class="refY">2000</span> (opgehoogd met de cao) als referentie, zoals in het notebook.</div>
+    </div>
+
+    <div class="card" id="nl-cumulatief">
+      <div class="card-head"><h2>Sinds <span class="refY"></span>: cao, inflatie en modaal</h2><span class="tiny">index = 100</span></div>
+      <div class="controls" id="nl2Chips"></div>
+      <div class="chart" id="nl2Chart"></div>
+      <details class="table"><summary>Toon als tabel</summary><div class="tablewrap" id="nl2Table"></div></details>
+      <div class="note">Elke stip is het gemiddelde van dat jaar: prijzen, modaal en cao-loon. 100 = het gemiddelde van <span class="refY">2000</span>. De stijging van de ene stip naar de volgende is de jaarinflatie zoals CBS die opgeeft. De inflatie van <span class="refY">2000</span> zelf is de stijging vanaf 1999 en ligt dus vóór het beginpunt.</div>
+    </div>
+
+    <div class="card" id="nl-reeel">
+      <div class="card-head"><h2>Na inflatie</h2><span class="tiny">index = 100</span></div>
+      <div class="controls" id="nl3Chips"></div>
+      <div class="chart" id="nl3Chart"></div>
+      <div class="note">Boven de 100: meer gestegen dan de prijzen. Per jaar: het jaargemiddelde gedeeld door het prijspeil van datzelfde jaar. Gestreept: de koopkracht volgens CBS (mediaan).</div>
+    </div>
+
+    <div class="card" id="nl-verdeling">
+      <div class="card-head"><h2>Inkomensverdeling in Nederland</h2><span class="tiny">bruto huishoudinkomen</span></div>
+      <div class="controls" id="nl4Chips"></div>
+      <div class="chart" id="nl4Chart"></div>
+      <div class="note">Grijze banden: p10–p90, p20–p80, p30–p70 en p40–p60 van het bruto huishoudinkomen (CBS).</div>
+    </div>
+    <div class="note src-note" style="padding:0 2px"></div>
+  </section>
+
+  <!-- ============ INKOMEN ============ -->
+  <section data-view="inkomen" aria-label="Inkomen">
+    <div class="controls" aria-label="Spring naar">
+      <button type="button" class="chip" data-jump="sec-inkomen">Inkomen</button>
+      <button type="button" class="chip" data-jump="sec-modaal">Modaal</button>
+      <button type="button" class="chip" data-jump="sec-percentiel">Percentielen</button>
+      <button type="button" class="chip" data-jump="sec-koopkracht">Koopkracht</button>
+      <button type="button" class="chip" data-jump="sec-opbouw">Bruto-opbouw</button>
+    </div>
+    <div class="tiny" style="padding:0 2px">Tik op een grafiek of schuif er met je vinger over om per jaar de bedragen te zien. Tik ernaast om ze weer te verbergen.</div>
+    <div class="card" id="sec-inkomen">
+      <div class="card-head"><h2>Inkomen per jaar</h2><span class="tiny">licht = (deels) prognose</span></div>
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Bruto of netto">
+          <button type="button" data-inc-kind="netto" aria-pressed="true">Netto</button>
+          <button type="button" data-inc-kind="bruto" aria-pressed="false">Bruto</button>
+        </div>
+      </div>
+      <div class="controls" id="incChips"></div>
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Periode">
+          <button type="button" data-range="5" aria-pressed="false">5 jaar</button>
+          <button type="button" data-range="10" aria-pressed="false">10 jaar</button>
+          <button type="button" data-range="0" aria-pressed="true">Alles</button>
+        </div>
+      </div>
+      <div class="chart" id="incChart"></div>
+      <details class="table"><summary>Toon als tabel</summary><div class="tablewrap" id="incTable"></div></details>
+    </div>
+
+    <div class="card" id="sec-modaal">
+      <div class="card-head"><h2>Bruto inkomen en modaal</h2><span class="tiny">per jaar</span></div>
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Weergave modaal">
+          <button type="button" data-mod="eur" aria-pressed="true">In euro's</button>
+          <button type="button" data-mod="keer" aria-pressed="false">Keer modaal</button>
+        </div>
+      </div>
+      <div class="controls" id="modChips"></div>
+      <div class="chart" id="modChart"></div>
+      <div class="note">Modaal inkomen volgens het CPB, bruto per jaar inclusief vakantiegeld. Jullie bruto is inclusief vakantiegeld, eindejaarsuitkering en vergoedingen, zoals in het notebook.</div>
+    </div>
+
+    <div class="card" id="sec-percentiel">
+      <div class="card-head"><h2>Inkomenspercentielen</h2><span class="tiny">CBS, bruto huishoudinkomen</span></div>
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Weergave percentielen">
+          <button type="button" data-pctv="eur" aria-pressed="true">In euro's</button>
+          <button type="button" data-pctv="pos" aria-pressed="false">Percentiel</button>
+        </div>
+      </div>
+      <div class="controls" id="pctChips"></div>
+      <div class="chart" id="pctChart"></div>
+      <div class="note" id="pctNote">Grijze banden: p10–p90, p20–p80, p30–p70 en p40–p60 van het bruto huishoudinkomen in Nederland (CBS). Zoals in het notebook worden jullie bruto inkomens, ieder apart en samen, en modaal daartegen afgezet. Onder p10 telt als 5; boven p90 wordt doorgerekend.</div>
+    </div>
+
+    <div class="card" id="sec-koopkracht">
+      <div class="card-head"><h2>Koopkracht van ons netto inkomen</h2><span class="tiny" id="k5Unit">index</span></div>
+      <div class="controls" id="k5Chips"></div>
+      <div class="chart" id="k5Chart"></div>
+      <details class="table"><summary>Toon als tabel</summary><div class="tablewrap" id="k5Table"></div></details>
+      <div class="note">Netto inkomen per jaar gedeeld door het gemiddelde prijspeil van dat jaar, zoals in het notebook. Alleen volledige jaren waarvoor de inflatie bekend is. Gestreept: de koopkracht van de mediane Nederlander volgens CBS, vanaf hetzelfde startjaar.</div>
+    </div>
+    <div class="card" id="sec-opbouw">
+      <div class="card-head"><h2>Waar gaat het bruto inkomen heen?</h2></div>
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Persoon">
+          <button type="button" data-op-who="S" aria-pressed="true">Sander</button>
+          <button type="button" data-op-who="E" aria-pressed="false">Ellen</button>
+          <button type="button" data-op-who="T" aria-pressed="false">Samen</button>
+        </div>
+        <div class="seg" role="group" aria-label="Euro of procent">
+          <button type="button" data-op-unit="eur" aria-pressed="true">€</button>
+          <button type="button" data-op-unit="pct" aria-pressed="false">%</button>
+        </div>
+      </div>
+      <div class="legend" id="opLegend"></div>
+      <div class="chart" id="opChart"></div>
+      <div class="note" id="opNote">Loonheffing = bruto − netto − ouderdomspensioenpremie, dus inclusief de premies voor arbeidsongeschiktheid en AOV (zoals in het notebook). Pensioenpremies uit het tabblad pensioen.</div>
+    </div>
+
+    <div class="note src-note" style="padding:0 2px"></div>
+  </section>
+
+  <!-- ============ CARRIÈRE ============ -->
+  <section data-view="carriere" aria-label="Carrière, cao en inflatie">
+    <div class="controls" aria-label="Spring naar">
+      <button type="button" class="chip" data-jump="sec-cao">Cao en inflatie</button>
+      <button type="button" class="chip" data-jump="sec-reeel">Reëel</button>
+      <button type="button" class="chip" data-jump="sec-fte">Aanstelling</button>
+      <button type="button" class="chip" data-jump="sec-carriere">Carrière</button>
+    </div>
+    <div class="tiny" style="padding:0 2px">Tik op een grafiek of schuif er met je vinger over om per jaar de bedragen te zien. Tik ernaast om ze weer te verbergen.</div>
+    <div class="banner" id="caoBanner" style="display:none">
+      <strong>Cao-gegevens ontbreken</strong>
+      <div class="small muted">Het tabblad <b>cao_NU</b> in externe_data.xlsx is leeg of het bestand is nog niet gekozen. Zonder cao-afspraken zijn alleen de inflatiegrafieken te zien.</div>
+      <div><label class="btn primary" for="fileExt">Externe data kiezen</label></div>
+    </div>
+
+    <div class="card cao-only">
+      <div class="small muted">Cao-verhogingen in de grafieken hieronder:</div>
+      <div class="seg" role="group" aria-label="EJU-verhogingen meetellen">
+        <button type="button" data-eju="1" aria-pressed="true">Incl. EJU-verhogingen</button>
+        <button type="button" data-eju="0" aria-pressed="false">Alleen maandloon</button>
+      </div>
+      <div class="note ejuNote"></div>
+    </div>
+
+    <div class="card cao-only" id="sec-cao">
+      <div class="card-head"><h2>Cao-lonen en inflatie</h2><span class="tiny">index, <span class="refY">2000</span> = 100</span></div>
+      <div class="controls" id="k1Chips"></div>
+      <div class="chart" id="k1Chart"></div>
+      <details class="table"><summary>Toon als tabel</summary><div class="tablewrap" id="k1Table"></div></details>
+      <details class="table"><summary>Toon alle cao-verhogingen</summary><div class="tablewrap" id="k1Moments"></div></details>
+      <div class="note" id="k1Diag"></div>
+      <div class="note">Cumulatieve loonstijging volgens de cao Nederlandse Universiteiten (zonder eindejaarsuitkering), naast de cumulatieve inflatie (CPI, CBS). Vaste euro-bedragen wegen per persoon anders, daarom twee cao-lijnen. Elke stip is het gemiddelde cao-loon of prijspeil van dat jaar. 100 = het gemiddelde van <span class="refY">2000</span>.</div>
+    </div>
+
+
+    <div class="card cao-only" id="sec-reeel">
+      <div class="card-head"><h2>Reële cao-loonontwikkeling</h2><span class="tiny">index, <span class="refY">2000</span> = 100</span></div>
+      <div class="controls" id="k3Chips"></div>
+      <div class="chart" id="k3Chart"></div>
+      <div class="note">Boven de 100: de cao-verhogingen hebben de inflatie sinds <span class="refY">2000</span> meer dan gecompenseerd. Per jaar: gemiddeld cao-loon gedeeld door het gemiddelde prijspeil van dat jaar.</div>
+    </div>
+
+    <div class="card" id="sec-fte">
+      <div class="card-head"><h2>Omvang aanstellingen</h2><span class="tiny">fte</span></div>
+      <div class="controls" id="fteChips"></div>
+      <div class="chart" id="fteChart"></div>
+    </div>
+
+    <div class="card cao-only" id="sec-carriere">
+      <div class="card-head">
+        <h2>Loon per fte: carrière en cao</h2>
+        <div class="seg" role="group" aria-label="Persoon">
+          <button type="button" data-kperson="S" aria-pressed="true">Sander</button>
+          <button type="button" data-kperson="E" aria-pressed="false">Ellen</button>
+        </div>
+      </div>
+      <div class="tiles" id="k4Tiles"></div>
+      <h3>Opbouw maandsalaris per fte</h3>
+      <div class="legend" id="k4Legend"></div>
+      <div class="chart" id="k4Chart"></div>
+      <div class="note">Gemiddeld maandsalaris per fte per jaar (inclusief vaste toelagen, zonder EJU en vakantiegeld), gestapeld: startsalaris, daarbovenop de groei door periodieken, bevorderingen en toelagen (promotie), en daarbovenop de cao-verhogingen. Zoals in het notebook wordt een cao-verhoging pas verwerkt zodra het salaris echt verandert, zodat een te laat uitbetaalde cao-verhoging niet als promotie telt.</div>
+      <h3>Groeifactoren sinds het startjaar</h3>
+      <div class="controls" id="k7Chips"></div>
+      <div class="chart" id="k7Chart"></div>
+      <div class="note">P = promotie-effect, C = cao-effect op het maandloon, E = effect van hogere EJU-percentages. Gestreept: dezelfde loonontwikkeling gecorrigeerd voor inflatie.</div>
+      <h3>Stijging per jaar: promotie en cao</h3>
+      <div class="controls" id="k6Chips"></div>
+      <div class="chart" id="k6Chart"></div>
+      <div class="note">Stijging van het gemiddelde maandloon per fte ten opzichte van het jaar ervoor, gesplitst in promotie en cao, zoals in het notebook. Lichtere staven zijn (deels) prognose.</div>
+    </div>
+
+    <div class="note src-note" style="padding:0 2px"></div>
+  </section>
+
+  <!-- ============ VERMOGEN ============ -->
+  <section data-view="vermogen" aria-label="Vermogen">
+    <div class="controls" aria-label="Spring naar">
+      <button type="button" class="chip" data-jump="sec-wonen">Wonen</button>
+      <button type="button" class="chip" data-jump="sec-sparen">Sparen</button>
+      <button type="button" class="chip" data-jump="sec-inflatie">Inflatie</button>
+      <button type="button" class="chip" data-jump="sec-vermogen">Vermogen</button>
+    </div>
+    <div class="tiny" style="padding:0 2px">Tik op een grafiek of schuif er met je vinger over om per jaar de bedragen te zien. Tik ernaast om ze weer te verbergen.</div>
+    <div class="card" id="sec-wonen">
+      <div class="card-head"><h2>Wonen: WOZ en hypotheek</h2><span class="tiny">per 1 januari</span></div>
+      <div class="controls" id="w1Chips"></div>
+      <div class="chart" id="w1Chart"></div>
+      <h3>Verhoudingen</h3>
+      <div class="controls" id="w2Chips"></div>
+      <div class="chart" id="w2Chart"></div>
+      <div class="note">LTV = hypotheek ÷ WOZ. LTI = hypotheek ÷ bruto inkomen samen. PTI = WOZ ÷ bruto inkomen samen. Inkomen = gemiddelde van dit en vorig jaar, omdat hypotheek en WOZ per 1 januari gelden.</div>
+      <h3>Woonquote</h3>
+      <div class="controls" id="w3Chips"></div>
+      <div class="chart" id="w3Chart"></div>
+      <div class="note">Hypotheekrente + aflossing als deel van het bruto inkomen samen; premies voor de spaarpolis los. <span id="halfNote"></span></div>
+    </div>
+
+    <div class="card" id="sec-sparen">
+      <div class="card-head"><h2>Spaarvermogen per jaar</h2></div>
+      <div class="tiles" id="spTiles"></div>
+      <div class="legend" id="spLegend"></div>
+      <div class="chart" id="spChart"></div>
+      <div class="note">Spaarvermogen = verandering van het spaarsaldo + extra aflossing + investeringen in het huis − incidentele meevallers (giften, erfenis).</div>
+      <h3>Totaal tot en met dit jaar</h3>
+      <div class="bars" id="spTotals"></div>
+      <h3>Spaarquote</h3>
+      <div class="chart" id="sqChart"></div>
+      <div class="note">Spaarvermogen als deel van het netto inkomen samen.</div>
+      <h3>Basisuitgaven</h3>
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Bedragen">
+          <button type="button" data-breal="0" aria-pressed="true">Bedragen van toen</button>
+          <button type="button" data-breal="1" aria-pressed="false">In prijzen van <span id="baseRealY"></span></button>
+        </div>
+      </div>
+      <div class="controls" id="baseChips"></div>
+      <div class="chart" id="baseChart"></div>
+      <div class="note" id="baseNote"></div>
+    </div>
+
+    <div class="card" id="sec-inflatie">
+      <div class="card-head"><h2>Spaargeld en inflatie</h2></div>
+      <div class="tiles" id="infTiles"></div>
+      <div class="field"><div class="lbl"><label for="inf-r">Gemiddelde spaarrente (aanname)</label><output id="inf-r-o"></output></div>
+        <input type="range" id="inf-r" min="0" max="0.04" step="0.0025" value="0.015"></div>
+      <div class="legend" id="infLegend"></div>
+      <div class="chart" id="infChart"></div>
+      <div class="note">Per jaar: wat de inflatie van de koopkracht van het spaargeld (per 1 januari) afhaalt, tegenover wat de spaarrente oplevert. De werkelijke spaarrente staat niet in de Excel; schuif hierboven met de aanname. Box 3-belasting is niet meegenomen. <span id="infDecNote"></span></div>
+    </div>
+
+    <div class="card" id="sec-vermogen">
+      <div class="card-head"><h2>Vermogen per 1 januari</h2><span class="tiny">licht = prognose</span></div>
+      <div class="bars" id="vermNow"></div>
+      <div class="controls" id="vermChips"></div>
+      <div class="chart" id="vermChart"></div>
+      <details class="table"><summary>Toon als tabel</summary><div class="tablewrap" id="vermTable"></div></details>
+      <div class="note">Netto vermogen = WOZ-waarde + spaargeld − hypotheek, alles per 1 januari (zoals in het notebook).</div>
+    </div>
+  </section>
+
+  <!-- ============ REKENEN ============ -->
+  <section data-view="rekenen" aria-label="Rekenen">
+    <div class="seg" role="group" aria-label="Rekenhulp" style="justify-self:start">
+      <button type="button" data-sub="bn" aria-pressed="true">Bruto-netto</button>
+      <button type="button" data-sub="wa" aria-pressed="false">Hypotheek en sparen</button>
+    </div>
+    <div class="sub active" data-subview="bn">
+      <div class="card">
+        <div class="card-head">
+          <h2>Bruto-netto</h2>
+          <div class="seg" role="group" aria-label="Persoon">
+            <button type="button" data-person="S" aria-pressed="true">Sander</button>
+            <button type="button" data-person="E" aria-pressed="false">Ellen</button>
+          </div>
+        </div>
+        <div>
+          <div class="small muted">Netto per maand</div>
+          <div class="big" id="bnNet">–</div>
+          <div class="delta" id="bnDelta"></div>
+        </div>
+        <div class="stackbar" id="bnBar" aria-hidden="true"></div>
+        <div class="legend" id="bnLegend"></div>
+      </div>
+
+      <div class="card" id="bnInputs"></div>
+
+      <div class="card">
+        <h3>Per maand</h3>
+        <div class="rows" id="bnRows"></div>
+      </div>
+      <div class="card">
+        <h3>Per jaar</h3>
+        <div class="rows" id="bnYear"></div>
+        <div class="note" id="bnNote"></div>
+      </div>
+    </div>
+    <div class="sub" data-subview="wa">
+      <div class="tiles" id="wTiles"></div>
+      <div class="card" id="wInputs"></div>
+      <div class="card">
+        <div class="card-head"><h2>Spaargeld en hypotheek</h2><span class="tiny">gestreept = zonder extra aflossing</span></div>
+        <div class="controls" id="wChips"></div>
+        <div class="chart" id="wChart"></div>
+        <details class="table"><summary>Toon als tabel</summary><div class="tablewrap" id="wTable"></div></details>
+        <div class="note" id="wNote"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<nav class="tabs" aria-label="Onderdelen">
+  <a href="#nu" data-tab="nu" aria-current="page"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l6 4"/></svg>Nu</a>
+  <a href="#nederland" data-tab="nederland" aria-label="Nederland"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>NL</a>
+  <a href="#inkomen" data-tab="inkomen"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 16l4-5 4 3 6-8"/></svg>Inkomen</a>
+  <a href="#carriere" data-tab="carriere"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V6M16 20v-8M22 20H2"/><path d="M3 7l6-4 6 5 6-3"/></svg>Carrière</a>
+  <a href="#vermogen" data-tab="vermogen"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>Vermogen</a>
+  <a href="#rekenen" data-tab="rekenen"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2M12 11h2M8 15h2M12 15h2M8 18h8"/></svg>Rekenen</a>
+</nav>
+
+<script>
+"use strict";
+/* ================= helpers ================= */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const EUR0 = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+const EUR2 = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const PCT1 = new Intl.NumberFormat('nl-NL', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const NUM2 = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 2 });
+const eur = v => (v == null || !isFinite(v)) ? '–' : EUR0.format(Math.round(v));
+const eur2 = v => (v == null || !isFinite(v)) ? '–' : EUR2.format(v);
+const signed = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + EUR0.format(Math.abs(Math.round(v))).replace('-', '');
+function compactEur(v) {
+  const a = Math.abs(v), s = v < 0 ? '−' : '';
+  if (a >= 1e6) return s + '€' + NUM2.format(a / 1e6) + ' mln';
+  if (a >= 1e3) return s + '€' + NUM2.format(Math.round(a / 100) / 10) + 'k';
+  return s + '€' + Math.round(a);
+}
+function num(v) {
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  if (typeof v === 'string' && v.trim() !== '' && !isNaN(+v.replace(',', '.'))) return +v.replace(',', '.');
+  return null;
+}
+const lc = v => (typeof v === 'string' ? v.trim().toLowerCase() : '');
+const serialToDate = s => new Date(Date.UTC(1899, 11, 30) + Math.round(s) * 864e5);
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const TODAY = new Date();
+const THIS_YEAR = TODAY.getFullYear();
+
+/* ================= parsers (array-of-arrays per sheet) ================= */
+function parseHist(aoa) {
+  const head = (aoa[0] || []).map(lc);
+  const col = name => head.indexOf(name);
+  const c = {
+    d: col('datum'), sb: col('sander bruto'), sn: col('sander netto'), eb: col('ellen bruto'), en: col('ellen netto'),
+    fs: col('fte_s'), fe: col('fte_e'), ts: col('toelage_s'), te: col('toelage_e'), bs: col('bruto_s'), be: col('bruto_e')
+  };
+  if (c.d < 0) throw new Error('In het tabblad "salaris geschiedenis" ontbreekt de kolom "datum".');
+  const out = [];
+  for (let i = 1; i < aoa.length; i++) {
+    const r = aoa[i] || [];
+    const d = num(r[c.d]);
+    if (d == null || d < 20000) continue;
+    const g = k => (c[k] >= 0 ? num(r[c[k]]) : null);
+    out.push({ d: serialToDate(d).getTime(), sb: g('sb'), sn: g('sn'), eb: g('eb'), en: g('en'), fs: g('fs'), fe: g('fe'), ts: g('ts'), te: g('te'), bs: g('bs'), be: g('be') });
+  }
+  out.sort((a, b) => a.d - b.d);
+  return out;
+}
+
+function vermByYear(aoa) {
+  let h = -1;
+  for (let i = 0; i < Math.min(aoa.length, 10); i++) if (lc((aoa[i] || [])[0]) === 'year') { h = i; break; }
+  if (h < 0) throw new Error('In het tabblad "vermogen IB" vind ik de kopregel met "year" niet.');
+  const head = aoa[h].map(lc);
+  const ci = n => head.indexOf(n);
+  const cols = { woz: ci('woz'), hyp: ci('hypotheek'), spaar: ci('spaargeld'), giften: ci('giften'), extra: ci('extra aflossing'),
+    aflossing: ci('aflossing'), premie: ci('premie'), rente: ci('rente'), invest: ci('investeringen') };
+  const out = [];
+  for (let i = h + 1; i < aoa.length; i++) {
+    const r = aoa[i] || [];
+    const y = num(r[0]);
+    if (y == null || y < 1900 || y > 2200) continue;
+    const o = { year: y };
+    for (const k in cols) o[k] = cols[k] >= 0 ? num(r[cols[k]]) : null;
+    out.push(o);
+  }
+  return out;
+}
+// Align as in the notebook: per 1 January of year n
+// spaargeld (row n, per 1-1 n), hypotheek (row n-1, per 31-12 n-1), WOZ (row n+1, per 1-1 n).
+function alignVerm(raw) {
+  const by = {}; raw.forEach(r => by[r.year] = r);
+  const out = [];
+  for (const r of raw) {
+    const y = r.year, sp = r.spaar, hy = by[y - 1]?.hyp, wz = by[y + 1]?.woz;
+    if (sp == null || hy == null || wz == null) continue;
+    out.push({ year: y, woz: wz, hyp: hy, spaar: sp, net: wz + sp - hy });
+  }
+  return out;
+}
+function parsePensioen(aoa) {
+  const head = (aoa[0] || []).map(lc);
+  const cy = head.indexOf('year'), cs = head.indexOf('op_s'), ce = head.indexOf('op_e');
+  const out = {};
+  if (cy < 0) return out;
+  for (let i = 1; i < aoa.length; i++) {
+    const r = aoa[i] || []; const y = num(r[cy]); if (y == null) continue;
+    out[y] = { S: cs >= 0 ? num(r[cs]) || 0 : 0, E: ce >= 0 ? num(r[ce]) || 0 : 0 };
+  }
+  return out;
+}
+
+const PER = { maand: 1, jaar: 1 / 12, week: 52 / 12, kwartaal: 1 / 3 };
+const isUpper = s => /[A-Z]/.test(s) && s === s.toUpperCase();
+const isTotalRow = (lab, per) => isUpper(lab) && (/^TOTA/.test(lab) || lab === 'SPAREN' || !PER[per]);
+function niceGroup(s) {
+  const t = s.replace(/^TOTAAL\s+/, '').trim().toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+function parseInUit(aoa) {
+  const uit = [], inn = [];
+  let pending = [];
+  for (let i = 1; i < aoa.length; i++) {
+    const r = aoa[i] || [];
+    const lab = typeof r[2] === 'string' ? r[2].trim() : '';
+    if (lab) {
+      if (isTotalRow(lab, lc(r[4]))) {
+        if (pending.length) { const g = niceGroup(lab); pending.forEach(p => { p.group = g; uit.push(p); }); pending = []; }
+      } else {
+        const per = lc(r[4]), amt = num(r[3]);
+        if (PER[per] && amt != null) pending.push({ label: lab, amount: amt, per });
+      }
+    }
+    const il = typeof r[7] === 'string' ? r[7].trim() : '';
+    if (il && !isTotalRow(il, lc(r[9]))) {
+      const per = lc(r[9]), amt = num(r[8]);
+      if (PER[per] && amt != null) inn.push({ label: il, amount: amt, per });
+    }
+  }
+  pending.forEach(p => { p.group = 'Overig'; uit.push(p); });
+  return { uit, inn };
+}
+
+function parseBN(aoa, hist) {
+  const P = {};
+  const S = {}, E = {};
+  let toelageRow = null;
+  for (const r0 of aoa) {
+    const r = r0 || [];
+    const a = lc(r[0]);
+    if (a.startsWith('deeltijdfactor')) { S.f = num(r[2]); E.f = num(r[5]); }
+    else if (a.startsWith('bruto maandloon abp')) { S.grond = num(r[2]); E.grond = num(r[5]); }
+    else if (a.startsWith('extra looncomponent')) { S.extra = num(r[2]); E.extra = num(r[5]); }
+    else if (a.startsWith('actueel bruto loon')) { S.bruto = num(r[2]); E.bruto = num(r[5]); }
+    else if (a.startsWith('actueel netto loon')) { S.excelNet = num(r[2]); E.excelNet = num(r[5]); }
+    else if (a.includes('toelage')) { toelageRow = [num(r[2]), num(r[5])]; }
+    else if (a.startsWith('internetvergoeding')) { S.internet = num(r[2]); E.internet = num(r[5]); }
+    else if (a.startsWith('reiskosten woon-werk')) { S.reis = num(r[1]); E.reis = num(r[4]); }
+    else if (a.startsWith('thuiswerken')) { S.thuis = num(r[1]); E.thuis = num(r[4]); }
+    const h = lc(r[7]);
+    const v = num(r[8]);
+    if (!h) continue;
+    if (h === 'decentrale arbeidsvoorwaarden' && v != null) P.dca = v;
+    else if (h === 'decentrale arbeidsvoorwaarden sport' && v != null) P.dcaSport = v;
+    else if (h.startsWith('franchise keuzepensioen')) { if (v != null) P.frOP = v; if (num(r[10]) != null) P.pOP = num(r[10]); }
+    else if (h.startsWith('franchise arbeidsongeschiktheid')) { if (v != null) P.frAOP = v; if (num(r[10]) != null) P.pAOP = num(r[10]); }
+    else if (h.startsWith('premie aov') && v != null) P.pAOV = v;
+    else if (h.startsWith('1e schijf')) { if (v != null) P.b1 = v; if (num(r[9]) != null) P.r1 = num(r[9]); }
+    else if (h.startsWith('2e schijf')) { if (v != null) P.b2 = v; if (num(r[9]) != null) P.r2 = num(r[9]); }
+    else if (h.startsWith('3e schijf')) { if (num(r[9]) != null) P.r3 = num(r[9]); }
+    else if (h.startsWith('maximale algemene heffingskorting') && v != null) P.ahkMax = v;
+    else if (h.startsWith('start afbouw algemene') && v != null) P.ahkStart = v;
+    else if (h.startsWith('afbouwpercentage algemene') && v != null) P.ahkAfb = v;
+    else if (h.startsWith('maximale arbeidskorting') && v != null) P.akMax = v;
+    else if (h.startsWith('start afbouw arbeidskorting') && v != null) P.akStart = v;
+    else if (h.startsWith('afbouwpercentage arbeidskorting') && v != null) P.akAfb = v;
+    else if (h.startsWith('# kilometers') && v != null) P.km = v;
+    else if (h.startsWith('vergoeding per km') && v != null) P.kmRate = v;
+    else if (h.startsWith('vergoeding per thuiswerkdag') && v != null) P.thuisRate = v;
+  }
+  const last = hist && hist.length ? hist[hist.length - 1] : {};
+  const person = (x, tFallback, tExcel) => {
+    const f = x.f || 1;
+    const bruto = x.bruto ?? 0;
+    return {
+      full: bruto / f, f, grondFull: (x.grond ?? bruto) / f, extra: x.extra ?? 0,
+      toelage: tExcel ?? tFallback ?? 0, reis: x.reis ?? 0, thuis: x.thuis ?? 0, internet: x.internet ?? 0,
+      excelNet: x.excelNet ?? null
+    };
+  };
+  return {
+    P,
+    toelageInExcel: !!toelageRow,
+    S: person(S, last.ts, toelageRow ? toelageRow[0] : null),
+    E: person(E, last.te, toelageRow ? toelageRow[1] : null)
+  };
+}
+
+function parseHyp(aoa) {
+  const out = {};
+  for (const r0 of aoa) {
+    const r = r0 || [];
+    const a = lc(r[1]);
+    if (a.startsWith('hypotheekrente') && out.rente == null) out.rente = num(r[2]);
+    else if (a.startsWith('einddatum') && out.einde == null) { const v = num(r[2]); if (v) out.einde = serialToDate(v).getTime(); }
+  }
+  return out;
+}
+
+/* ================= bruto-netto engine ================= */
+function box1(y, P) {
+  if (y <= 0) return 0;
+  const a = Math.min(y, P.b1) * P.r1;
+  const b = Math.max(0, Math.min(y, P.b2) - P.b1) * P.r2;
+  const c = Math.max(0, y - P.b2) * P.r3;
+  return a + b + c;
+}
+function ahk(y, P) { return y <= P.ahkStart ? P.ahkMax : Math.max(0, P.ahkMax - (y - P.ahkStart) * P.ahkAfb); }
+function ak(y, P) {
+  // opbouw onder de start van de afbouw: stappen uit externe_data.xlsx (parameters)
+  if (y <= 0) return 0;
+  if (y < P.akG1) return P.akP1 * y;
+  if (y < P.akG2) return P.akB2 + P.akP2 * (y - P.akG1);
+  if (y < P.akStart) return Math.min(P.akMax, P.akB3 + P.akP3 * (y - P.akG2));
+  return Math.max(0, P.akMax - (y - P.akStart) * P.akAfb);
+}
+function heffing(y, P) { return Math.max(0, box1(y, P) - ahk(y, P) - ak(y, P)); }
+function calcNet(x, P) {
+  const f = x.f;
+  const bruto = x.full * f;
+  const tP = P.toelPens ?? 1, tV = P.toelVu ?? 1, tE = P.toelEju ?? 0;
+  const jaarABP = x.grondFull * 12 * (1 + P.vu + P.eju) + tP * (x.toelage / f) * 12 * (1 + tV * P.vu + tE * P.eju) + x.extra;
+  const op = Math.max(0, jaarABP - P.frOP) * P.pOP * f / 12;
+  const aaop = Math.max(0, jaarABP - P.frAOP) * P.pAOP * f / 12;
+  const ipap = jaarABP * f * P.pAOV / 12;
+  const premies = op + aaop + ipap;
+  const hlM = bruto + x.toelage - premies;
+  const hlY = hlM * 12;
+  const lhM = heffing(hlY, P) / 12;
+  const verg = x.internet + x.reis * P.km * P.kmRate + x.thuis * P.thuisRate;
+  const netto = hlM - lhM + verg;
+  const vuB = (bruto + tV * x.toelage) * 12 * P.vu;
+  const ejuB = (bruto + tE * x.toelage) * 12 * P.eju;
+  const dcaB = (P.dca + P.dcaSport) * f;
+  const yTot = hlY + vuB + ejuB + dcaB;
+  const marg = (heffing(yTot + 100, P) - heffing(yTot, P)) / 100;
+  const k = 1 - marg;
+  return {
+    bruto, toelage: x.toelage, op, aaop, ipap, premies, hlM, lhM, verg, netto, jaarABP,
+    vuB, ejuB, dcaB, vuN: vuB * k, ejuN: ejuB * k, dcaN: dcaB * k, marg,
+    jaarNet: netto * 12 + (vuB + ejuB + dcaB) * k,
+    jaarBruto: (bruto + x.toelage) * 12 + vuB + ejuB + dcaB + verg * 12
+  };
+}
+
+/* ================= SVG line chart ================= */
+function niceTicks(min, max, n = 5) {
+  if (min === max) { max = min + 1; }
+  const span = max - min, raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw) || 10 * mag;
+  const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step;
+  const out = []; for (let v = lo; v <= hi + step / 2; v += step) out.push(+v.toFixed(6));
+  return out;
+}
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function hideOtherTips(except) { for (const h of document.querySelectorAll('.chart')) if (h !== except && h._hide) h._hide(); }
+document.addEventListener('pointerdown', e => { if (!e.target.closest || !e.target.closest('.chart')) hideOtherTips(null); });
+/* series: [{name, color (css var), points:[{x, y, prog}], dashedAll}] ; opts: {xFmt, tipTitle, yFmt, height, yZero} */
+function lineChart(host, series, opts) {
+  host.innerHTML = '';
+  const W = Math.max(280, host.clientWidth || 320), H = opts.height || 230;
+  const m = { l: 52, r: 12, t: 10, b: 26 };
+  const vis = series.filter(s => s.points.length);
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H, role: 'img', 'aria-label': opts.label || 'grafiek' }, host);
+  const tip = document.createElement('div'); tip.className = 'tip'; host.appendChild(tip);
+  if (!vis.length) {
+    const t = el('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle' }, svg); t.textContent = 'Geen reeks gekozen';
+    return;
+  }
+  const xs = [...new Set(vis.flatMap(s => s.points.map(p => p.x)))].sort((a, b) => a - b);
+  const bands = opts.bands || [];
+  const bandVals = bands.flatMap(b => [...b.lo.values(), ...b.hi.values()]);
+  let yMin = Math.min(...vis.flatMap(s => s.points.map(p => p.y)), ...bandVals);
+  let yMax = Math.max(...vis.flatMap(s => s.points.map(p => p.y)), ...bandVals);
+  if (opts.yZero !== false) yMin = Math.min(0, yMin);
+  if (opts.yMinFix != null) yMin = opts.yMinFix;
+  if (opts.yMaxFix != null) yMax = Math.max(opts.yMaxFix, yMax);
+  const ticks = niceTicks(yMin, yMax);
+  const y0 = ticks[0], y1 = ticks[ticks.length - 1];
+  const xMin = xs[0], xMax = xs[xs.length - 1] === xs[0] ? xs[0] + 1 : xs[xs.length - 1];
+  const X = v => m.l + (v - xMin) / (xMax - xMin) * (W - m.l - m.r);
+  const Y = v => m.t + (1 - (v - y0) / (y1 - y0)) * (H - m.t - m.b);
+  const ink3 = cssVar('--ink-3'), line = cssVar('--line'), card = cssVar('--card');
+  // grid + y labels
+  for (const t of ticks) {
+    el('line', { x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t), stroke: line, 'stroke-width': t === 0 ? 1.2 : 0.7 }, svg);
+    const tx = el('text', { x: m.l - 6, y: Y(t) + 4, 'text-anchor': 'end' }, svg); tx.textContent = (opts.yFmt || compactEur)(t);
+  }
+  // x labels
+  const xt = opts.xTicks ? opts.xTicks(xMin, xMax) : xs;
+  // jaren: verticale hulplijn per jaar, label op ronde jaren (bijv. 2010, 2015, 2020)
+  const yearOf = v => v > 3000 ? new Date(v).getUTCFullYear() : v;
+  const maxLabels = Math.max(2, Math.floor((W - m.l - m.r) / 40));
+  const spanY = xt.length ? yearOf(xt[xt.length - 1]) - yearOf(xt[0]) + 1 : 1;
+  const stepY = [1, 2, 5, 10, 20].find(st => spanY / st <= maxLabels) || 25;
+  xt.forEach(v => {
+    const yv = yearOf(v), major = Number.isInteger(yv) && yv % stepY === 0;
+    el('line', { x1: X(v), x2: X(v), y1: m.t, y2: H - m.b, stroke: line, 'stroke-width': major ? 0.8 : 0.4, opacity: major ? 1 : 0.7 }, svg);
+    if (major) { const tx = el('text', { x: X(v), y: H - 6, 'text-anchor': 'middle' }, svg); tx.textContent = opts.xFmt(v); }
+  });
+  for (const b of bands) {
+    const xsB = [...b.lo.keys()].filter(x => b.hi.has(x) && x >= xMin && x <= xMax).sort((a, c) => a - c);
+    if (xsB.length < 2) continue;
+    const top = xsB.map(x => `${X(x).toFixed(1)},${Y(b.hi.get(x)).toFixed(1)}`), bot = xsB.slice().reverse().map(x => `${X(x).toFixed(1)},${Y(b.lo.get(x)).toFixed(1)}`);
+    el('polygon', { points: top.concat(bot).join(' '), fill: cssVar('--ink-3'), opacity: b.opacity }, svg);
+  }
+  if (opts.refLine != null && opts.refLine >= y0 && opts.refLine <= y1) el('line', { x1: m.l, x2: W - m.r, y1: Y(opts.refLine), y2: Y(opts.refLine), stroke: cssVar('--ink-2'), 'stroke-width': 1 }, svg);
+  // prognosezone: licht vlak vanaf het eerste prognosepunt, met label
+  const progXs = vis.flatMap(s => s.dashedAll ? [] : s.points.filter(p => p.prog).map(p => p.x));
+  if (progXs.length) {
+    const firstX = Math.min(...progXs);
+    const prev = xs.filter(x => x < firstX).pop();
+    const x0p = prev != null ? (X(prev) + X(firstX)) / 2 : X(firstX);
+    el('rect', { x: x0p, y: m.t, width: Math.max(0, W - m.r - x0p), height: H - m.t - m.b, fill: cssVar('--ink-3'), opacity: 0.1 }, svg);
+  }
+  // lines
+  for (const s of vis) {
+    const col = cssVar(s.color);
+    const pts = s.points;
+    const firstProg = pts.findIndex(p => p.prog);
+    const solid = firstProg < 0 ? pts : pts.slice(0, Math.max(1, firstProg));
+    const dashed = firstProg < 0 ? [] : pts.slice(Math.max(0, firstProg - 1));
+    const d = arr => arr.map((p, i) => i ? (opts.step ? `H${X(p.x).toFixed(1)} V${Y(p.y).toFixed(1)}` : `L${X(p.x).toFixed(1)} ${Y(p.y).toFixed(1)}`) : `M${X(p.x).toFixed(1)} ${Y(p.y).toFixed(1)}`).join(' ');
+    if (s.dashedAll) {
+      el('path', { d: d(pts), fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-dasharray': '5 4', 'stroke-linejoin': 'round', opacity: 0.75 }, svg);
+      continue;
+    }
+    if (solid.length > 1 && firstProg !== 0) el('path', { d: d(solid), fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-linejoin': 'round' }, svg);
+    if (dashed.length > 1) el('path', { d: d(dashed), fill: 'none', stroke: col, 'stroke-width': 2, opacity: 0.45, 'stroke-linejoin': 'round' }, svg);
+    const lastActual = firstProg < 0 ? pts[pts.length - 1] : pts[Math.max(0, firstProg - 1)];
+    if (!opts.step && pts.length <= 45) for (const p of pts) el('circle', { cx: X(p.x), cy: Y(p.y), r: 2.4, fill: col, opacity: p.prog ? 0.5 : 1 }, svg);
+    el('circle', { cx: X(lastActual.x), cy: Y(lastActual.y), r: 4, fill: col, stroke: card, 'stroke-width': 2 }, svg);
+  }
+  // hover layer
+  const cross = el('line', { y1: m.t, y2: H - m.b, stroke: ink3, 'stroke-width': 1, 'stroke-dasharray': '3 3', visibility: 'hidden' }, svg);
+  const dots = vis.map(s => el('circle', { r: 4.5, fill: cssVar(s.color), stroke: card, 'stroke-width': 2, visibility: 'hidden' }, svg));
+  const hit = el('rect', { x: m.l, y: 0, width: W - m.l - m.r, height: H, fill: 'transparent' }, svg);
+  const maps = vis.map(s => new Map(s.points.map(p => [p.x, p])));
+  function show(clientX) {
+    const r = svg.getBoundingClientRect();
+    const px = (clientX - r.left) * (W / r.width);
+    const xv = xMin + (px - m.l) / (W - m.l - m.r) * (xMax - xMin);
+    let best = xs[0];
+    for (const v of xs) if (Math.abs(v - xv) < Math.abs(best - xv)) best = v;
+    cross.setAttribute('x1', X(best)); cross.setAttribute('x2', X(best)); cross.setAttribute('visibility', 'visible');
+    let rows = '', anyProg = false;
+    vis.forEach((s, i) => {
+      const p = maps[i].get(best);
+      if (!p) { dots[i].setAttribute('visibility', 'hidden'); return; }
+      if (p.prog) anyProg = true;
+      dots[i].setAttribute('cx', X(p.x)); dots[i].setAttribute('cy', Y(p.y)); dots[i].setAttribute('visibility', 'visible');
+      rows += `<div class="r"><span><i style="--c:var(${s.color})"></i>${esc(s.name)}</span><span>${(opts.tipFmt || eur)(p.y)}</span></div>`;
+    });
+    tip.innerHTML = `<div class="t">${esc(opts.tipTitle(best))}${anyProg ? ' · prognose' : ''}</div>${rows}`;
+    tip.style.display = 'block';
+    const hostW = host.clientWidth, tw = tip.offsetWidth;
+    let left = X(best) * (r.width / W) + 12;
+    if (left + tw > hostW) left = X(best) * (r.width / W) - tw - 12;
+    tip.style.left = Math.max(0, left) + 'px'; tip.style.top = '4px';
+  }
+  function hide() { tip.style.display = 'none'; cross.setAttribute('visibility', 'hidden'); dots.forEach(d => d.setAttribute('visibility', 'hidden')); }
+  let touch = false;
+  hit.addEventListener('pointermove', e => show(e.clientX));
+  hit.addEventListener('pointerdown', e => { touch = e.pointerType !== 'mouse'; hideOtherTips(host); show(e.clientX); });
+  hit.addEventListener('pointerleave', () => { if (!touch) hide(); });
+  host._hide = hide;
+}
+
+/* ================= state ================= */
+let DATA = null;
+const UI = {
+  incKind: 'netto', incMode: 'jaar', range: 0,
+  incOn: { S: true, E: true, T: true },
+  vermOn: { net: true, woz: false, spaar: true, hyp: true },
+  person: 'S', bn: null, bnBase: null,
+  inuitEdits: null,
+  w: null, wOn: { spaar: true, hyp: true }
+};
+const STORE_KEY = 'onze-financien-v4';
+const OLD_KEYS = ['onze-financien-v1', 'onze-financien-v1-cao', 'onze-financien-v2', 'onze-financien-v3'];
+
+/* ================= grafieken ================= */
+function incomeSeries() {
+  const k = UI.incKind === 'netto' ? ['sn', 'en'] : ['sb', 'eb'];
+  const now = TODAY.getTime();
+  let pts = { S: [], E: [], T: [] };
+  if (UI.incMode === 'jaar') {
+    const by = {};
+    for (const r of DATA.hist) {
+      const y = new Date(r.d).getUTCFullYear();
+      const o = by[y] || (by[y] = { S: 0, E: 0, prog: false, n: 0 });
+      o.S += r[k[0]] || 0; o.E += r[k[1]] || 0; o.n++;
+      if (r.d > now) o.prog = true;
+    }
+    for (const y of Object.keys(by).map(Number).sort((a, b) => a - b)) {
+      const o = by[y];
+      if (o.n < 12 && !o.prog) continue; // incomplete year without projection
+      pts.S.push({ x: y, y: o.S, prog: o.prog }); pts.E.push({ x: y, y: o.E, prog: o.prog }); pts.T.push({ x: y, y: o.S + o.E, prog: o.prog });
+    }
+  } else {
+    // average over the last 12 months, so holiday pay (May) and the year-end bonus (Nov/Dec) are spread out
+    const H = DATA.hist.filter(r => r[k[0]] != null || r[k[1]] != null);
+    let sS = 0, sE = 0;
+    H.forEach((r, i) => {
+      sS += r[k[0]] || 0; sE += r[k[1]] || 0;
+      if (i >= 12) { sS -= H[i - 12][k[0]] || 0; sE -= H[i - 12][k[1]] || 0; }
+      if (i < 11) return;
+      const prog = r.d > now, s = sS / 12, e = sE / 12;
+      pts.S.push({ x: r.d, y: s, prog }); pts.E.push({ x: r.d, y: e, prog }); pts.T.push({ x: r.d, y: s + e, prog });
+    });
+  }
+  if (UI.range) {
+    const lastActualYear = THIS_YEAR;
+    const from = UI.incMode === 'jaar' ? lastActualYear - UI.range + 1 : Date.UTC(lastActualYear - UI.range + 1, 0, 1);
+    for (const key in pts) pts[key] = pts[key].filter(p => p.x >= from);
+  }
+  // drop leading zeros for Ellen before she started
+  pts.E = pts.E.filter((p, i, a) => p.y !== 0 || a.slice(0, i).some(q => q.y !== 0));
+  return [
+    { key: 'S', name: 'Sander', color: '--s1', points: UI.incOn.S ? pts.S : [] },
+    { key: 'E', name: 'Ellen', color: '--s2', points: UI.incOn.E ? pts.E : [] },
+    { key: 'T', name: 'Samen', color: '--s3', points: UI.incOn.T ? pts.T : [] }
+  ];
+}
+const MONTHS = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+function renderIncome() {
+  const ser = incomeSeries();
+  const monthly = UI.incMode === 'maand';
+  lineChart($('#incChart'), ser, {
+    label: `${UI.incKind} inkomen ${monthly ? 'per maand' : 'per jaar'}`,
+    xFmt: v => monthly ? String(new Date(v).getUTCFullYear()) : String(v),
+    xTicks: monthly ? (a, b) => { const out = []; for (let y = new Date(a).getUTCFullYear() + 1; y <= new Date(b).getUTCFullYear(); y++) out.push(Date.UTC(y, 0, 1)); return out; } : null,
+    tipTitle: v => monthly ? `${MONTHS[new Date(v).getUTCMonth()]} ${new Date(v).getUTCFullYear()}` : String(v)
+  });
+  chips($('#incChips'), [['S', 'Sander', '--s1'], ['E', 'Ellen', '--s2'], ['T', 'Samen', '--s3']], UI.incOn, renderIncome);
+  // table (always per year for readability)
+  const savedMode = UI.incMode; UI.incMode = 'jaar';
+  const on = UI.incOn; UI.incOn = { S: true, E: true, T: true };
+  const t = incomeSeries(); UI.incMode = savedMode; UI.incOn = on;
+  const rows = t[2].points.map(p => {
+    const s = t[0].points.find(q => q.x === p.x), e = t[1].points.find(q => q.x === p.x);
+    return `<tr><td>${p.x}${p.prog ? '*' : ''}</td><td>${eur(s?.y)}</td><td>${eur(e?.y)}</td><td>${eur(p.y)}</td></tr>`;
+  }).reverse().join('');
+  $('#incTable').innerHTML = `<table><thead><tr><th>Jaar</th><th>Sander</th><th>Ellen</th><th>Samen</th></tr></thead><tbody>${rows}</tbody></table><div class="tiny">${UI.incKind} per jaar · * = (deels) prognose</div>`;
+}
+function renderVerm() {
+  const V = DATA.verm;
+  const prog = y => y > THIS_YEAR;
+  const mk = (k) => V.map(r => ({ x: r.year, y: r[k], prog: prog(r.year) }));
+  const defs = [['net', 'Netto vermogen', '--s1'], ['woz', 'WOZ-waarde', '--s2'], ['spaar', 'Spaargeld', '--s3'], ['hyp', 'Hypotheek', '--s4']];
+  lineChart($('#vermChart'), defs.map(([k, n, c]) => ({ name: n, color: c, points: UI.vermOn[k] ? mk(k) : [] })), {
+    label: 'vermogen per jaar', xFmt: v => String(v), tipTitle: v => `1 jan ${v}`
+  });
+  chips($('#vermChips'), defs, UI.vermOn, renderVerm);
+  // opbouw van de huidige stand, met de WOZ expliciet
+  const cur = V.filter(r => r.year <= THIS_YEAR).pop();
+  if (cur) {
+    // WOZ met peildatum 1-1-Y staat in de beschikking die eind februari Y+1 komt; daarvoor is het een eigen schatting
+    const official = TODAY >= new Date(Date.UTC(cur.year + 1, 2, 1));
+    const prev = V.find(r => r.year === cur.year - 1);
+    const line = (lab, v, sub, bold) => `<div class="bar"><div class="top"><span>${bold ? `<b>${lab}</b>` : lab}${sub ? `<br><span class="tiny">${sub}</span>` : ''}</span><span class="num">${bold ? `<b>${v}</b>` : v}</span></div></div>`;
+    $('#vermNow').innerHTML =
+      line(`WOZ-waarde`, eur(cur.woz), `peildatum 1 jan ${cur.year}${official ? '' : ` · nog geen beschikking, schatting uit de Excel${prev ? `; laatste officiële WOZ ${eur(prev.woz)} (peildatum 1 jan ${prev.year})` : ''}`}`) +
+      line('+ Spaargeld', eur(cur.spaar)) +
+      line('− Hypotheek', eur(cur.hyp)) +
+      line(`= Netto vermogen per 1 jan ${cur.year}`, eur(cur.net), '', true);
+  } else $('#vermNow').innerHTML = '';
+  $('#vermTable').innerHTML = `<table><thead><tr><th>1 jan</th><th>WOZ</th><th>Spaargeld</th><th>Hypotheek</th><th>Netto</th></tr></thead><tbody>${
+    V.slice().reverse().map(r => `<tr><td>${r.year}${prog(r.year) ? '*' : ''}</td><td>${eur(r.woz)}</td><td>${eur(r.spaar)}</td><td>${eur(r.hyp)}</td><td>${eur(r.net)}</td></tr>`).join('')
+  }</tbody></table><div class="tiny">* = prognose</div>`;
+}
+function chips(host, defs, onMap, rerender) {
+  host.innerHTML = '';
+  for (const [k, name, color, dashed] of defs) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.style.setProperty('--c', `var(${color})`);
+    b.setAttribute('aria-pressed', String(!!onMap[k]));
+    b.innerHTML = `<i${dashed ? ' class="dash"' : ''}></i>${esc(name)}`;
+    b.addEventListener('click', () => { onMap[k] = !onMap[k]; rerender(); });
+    host.appendChild(b);
+  }
+}
+function renderKpis() {
+  const S = DATA.bn.S, E = DATA.bn.E;
+  const netNow = (S.excelNet || 0) + (E.excelNet || 0);
+  const m = inuitTotals();
+  const cur = DATA.verm.filter(r => r.year <= THIS_YEAR).pop() || DATA.verm[DATA.verm.length - 1];
+  const wozTxt = cur ? `WOZ ${eur(cur.woz)}${TODAY >= new Date(Date.UTC(cur.year + 1, 2, 1)) ? ' ' : ' (geschat) '}− hypotheek ${eur(cur.hyp)}` : '';
+  const buf = cur && m.uit ? Math.round(cur.spaar / m.uit) : null;
+  $('#kpis').innerHTML = `
+    <div class="tile" style="grid-column:1/-1"><span>Netto salaris per maand</span><b>${eur(netNow)}</b><em>samen, volgens bruto-netto</em></div>
+    <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
+    <div class="tile"><span>Spaargeld</span><b>${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven (vuistregel: 3 à 6)` : ''}</em></div>
+    <div class="tile" style="grid-column:1/-1"><span>Netto vermogen</span><b>${cur ? eur(cur.net) : '–'}</b><em>${cur ? `overwaarde + spaargeld, per 1 jan ${cur.year}` : ''}</em></div>`;
+}
+
+/* ================= bruto-netto view ================= */
+function initBN() {
+  UI.bnBase = { S: { ...DATA.bn.S }, E: { ...DATA.bn.E } };
+  UI.bn = { S: { ...DATA.bn.S }, E: { ...DATA.bn.E } };
+}
+function renderBN() {
+  const P = DATA.bn.P, who = UI.person, x = UI.bn[who], base = UI.bnBase[who];
+  const r = calcNet(x, P), r0 = calcNet(base, P);
+  $('#bnNet').textContent = eur2(r.netto);
+  const d = r.netto - r0.netto;
+  const dEl = $('#bnDelta');
+  if (Math.abs(d) < 0.5) { dEl.textContent = 'Gelijk aan de huidige situatie'; dEl.className = 'delta muted'; }
+  else { dEl.textContent = `${signed(d)} per maand t.o.v. nu`; dEl.className = 'delta ' + (d > 0 ? 'pos' : 'neg'); }
+  const tot = r.bruto + r.toelage + r.verg;
+  const parts = [['Netto', r.netto, '--s1'], ['Pensioen en AOV', r.premies, '--s2'], ['Loonheffing', r.lhM, '--s4']];
+  $('#bnBar').innerHTML = parts.map(([, v, c]) => `<div style="--c:var(${c});flex:${Math.max(v, 0)}"></div>`).join('');
+  $('#bnLegend').innerHTML = parts.map(([n, v, c]) => `<span style="--c:var(${c})">${n} ${PCT1.format(v / tot)}</span>`).join('');
+
+  const rows = [
+    ['Bruto salaris', r.bruto],
+    ['Toelage', r.toelage],
+    ['Pensioen (OP/NP)', -r.op],
+    ['Arbeidsongeschiktheidspensioen', -r.aaop],
+    ['AOV (Loyalis)', -r.ipap],
+    ['Loonheffing', -r.lhM],
+    ['Onbelaste vergoedingen', r.verg]
+  ];
+  $('#bnRows').innerHTML = rows.map(([n, v]) => `<div class="r"><span>${n}</span><span>${eur2(v)}</span></div>`).join('') +
+    `<div class="r total"><span>Netto</span><span>${eur2(r.netto)}</span></div>`;
+  const yrows = [
+    ['Vakantiegeld netto', r.vuN, r.vuN - r0.vuN],
+    ['Eindejaarsuitkering netto', r.ejuN, r.ejuN - r0.ejuN],
+    ['DCA + DCA sport netto', r.dcaN, r.dcaN - r0.dcaN],
+    ['Netto jaarinkomen', r.jaarNet, r.jaarNet - r0.jaarNet]
+  ];
+  $('#bnYear').innerHTML = yrows.map(([n, v, dd], i) => `<div class="r${i === 3 ? ' total' : ''}"><span>${n}</span><span>${eur(v)}${Math.abs(dd) >= 1 ? ` <span class="${dd > 0 ? 'pos' : 'neg'} small">(${signed(dd)})</span>` : ''}</span></div>`).join('') +
+    `<div class="r"><span>Tarief op extra inkomen</span><span>${PCT1.format(r.marg)}</span></div>`;
+  const ex = base.excelNet;
+  const keep = Math.round(100 * (1 - r.marg));
+  let note = `Krijg je € 100 bruto per maand extra, dan houd je daar ongeveer € ${keep} netto van over (de rest is belasting). Telt dat extra loon ook mee voor je pensioen, dan iets minder.`;
+  if (ex != null) {
+    const diff = r0.netto - ex;
+    if (Math.abs(diff) < 1) note += ` Het netto klopt met de Excel (${eur2(ex)}).`;
+    else {
+      note += ` Let op: de Excel geeft ${eur2(ex)} netto, de app ${eur2(r0.netto)}.`;
+      const tEff = r0.netto - calcNet({ ...base, toelage: 0 }, P).netto;
+      if (base.toelage && Math.abs(diff - tEff) < 1) note += ` Dat verschil is precies de toelage van ${eur(base.toelage)}: de app rekent die al mee, de Excel nog niet.`;
+    }
+  }
+  $('#bnNote').textContent = note;
+}
+function bnInputsHTML() {
+  const x = UI.bn[UI.person], b = UI.bnBase[UI.person];
+  const lo = Math.round(b.full * 0.7 / 50) * 50, hi = Math.round(b.full * 1.4 / 50) * 50;
+  const f = (id, label, min, max, step, val, fmt) =>
+    `<div class="field"><div class="lbl"><label for="${id}">${label}</label><output id="${id}-o">${fmt(val)}</output></div>
+     <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"></div>`;
+  return `<div class="card-head"><h3>Wat als…</h3><button class="btn" type="button" id="bnReset">Herstel</button></div>
+    ${f('in-full', 'Maandsalaris bij voltijd', lo, hi, 5, Math.round(x.full), v => eur(v))}
+    ${f('in-f', 'Aanstelling (fte)', 0.5, 1, 0.01, x.f, v => NUM2.format(v))}
+    ${f('in-toel', 'Vaste toelage per maand', 0, 1000, 10, x.toelage, v => eur(v))}
+    ${f('in-reis', 'Reisdagen per maand', 0, 23, 1, x.reis, v => String(v))}
+    ${f('in-thuis', 'Thuiswerkdagen per maand', 0, 23, 1, x.thuis, v => String(v))}
+    <div class="note">De toelage telt mee voor pensioen en vakantiegeld, niet voor de eindejaarsuitkering. De ABP-premie gebruikt het salaris per 1 januari; schuif je het salaris, dan schuift die mee.</div>`;
+}
+function renderBNInputs() {
+  $('#bnInputs').innerHTML = bnInputsHTML();
+  const x = UI.bn[UI.person], b = UI.bnBase[UI.person];
+  const bind = (id, apply, fmt) => {
+    const inp = $('#' + id), out = $('#' + id + '-o');
+    inp.addEventListener('input', () => { const v = +inp.value; apply(v); out.textContent = fmt(v); renderBN(); });
+  };
+  bind('in-full', v => { x.grondFull = b.grondFull * (v / b.full); x.full = v; }, eur);
+  bind('in-f', v => { x.f = v; }, v => NUM2.format(v));
+  bind('in-toel', v => { x.toelage = v; }, eur);
+  bind('in-reis', v => { x.reis = v; }, String);
+  bind('in-thuis', v => { x.thuis = v; }, String);
+  $('#bnReset').addEventListener('click', () => { UI.bn[UI.person] = { ...UI.bnBase[UI.person] }; renderBNInputs(); renderBN(); });
+}
+
+/* ================= maand view ================= */
+function initInUit() {
+  UI.inuitEdits = {
+    uit: DATA.inuit.uit.map(i => ({ ...i, orig: i.amount })),
+    inn: DATA.inuit.inn.map(i => ({ ...i, orig: i.amount }))
+  };
+}
+function inuitTotals() {
+  const E = UI.inuitEdits || { uit: [], inn: [] };
+  const uit = E.uit.reduce((s, i) => s + i.amount * PER[i.per], 0);
+  const inn = E.inn.reduce((s, i) => s + i.amount * PER[i.per], 0);
+  return { uit, in: inn, spaar: inn - uit };
+}
+function renderMaandSummary() {
+  const t = inuitTotals();
+  const o = DATA.inuit;
+  const orig = {
+    uit: o.uit.reduce((s, i) => s + i.amount * PER[i.per], 0),
+    in: o.inn.reduce((s, i) => s + i.amount * PER[i.per], 0)
+  };
+  const dS = t.spaar - (orig.in - orig.uit);
+  $('#mTiles').innerHTML = `
+    <div class="tile" style="grid-column:1/-1"><span>Inkomsten per maand</span><b>${eur(t.in)}</b><em>gemiddeld, incl. vakantiegeld e.d.</em></div>
+    <div class="tile"><span>Uitgaven</span><b>${eur(t.uit)}</b><em>${PCT1.format(t.in ? t.uit / t.in : 0)} van de inkomsten</em></div>
+    <div class="tile"><span>Sparen</span><b>${eur(t.spaar)}</b><em>${PCT1.format(t.in ? t.spaar / t.in : 0)} van de inkomsten, ${eur(t.spaar * 12)} per jaar</em></div>`;
+  const groups = {};
+  for (const i of UI.inuitEdits.uit) groups[i.group] = (groups[i.group] || 0) + i.amount * PER[i.per];
+  const list = Object.entries(groups).sort((a, b) => b[1] - a[1]);
+  list.push(['Sparen', t.spaar]);
+  const max = Math.max(...list.map(g => g[1]), 1);
+  $('#mBars').innerHTML = list.map(([g, v]) => `<div class="bar"><div class="top"><span>${esc(g)}</span><span class="num">${eur(v)} · ${PCT1.format(t.in ? v / t.in : 0)}</span></div>
+    <div class="track"><div class="fill" style="width:${Math.max(0, v) / max * 100}%;${g === 'Sparen' ? 'background:var(--s3)' : ''}"></div></div></div>`).join('');
+  // update group totals in place
+  for (const s of $$('#mGroups summary [data-gtotal]')) {
+    const g = s.dataset.gtotal; s.textContent = eur(groups[g] || 0);
+  }
+  renderKpis();
+}
+function itemRow(item, idx, kind) {
+  const pm = item.amount * PER[item.per];
+  return `<div class="item"><span>${esc(item.label)}</span>
+    <span class="amt num">${eur2(item.amount)}</span><span class="per">per ${item.per}</span>
+    ${item.per !== 'maand' ? `<span class="pm" id="pm-${kind}-${idx}">${eur2(pm)} per maand</span>` : ''}</div>`;
+}
+function renderMaand() {
+  const E = UI.inuitEdits;
+  const order = [];
+  E.uit.forEach((i, idx) => { if (!order.includes(i.group)) order.push(i.group); });
+  $('#mGroups').innerHTML = order.map(g => {
+    const items = E.uit.map((i, idx) => [i, idx]).filter(([i]) => i.group === g);
+    return `<details class="group"><summary><span class="name">${esc(g)}</span><span class="num" data-gtotal="${esc(g)}"></span></summary>
+      <div class="items">${items.map(([i, idx]) => itemRow(i, idx, 'uit')).join('')}</div></details>`;
+  }).join('');
+  $('#mIncome').innerHTML = `<details class="group" open><summary><span class="name">Inkomsten</span><span class="num" id="inTotal"></span></summary>
+    <div class="items">${E.inn.map((i, idx) => itemRow(i, idx, 'inn')).join('')}</div></details>`;
+  for (const inp of $$('#mGroups input, #mIncome input')) {
+    inp.addEventListener('input', () => {
+      const it = E[inp.dataset.kind][+inp.dataset.idx];
+      const v = num(inp.value);
+      it.amount = v == null ? 0 : v;
+      inp.classList.toggle('changed', it.amount !== it.orig);
+      const pm = $(`#pm-${inp.dataset.kind}-${inp.dataset.idx}`);
+      if (pm) pm.textContent = eur2(it.amount * PER[it.per]) + ' per maand';
+      renderMaandSummary(); $('#inTotal').textContent = eur(inuitTotals().in);
+      if (UI.w) { UI.w.sparen = Math.round(inuitTotals().spaar / 100) * 100; }
+    });
+  }
+  renderMaandSummary();
+  $('#inTotal').textContent = eur(inuitTotals().in);
+}
+
+/* ================= wat-als ================= */
+function initW() {
+  const V = DATA.verm;
+  const start = V[V.length - 1] || { year: THIS_YEAR, hyp: 0, spaar: 0, woz: 0 };
+  const sp = Math.max(0, Math.round(inuitTotals().spaar / 100) * 100);
+  const rawStart = (DATA.vermRaw || []).find(r => r.year === start.year);
+  UI.w = { year: start.year, hyp0: start.hyp, spaar0: start.spaar, woz0: start.woz, wozF0: rawStart?.woz ?? start.woz / 1.03, sparen: sp, sparenBase: sp, extra: 0, spRente: 0.015, wozGroei: 0.03, rente: DATA.hyp.rente ?? 0.033, einde: DATA.hyp.einde ?? Date.UTC(start.year + 20, 0, 1) };
+}
+// Fiscale parameters (eigen woning en box 3) komen uit externe_data.xlsx, zie applyExt()
+const hillenPct = y => Math.max(0, TAX.hillen - TAX.hillenStep * Math.max(0, y - TAX.year));
+// belasting over de eigen woning (forfait minus rente, met Hillen-aftrek en aftrek tegen maximaal schijf 2)
+function ewTax(R, F, y) {
+  const P = DATA.bn.P, top = P.r3, cap = P.r2;
+  return R >= F ? F * top - R * cap : (1 - hillenPct(y)) * (F - R) * top + R * (top - cap);
+}
+const box3Tax = (S, spRente) => Math.max(0, S - TAX.b3free) * Math.min(spRente, TAX.b3bank) * TAX.b3rate;
+function simulate(w, extra, ewTax0) {
+  const r = w.rente / 12, s = w.spRente / 12;
+  const endY = new Date(w.einde).getUTCFullYear(), endM = new Date(w.einde).getUTCMonth();
+  let n = Math.max(1, (endY - w.year) * 12 + endM);
+  let H = w.hyp0, S = w.spaar0, W = w.woz0, Wf = w.wozF0 ?? W;
+  const ann = (H, n) => H <= 0 ? 0 : (r === 0 ? H / n : H * r / (1 - Math.pow(1 + r, -n)));
+  let A = ann(H, n); const A0 = A;
+  let renteTot = 0, taxTot = 0, vrijJaar = H <= 0 ? w.year : null, first = null;
+  const horizon = Math.max(endY + 1, w.year + 12);
+  const out = [{ year: w.year, hyp: H, spaar: S, woz: W, net: W + S - H }];
+  for (let y = w.year; y < horizon; y++) {
+    if (extra > 0 && H > 0) { const e = Math.min(extra, H, Math.max(0, S)); H -= e; S -= e; if (H < 0.5) { H = 0; if (vrijJaar == null) vrijJaar = y; } A = ann(H, n); }
+    const b3 = box3Tax(S, w.spRente), F = Wf * TAX.ewf; // forfait over de WOZ met peildatum 1 jan vorig jaar
+    let R = 0;
+    for (let mo = 0; mo < 12; mo++) {
+      if (H > 0) {
+        const int = H * r; renteTot += int; R += int;
+        const af = Math.min(H, A - int); H -= af; n = Math.max(1, n - 1);
+        if (H < 0.5) { H = 0; if (vrijJaar == null) vrijJaar = y; }
+      }
+      const payNow = H > 0 ? A : 0;
+      S = S * (1 + s) + w.sparen + (A0 - payNow);
+    }
+    const ew = ewTax(R, F, y);
+    if (first == null) first = ew;
+    // het maandbudget bevat de huidige belasting op de woning al; alleen de verandering daarvan telt
+    const tax = (ew - (ewTax0 ?? first)) + b3;
+    S -= tax; taxTot += tax;
+    Wf = W; W *= 1 + w.wozGroei;
+    out.push({ year: y + 1, hyp: H, spaar: S, woz: W, net: W + S - H });
+  }
+  return { rows: out, renteTot, taxTot, vrijJaar, A0, ew0: first };
+}
+function renderWInputs() {
+  const w = UI.w;
+  const maxExtra = Math.max(10000, Math.ceil(w.hyp0 / 1000) * 1000);
+  const f = (id, label, min, max, step, val, fmt) =>
+    `<div class="field"><div class="lbl"><label for="${id}">${label}</label><output id="${id}-o">${fmt(val)}</output></div>
+     <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"></div>`;
+  $('#wInputs').innerHTML = `<div class="card-head"><h3>Wat als we…</h3><button class="btn" type="button" id="wReset">Herstel</button></div>
+    ${f('w-extra', 'Extra aflossen per jaar', 0, maxExtra, 1000, w.extra, eur)}
+    ${f('w-sparen', 'Sparen per maand', 0, Math.max(10000, w.sparenBase * 2), 100, w.sparen, eur)}
+    ${f('w-sprente', 'Rente op spaargeld', 0, 0.05, 0.001, w.spRente, v => PCT1.format(v))}
+    ${f('w-woz', 'Stijging WOZ-waarde per jaar', 0, 0.08, 0.005, w.wozGroei, v => PCT1.format(v))}
+    <div class="note">Start per 1 januari ${w.year}: hypotheek ${eur(w.hyp0)}, spaargeld ${eur(w.spaar0)}, hypotheekrente ${PCT1.format(w.rente)} tot ${MONTHS[new Date(w.einde).getUTCMonth()]} ${new Date(w.einde).getUTCFullYear()}.</div>`;
+  const bind = (id, key, fmt) => { const i = $('#' + id); i.addEventListener('input', () => { w[key] = +i.value; $('#' + id + '-o').textContent = fmt(+i.value); renderW(); }); };
+  bind('w-extra', 'extra', eur); bind('w-sparen', 'sparen', eur);
+  bind('w-sprente', 'spRente', v => PCT1.format(v)); bind('w-woz', 'wozGroei', v => PCT1.format(v));
+  $('#wReset').addEventListener('click', () => { initW(); renderWInputs(); renderW(); });
+}
+function renderW() {
+  const w = UI.w;
+  if (!TAX) { $('#wTiles').innerHTML = ''; $('#wChart').innerHTML = ''; $('#wTable').innerHTML = ''; $('#wNote').textContent = 'Voor deze berekening zijn de belastingparameters uit externe_data.xlsx nodig (eigenwoningforfait, Wet Hillen en box 3).'; return; }
+  const base = simulate(w, 0), sc = simulate(w, w.extra, base.ew0);
+  // netto rendement per extra euro, in het eerste jaar
+  const P = DATA.bn.P, F0 = (w.wozF0 ?? w.woz0) * TAX.ewf, R0 = w.hyp0 * w.rente, h0 = hillenPct(w.year);
+  const lost = R0 >= F0 ? P.r2 : Math.max(0, (1 - h0) * P.r3 - (P.r3 - P.r2));
+  const aflosNet = w.rente * (1 - lost);
+  const spaarNet = w.spRente - TAX.b3rate * Math.min(w.spRente, TAX.b3bank);
+  const endB = base.rows[base.rows.length - 1], endS = sc.rows[sc.rows.length - 1];
+  const dNet = endS.net - endB.net, dRente = base.renteTot - sc.renteTot;
+  $('#wTiles').innerHTML = `
+    <div class="tile"><span>Aflossen levert netto</span><b>${PCT1.format(aflosNet)}</b><em>rente ${PCT1.format(w.rente)} min ${PCT1.format(w.rente * lost)} minder belastingvoordeel</em></div>
+    <div class="tile"><span>Sparen levert netto</span><b>${PCT1.format(spaarNet)}</b><em>spaarrente ${PCT1.format(w.spRente)} min box 3 ${PCT1.format(w.spRente - spaarNet)}</em></div>
+    <div class="tile"><span>Hypotheek afgelost</span><b>${sc.vrijJaar ?? '–'}</b><em>${w.extra ? `zonder extra: ${base.vrijJaar ?? '–'}` : 'volgens schema'}</em></div>
+    <div class="tile"><span>Rente bespaard</span><b>${eur(dRente)}</b><em>totaal t.o.v. geen extra aflossing</em></div>
+    <div class="tile"><span>Spaargeld 1 jan ${endS.year}</span><b>${eur(endS.spaar)}</b><em>${w.extra ? `zonder extra: ${eur(endB.spaar)}` : '&nbsp;'}</em></div>
+    <div class="tile"><span>Netto vermogen ${endS.year}</span><b>${eur(endS.net)}</b><em>${w.extra ? `<span class="${dNet >= 0 ? 'pos' : 'neg'}">${signed(dNet)}</span> door extra aflossen` : 'incl. WOZ-waarde'}</em></div>`;
+  const pts = (rows, k) => rows.map(r => ({ x: r.year, y: r[k] }));
+  const ser = [];
+  if (UI.wOn.spaar) { ser.push({ name: 'Spaargeld', color: '--s3', points: pts(sc.rows, 'spaar') }); if (w.extra) ser.push({ name: 'Spaargeld (zonder extra)', color: '--s3', points: pts(base.rows, 'spaar'), dashedAll: true }); }
+  if (UI.wOn.hyp) { ser.push({ name: 'Hypotheek', color: '--s4', points: pts(sc.rows, 'hyp') }); if (w.extra) ser.push({ name: 'Hypotheek (zonder extra)', color: '--s4', points: pts(base.rows, 'hyp'), dashedAll: true }); }
+  lineChart($('#wChart'), ser, { label: 'spaargeld en hypotheek', xFmt: v => String(v), tipTitle: v => `1 jan ${v}` });
+  chips($('#wChips'), [['spaar', 'Spaargeld', '--s3'], ['hyp', 'Hypotheek', '--s4']], UI.wOn, renderW);
+  $('#wTable').innerHTML = `<table><thead><tr><th>1 jan</th><th>Hypotheek</th><th>Spaargeld</th><th>Netto vermogen</th></tr></thead><tbody>${
+    sc.rows.map(r => `<tr><td>${r.year}</td><td>${eur(r.hyp)}</td><td>${eur(r.spaar)}</td><td>${eur(r.net)}</td></tr>`).join('')}</tbody></table>`;
+  $('#wNote').textContent = `Met belasting volgens de parameters uit externe_data.xlsx (belastingjaar ${TAX.year}): eigenwoningforfait ${NUM2.format(TAX.ewf * 100)}% van de WOZ, Wet Hillen ${PCT1.format(hillenPct(w.year))} in ${w.year} (daarna jaarlijks ${NUM2.format(TAX.hillenStep * 100)} procentpunt minder), renteaftrek tegen maximaal ${PCT1.format(P.r2)}, het forfait belast tegen ${PCT1.format(P.r3)}. Box 3: ${PCT1.format(TAX.b3rate)} over maximaal ${NUM2.format(TAX.b3bank * 100)}% rendement op spaargeld boven ${eur(TAX.b3free)}. Het maandbudget bevat de huidige belasting op de woning al; de berekening telt alleen de verandering. Toekomstige wetswijzigingen en inflatie zitten er niet in. Kijk bij je hypotheekverstrekker hoeveel je per jaar boetevrij mag aflossen.`;
+}
+
+/* ================= cao, inflatie en koopkracht ================= */
+// Alle externe cijfers komen uit externe_data.xlsx (zie applyExt); de app bevat zelf geen cijfers.
+let EXT = null;          // { fileName, loadedAt, cpi, modaal, pct, params, cao }
+let CPI = {}, CPI_LAST = null, MODAAL = {}, PCT = {}, TAX = null, CPI_DEC = {}, KK = {};
+let REF_Y = 2000, REF_SAMEN = null, HALFJAAR = null;
+// Eén afspraak voor alle grafieken: elk jaar is één punt (het jaargemiddelde),
+// en 100 = het gemiddelde van het referentiejaar.
+// Prijspeil = jaargemiddelde. De CBS-jaarmutatie is precies de stijging van dat jaargemiddelde,
+// dus de inflatie van het referentiejaar zelf (stijging t.o.v. het jaar ervoor) valt vóór het beginpunt.
+function priceIdx(Y) { if (Y < REF_Y) return null; let v = 100; for (let y = REF_Y + 1; y <= Y; y++) { if (CPI[y] == null) return null; v *= 1 + CPI[y] / 100; } return v; }
+const cpiYear = priceIdx;
+// jaargemiddelde van een cao-pad: gemiddelde van de stand aan het eind van elke maand (zoals het notebook)
+function caoAvg(path, Y) { let s = 0; for (let m = 0; m < 12; m++) s += caoAt(path, Date.UTC(Y, m + 1, 0)); return s / 12; }
+// cao-pad herschalen zodat het gemiddelde van het referentiejaar 100 is
+function caoNorm(path) { if (!path) return path; const n = caoAvg(path, REF_Y) / 100; return path.map(p => ({ ...p, y: p.y / n })); }
+// jaarwaarden als treden: punt op 1 januari van elk jaar, plus een slotpunt op 31 december van het laatste jaar
+// losse cao-verhogingen uit een pad: datum, effectieve stijging en de afspraak zelf
+function caoMoments(path) {
+  const o = []; if (!path) return o;
+  for (let i = 1; i < path.length; i++) if (path[i].ev) o.push({ d: path[i].x, pct: path[i].y / path[i - 1].y - 1, ev: path[i].ev, prog: path[i].prog });
+  return o;
+}
+const fmtDate = t => { const d = new Date(t); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+const caoDeal = e => [e.perc ? PCT1.format(e.perc) : '', e.amount ? eur(e.amount) : ''].filter(Boolean).join(' + ') + (e.type === 'eju_percent' ? ' (EJU)' : '');
+// cao als jaargemiddelden, t/m het laatste jaar met afspraken
+function caoYearly(path) {
+  if (!path) return [];
+  const lastY = Math.max(THIS_YEAR, new Date(path[path.length - 1].x).getUTCFullYear());
+  const o = []; for (let y = REF_Y; y <= lastY; y++) o.push({ x: y, y: caoAvg(path, y), prog: y > THIS_YEAR });
+  return o;
+}
+// cumulatieve CBS-koopkracht (mediaan), referentiejaar = 100
+function kkIdx(Y) { if (Y < REF_Y) return null; let v = 100; for (let y = REF_Y + 1; y <= Y; y++) { if (KK[y] == null) return null; v *= 1 + KK[y] / 100; } return v; }
+function kkSeries(base) { const o = []; const b = kkIdx(base); if (!b) return o; for (let y = base; KK[y] != null || y === base; y++) { const v = kkIdx(y); if (v == null) break; o.push({ x: y, y: v / b * 100 }); } return o; }
+const avgTitle = y => `gemiddelde ${y}`;
+
+
+let CAO_FILE = null; // {events, fileName}: tabblad cao_NU uit externe_data.xlsx
+function parseCao(aoa) {
+  const head = (aoa[0] || []).map(lc);
+  const cd = head.indexOf('date'), cp = head.indexOf('perc'), ca = head.indexOf('amount'), ct = head.indexOf('type');
+  if (cd < 0 || cp < 0) return null;
+  const out = [];
+  for (let i = 1; i < aoa.length; i++) {
+    const r = aoa[i] || [];
+    let d = r[cd];
+    if (typeof d === 'number') d = serialToDate(d).getTime();
+    else if (typeof d === 'string' && !isNaN(Date.parse(d))) d = Date.parse(d);
+    else if (d instanceof Date) d = d.getTime();
+    else continue;
+    out.push({ d, perc: num(r[cp]) || 0, amount: ca >= 0 ? (num(r[ca]) || 0) : 0, type: ct >= 0 && r[ct] ? String(r[ct]).trim() : 'base_raise' });
+  }
+  return out.sort((a, b) => a.d - b.d);
+}
+function caoEvents(inclEju) {
+  const ev = CAO_FILE ? CAO_FILE.events : null;
+  return ev ? ev.filter(e => inclEju || e.type !== 'eju_percent') : null;
+}
+function basePerFte(r, who) {
+  const b = who === 'S' ? r.bs : r.be, f = who === 'S' ? r.fs : r.fe, t = (who === 'S' ? r.ts : r.te) || 0;
+  return b != null && f ? b / f + t : null;
+}
+// personal cumulative cao index (1 Jan 2000 = 100), fixed amounts weighed with the salary per fte just before the event
+const CAO_DIAG = {};
+function caoStep(c, e) { if (e.type === 'eju_percent') c.f *= 1 + e.perc; else c.m = c.m * (1 + e.perc) + e.amount; }
+function caoPath(who, inclEju) {
+  const ev = caoEvents(inclEju); if (!ev) return null;
+  const ref = Date.UTC(REF_Y, 0, 1);
+  CAO_DIAG[who] = [];
+  // zoals het notebook: het startsalaris wordt teruggerekend vanaf het loon per fte vlak voor het eerste vaste bedrag
+  const firstAmt = ev.filter(e => e.amount).map(e => e.d).sort((a, b) => a - b)[0];
+  let start = 1;
+  if (firstAmt != null) {
+    // alleen maandloonverhogingen: het anker is een maandloon, zonder EJU
+    let pre = 1; for (const e of ev) if (e.d >= ref && e.d < firstAmt && e.type !== 'eju_percent') pre *= 1 + e.perc;
+    let anchor = null; for (const r of DATA.hist) { if (r.d >= firstAmt) break; const b = basePerFte(r, who); if (b) anchor = b; }
+    if (anchor) start = anchor / pre;
+  }
+  // maandloon m en EJU-factor f apart: een vast bedrag telt op het maandloon, EJU vermenigvuldigt het jaarinkomen
+  const c = { m: start, f: 1 };
+  for (const e of ev) if (e.d >= ref && e.d <= ref) caoStep(c, e); // afspraken op de referentiedatum zelf vormen de basis
+  const base = c.m * c.f;
+  const pts = [{ x: ref, y: 100, prog: false }];
+  for (const e of ev) {
+    if (e.d <= ref) continue;
+    const before = c.m;
+    caoStep(c, e);
+    if (e.amount) CAO_DIAG[who].push({ d: e.d, amount: e.amount, base: before });
+    pts.push({ x: e.d, y: c.m * c.f / base * 100, prog: e.d > TODAY.getTime(), ev: e });
+  }
+  const last = pts[pts.length - 1];
+  if (last.x < TODAY.getTime()) pts.push({ x: TODAY.getTime(), y: last.y, prog: false });
+  return pts;
+}
+const caoAt = (path, t) => { let v = path[0].y; for (const p of path) { if (p.x <= t) v = p.y; else break; } return v; };
+
+/* bar chart; opts: {stack, fmt (tooltip), yFmt (axis), tipExtra(cat), progCat(cat), height, label} */
+function barChart(host, cats, series, opts) {
+  host.innerHTML = '';
+  const W = Math.max(280, host.clientWidth || 320), H = opts.height || 220;
+  const fmt = opts.fmt || (v => NUM2.format(v) + '%'), yFmt = opts.yFmt || (v => NUM2.format(v) + '%');
+  const m = { l: opts.yFmt ? 52 : 40, r: 8, t: 10, b: 26 };
+  const vis = series.filter(s => s.on);
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H, role: 'img', 'aria-label': opts.label || 'staafgrafiek' }, host);
+  const tip = document.createElement('div'); tip.className = 'tip'; host.appendChild(tip);
+  let lo = 0, hi = 0;
+  for (const c of cats) {
+    if (opts.stack) {
+      let p = 0, n = 0; for (const s of vis) { const v = s.values[c]; if (v == null) continue; if (v >= 0) p += v; else n += v; }
+      hi = Math.max(hi, p); lo = Math.min(lo, n);
+    } else for (const s of vis) { const v = s.values[c]; if (v != null) { hi = Math.max(hi, v); lo = Math.min(lo, v); } }
+  }
+  const ticks = niceTicks(lo, hi || 1, 4);
+  const y0 = ticks[0], y1 = ticks[ticks.length - 1];
+  const Y = v => m.t + (1 - (v - y0) / (y1 - y0)) * (H - m.t - m.b);
+  const line = cssVar('--line'), card = cssVar('--card');
+  for (const t of ticks) {
+    el('line', { x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t), stroke: line, 'stroke-width': t === 0 ? 1.2 : 0.7 }, svg);
+    const tx = el('text', { x: m.l - 6, y: Y(t) + 4, 'text-anchor': 'end' }, svg); tx.textContent = yFmt(t);
+  }
+  const band = (W - m.l - m.r) / Math.max(1, cats.length);
+  const inner = Math.max(2, band * 0.8), gap = vis.length > 1 && !opts.stack ? 1.5 : 0;
+  const bw = opts.stack ? inner : Math.max(1.5, (inner - gap * (vis.length - 1)) / Math.max(1, vis.length));
+  const maxLabels = Math.max(2, Math.floor((W - m.l - m.r) / 40)), stepL = Math.ceil(cats.length / maxLabels);
+  const stepYb = [1, 2, 5, 10, 20].find(st => cats.length / st <= maxLabels) || 25;
+  cats.forEach((c, i) => {
+    const x0 = m.l + i * band + (band - inner) / 2;
+    const op = opts.progCat && opts.progCat(c) ? 0.45 : 1;
+    let pos = 0, neg = 0;
+    vis.forEach((s, j) => {
+      const v = s.values[c]; if (v == null || v === 0) return;
+      let a, b;
+      if (opts.stack) { if (v >= 0) { a = pos; b = pos + v; pos = b; } else { a = neg + v; b = neg; neg = a; } }
+      else { a = Math.min(0, v); b = Math.max(0, v); }
+      const yTop = Y(b), yBot = Y(a);
+      el('rect', { x: opts.stack ? x0 : x0 + j * (bw + gap), y: yTop, width: bw, height: Math.max(1, yBot - yTop), rx: Math.min(2, bw / 2),
+        fill: cssVar(s.color), opacity: op, stroke: opts.stack ? card : 'none', 'stroke-width': opts.stack ? 1 : 0 }, svg);
+    });
+    if (Number.isInteger(c) ? c % stepYb === 0 : i % stepL === 0) { const tx = el('text', { x: m.l + i * band + band / 2, y: H - 6, 'text-anchor': 'middle' }, svg); tx.textContent = String(c); }
+  });
+  if (opts.progCat) {
+    const pi = cats.findIndex(c => opts.progCat(c));
+    if (pi >= 0) {
+      const xz = m.l + pi * band;
+      el('rect', { x: xz, y: m.t, width: W - m.r - xz, height: H - m.t - m.b, fill: cssVar('--ink-3'), opacity: 0.1, 'pointer-events': 'none' }, svg);
+    }
+  }
+  const hl = el('rect', { y: m.t, height: H - m.t - m.b, width: band, fill: cssVar('--ink-3'), opacity: 0, 'pointer-events': 'none' }, svg);
+  const hit = el('rect', { x: m.l, y: 0, width: W - m.l - m.r, height: H, fill: 'transparent' }, svg);
+  const show = cx => {
+    const r = svg.getBoundingClientRect(); const px = (cx - r.left) * (W / r.width);
+    const i = Math.max(0, Math.min(cats.length - 1, Math.floor((px - m.l) / band))); const c = cats[i];
+    hl.setAttribute('x', m.l + i * band); hl.setAttribute('opacity', 0.08);
+    tip.innerHTML = `<div class="t">${c}${opts.progCat && opts.progCat(c) ? ' · prognose' : ''}</div>` +
+      vis.map(s => `<div class="r"><span><i style="--c:var(${s.color})"></i>${esc(s.name)}</span><span>${s.values[c] == null ? '–' : fmt(s.values[c])}</span></div>`).join('') +
+      (opts.tipExtra ? opts.tipExtra(c) : '');
+    tip.style.display = 'block';
+    let left = (m.l + (i + 1) * band) * (r.width / W) + 8; if (left + tip.offsetWidth > host.clientWidth) left = (m.l + i * band) * (r.width / W) - tip.offsetWidth - 8;
+    tip.style.left = Math.max(0, left) + 'px'; tip.style.top = '4px';
+  };
+  let touch = false;
+  const hideB = () => { tip.style.display = 'none'; hl.setAttribute('opacity', 0); };
+  hit.addEventListener('pointermove', e => show(e.clientX));
+  hit.addEventListener('pointerdown', e => { touch = e.pointerType !== 'mouse'; hideOtherTips(host); show(e.clientX); });
+  hit.addEventListener('pointerleave', () => { if (!touch) hideB(); });
+  host._hide = hideB;
+}
+
+const KUI = { k1: { S: true, E: true, I: true, M: true }, k2: { I: true, S: true, E: false }, k3: { S: true, E: true }, k5: { S: true, E: true, T: true, K: true }, k6: { c: true, p: true }, k7: { p: true, n: true, r: true, c: true }, range: 10, person: 'S', eju: true };
+/* ===== carrière-analyse, zoals in het notebook (cel "COMPUTE PROMOTION FACTOR") ===== */
+function careerSeries(who) {
+  const H = DATA.hist;
+  const all = CAO_FILE ? CAO_FILE.events : [];
+  const raise = all.filter(e => e.type !== 'eju_percent'), eju = all.filter(e => e.type === 'eju_percent');
+  const dates = H.map(r => r.d), base = H.map(r => basePerFte(r, who));
+  const first = base.findIndex(b => b != null && isFinite(b));
+  if (first < 0) return null;
+  const applyEv = (v, d0, d1, ev) => { for (const e of ev) if (e.d > d0 && e.d <= d1) v = v * (1 + e.perc) + e.amount; return v; };
+  // stap 1: promotiefactor met ankerpunt (cao-stappen worden pas verwerkt als het salaris echt verandert)
+  const P = new Array(H.length).fill(null);
+  P[first] = 1; let anchor = first, last = 1;
+  for (let i = first + 1; i < H.length; i++) {
+    const cur = base[i];
+    if (cur == null || !isFinite(cur)) { P[i] = last; continue; }
+    if (Math.abs(cur - base[anchor]) <= 1e-6) { P[i] = last; continue; }
+    const exp = applyEv(base[anchor], dates[anchor], dates[i], raise);
+    last = P[anchor] * (exp ? cur / exp : 1); P[i] = last; anchor = i;
+  }
+  // stap 2: persoonlijke cao-factor C, teruggerekend vanaf S0 en P
+  const S0 = base[first];
+  const C = new Array(H.length).fill(null); C[first] = 1;
+  let total = S0 * P[first], prev = first;
+  for (let i = first + 1; i < H.length; i++) {
+    total = applyEv(total, dates[prev], dates[i], raise);
+    if (P[prev]) total *= P[i] / P[prev];
+    C[i] = total / (S0 * P[i]); prev = i;
+  }
+  // EJU-factor E
+  const E = new Array(H.length).fill(null);
+  let cum = 1, ei = 0; const ejs = eju.slice().sort((a, b) => a.d - b.d);
+  const raw = H.map(r => { while (ei < ejs.length && ejs[ei].d <= r.d) { cum *= 1 + ejs[ei].perc; ei++; } return cum; });
+  for (let i = first; i < H.length; i++) E[i] = raw[i] / raw[first];
+  // jaargemiddelden
+  const by = {};
+  for (let i = first; i < H.length; i++) {
+    const y = new Date(dates[i]).getUTCFullYear();
+    const o = by[y] || (by[y] = { P: 0, C: 0, E: 0, n: 0, b: 0, nb: 0, prog: false });
+    o.P += P[i]; o.C += C[i]; o.E += E[i]; o.n++;
+    if (base[i] != null && isFinite(base[i])) { o.b += base[i]; o.nb++; }
+    if (dates[i] > TODAY.getTime()) o.prog = true;
+  }
+  const ys = Object.keys(by).map(Number).sort((a, b) => a - b);
+  const y0 = ys[0];
+  let cpi = 1; const I = {};
+  for (const y of ys) { if (CPI[y] != null) { cpi *= 1 + CPI[y] / 100; I[y] = cpi; } }
+  const i0 = I[y0];
+  const rows = ys.map(y => {
+    const o = by[y];
+    return { year: y, P: o.P / o.n, C: o.C / o.n, E: o.E / o.n, base: o.nb ? o.b / o.nb : null, prog: o.prog, I: I[y] != null && i0 ? I[y] / i0 : null };
+  });
+  return { S0, y0, rows, hasCao: raise.length > 0 };
+}
+function renderCareer() {
+  const who = KUI.person, cs = careerSeries(who);
+  if (!cs) { $('#k4Chart').innerHTML = '<div class="note">Geen loon per fte gevonden.</div>'; return; }
+  const { S0, y0, rows } = cs;
+  const by = {}; rows.forEach(r => by[r.year] = r);
+  const cats = rows.filter(r => r.base != null).map(r => r.year);
+  const st = {}, pr = {}, ca = {};
+  for (const y of cats) {
+    const r = by[y], sp = S0 * r.P;
+    st[y] = S0 * Math.min(r.P, 1); pr[y] = Math.max(0, sp - S0); ca[y] = r.base - sp;
+  }
+  barChart($('#k4Chart'), cats, [
+    { name: 'Startsalaris', color: '--ink-3', on: true, values: st },
+    { name: 'Promotie', color: '--s3', on: true, values: pr },
+    { name: 'Cao-effect', color: '--s1', on: true, values: ca }
+  ], { stack: true, label: 'opbouw maandsalaris per fte', fmt: eur, yFmt: compactEur, progCat: y => by[y].prog, height: 240,
+       tipExtra: y => `<div class="r"><span><b>Maandloon per fte</b></span><span><b>${eur(by[y].base)}</b></span></div>` });
+  $('#k4Legend').innerHTML = [['Startsalaris', '--ink-3'], ['Promotie', '--s3'], ['Cao-effect', '--s1']].map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
+
+  const nowR = rows.filter(r => !r.prog).pop() || rows[rows.length - 1];
+  $('#k4Tiles').innerHTML = `
+    <div class="tile"><span>Promotie-effect</span><b>× ${NUM2.format(Math.round(nowR.P * 10) / 10)}</b><em>sinds ${y0}, in ${nowR.year}</em></div>
+    <div class="tile"><span>Cao-effect (incl. EJU)</span><b>× ${NUM2.format(Math.round(nowR.C * nowR.E * 10) / 10)}</b><em>maandloon × ${NUM2.format(Math.round(nowR.C * 100) / 100)}, EJU × ${NUM2.format(Math.round(nowR.E * 100) / 100)}</em></div>`;
+
+  const f = (k, fn) => rows.filter(r => fn(r) != null && isFinite(fn(r))).map(r => ({ x: r.year, y: fn(r), prog: r.prog }));
+  const defs = [
+    ['p', 'Promotie (P)', '--s3', r => r.P, false],
+    ['n', 'Loonontwikkeling (P·C·E)', '--s1', r => r.P * r.C * r.E, false],
+    ['r', 'Reëel (÷ inflatie)', '--ink-2', r => r.I ? r.P * r.C * r.E / r.I : null, true],
+    ['c', 'Reële cao (C·E ÷ inflatie)', '--s4', r => r.I ? r.C * r.E / r.I : null, false]
+  ];
+  lineChart($('#k7Chart'), defs.map(([k, name, color, fn, dash]) => ({ name, color, dashedAll: dash, points: KUI.k7[k] ? f(k, fn) : [] })), {
+    label: 'groeifactoren', refLine: 1, yFmt: v => NUM2.format(v) + '×', tipFmt: v => NUM2.format(Math.round(v * 100) / 100) + '×', xFmt: String, tipTitle: String });
+  chips($('#k7Chips'), defs.map(([k, n, c, , d]) => [k, n, c, d]), KUI.k7, renderKoopkracht);
+
+  // jaar-op-jaar: promotie en cao (cel 24 van het notebook)
+  const pc = {}, pp = {}, pt = {}, k6c = [];
+  for (let i = 1; i < cats.length; i++) {
+    const y = cats[i], yp = cats[i - 1]; if (y !== yp + 1) continue;
+    const prevBase = by[yp].base;
+    const promo = S0 * by[y].P, promoP = S0 * by[yp].P;
+    const cla = by[y].base - promo, claP = by[yp].base - promoP;
+    pp[y] = (promo - promoP) / prevBase * 100; pc[y] = (cla - claP) / prevBase * 100; pt[y] = pp[y] + pc[y]; k6c.push(y);
+  }
+  barChart($('#k6Chart'), k6c, [
+    { name: 'Promotie', color: '--s3', on: KUI.k6.p, values: pp },
+    { name: 'Cao', color: '--s1', on: KUI.k6.c, values: pc }
+  ], { stack: true, label: 'stijging per jaar: promotie en cao', progCat: y => by[y].prog, fmt: v => PCT1.format(v / 100),
+       tipExtra: y => `<div class="r"><span><b>Totaal</b></span><span><b>${PCT1.format(pt[y] / 100)}</b></span></div>` });
+  chips($('#k6Chips'), [['p', 'Promotie', '--s3'], ['c', 'Cao', '--s1']], KUI.k6, renderKoopkracht);
+}
+
+/* ===== Nederland: alleen externe gegevens ===== */
+// cao-index met het modale maandsalaris van het referentiejaar als referentie (notebook cel 7: cla_index)
+function caoPathRef(inclEju) {
+  const ev = caoEvents(inclEju); if (!ev || !MODAAL[REF_Y]) return null;
+  const ref = Date.UTC(REF_Y, 0, 1), s0 = MODAAL[REF_Y] / 12; const c = { m: s0, f: 1 };
+  const pts = [{ x: ref, y: 100, prog: false }];
+  for (const e of ev) { if (e.d < ref) continue; caoStep(c, e); pts.push({ x: e.d, y: c.m * c.f / s0 * 100, prog: e.d > TODAY.getTime(), ev: e }); }
+  const last = pts[pts.length - 1]; if (last.x < TODAY.getTime()) pts.push({ x: TODAY.getTime(), y: last.y, prog: false });
+  return pts;
+}
+const NUI = { range: 10, n1: { I: true, C: true }, n2: { C: true, I: true, M: true }, n3: { C: true, M: true, K: true }, n4: { P: true, M: true } };
+function renderNederland() {
+  $$('.refY').forEach(n => n.textContent = REF_Y);
+  const fmtIdx = v => NUM2.format(Math.round(v * 10) / 10);
+  const path = caoNorm(caoPathRef(KUI.eju));
+  const yearTicks = (a, b) => { const o = []; for (let y = new Date(a).getUTCFullYear() + 1; y <= new Date(b).getUTCFullYear(); y++) o.push(Date.UTC(y, 0, 1)); return o; };
+  const dateTitle = v => { const d = new Date(v); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+  // 1. per jaar
+  const lastY = Math.max(CPI_LAST || 0, path ? new Date(path[path.length - 1].x).getUTCFullYear() : 0);
+  if (lastY) {
+    const firstY = NUI.range ? lastY - NUI.range + 1 : REF_Y;
+    const cats = []; for (let y = firstY; y <= lastY; y++) cats.push(y);
+    const iv = {}, cv = {};
+    for (const y of cats) {
+      if (CPI[y] != null) iv[y] = CPI[y];
+      if (path && y > REF_Y) cv[y] = Math.round((caoAvg(path, y) / caoAvg(path, y - 1) - 1) * 1000) / 10; // jaargemiddelde, net als de CBS-inflatie
+    }
+    const defs = [{ k: 'I', name: 'Inflatie', color: '--s4', values: iv }];
+    if (path) defs.push({ k: 'C', name: 'Cao NU', color: '--s1', values: cv });
+    const mom = caoMoments(path);
+    barChart($('#nl1Chart'), cats, defs.map(d => ({ ...d, on: NUI.n1[d.k] })), { label: 'inflatie en cao per jaar',
+      tipExtra: y => mom.filter(m => new Date(m.d).getUTCFullYear() === y).map(m => `<div class="r"><span>cao ${fmtDate(m.d)}</span><span>+${PCT1.format(m.pct)}</span></div>`).join('') });
+    $('#nl1Table').innerHTML = mom.length ? `<table><thead><tr><th>Datum</th><th>Afspraak</th><th>Stijging</th></tr></thead><tbody>${mom.slice().reverse().map(m => `<tr><td>${fmtDate(m.d)}${m.prog ? ' *' : ''}</td><td>${caoDeal(m.ev)}</td><td>${PCT1.format(m.pct)}</td></tr>`).join('')}</tbody></table>${mom.some(m => m.prog) ? '<div class="note">* nog niet ingegaan</div>' : ''}` : '<div class="note">Geen cao-afspraken gevonden.</div>';
+    chips($('#nl1Chips'), defs.map(d => [d.k, d.name, d.color]), NUI.n1, renderNederland);
+  }
+  // 2. cumulatief
+  const infl = []; if (CPI_LAST) for (let y = REF_Y; y <= CPI_LAST; y++) infl.push({ x: y, y: priceIdx(y) });
+  const mod = MODAAL[REF_Y] ? Object.keys(MODAAL).map(Number).filter(y => y >= REF_Y).sort((a, b) => a - b).map(y => ({ x: y, y: MODAAL[y] / MODAAL[REF_Y] * 100, prog: y > THIS_YEAR })) : [];
+  lineChart($('#nl2Chart'), [
+    { name: 'Cao NU', color: '--s1', points: NUI.n2.C ? caoYearly(path) : [] },
+    { name: 'Inflatie', color: '--s4', points: NUI.n2.I ? infl : [] },
+    { name: 'Modaal', color: '--s3', points: NUI.n2.M ? mod : [] }
+  ], { label: 'cao, inflatie en modaal sinds referentiejaar', yZero: false, refLine: 100, yFmt: fmtIdx, tipFmt: fmtIdx, xFmt: String, tipTitle: avgTitle });
+  chips($('#nl2Chips'), [['C', 'Cao NU', '--s1'], ['I', 'Inflatie', '--s4'], ['M', 'Modaal', '--s3']], NUI.n2, renderNederland);
+  const rows = [];
+  if (CPI_LAST) for (let y = REF_Y; y <= CPI_LAST; y++) rows.push(`<tr><td>${y}</td><td>${path ? fmtIdx(caoAvg(path, y)) : '–'}</td><td>${fmtIdx(priceIdx(y))}</td><td>${MODAAL[y] && MODAAL[REF_Y] ? fmtIdx(MODAAL[y] / MODAAL[REF_Y] * 100) : '–'}</td></tr>`);
+  $('#nl2Table').innerHTML = `<table><thead><tr><th>Jaar</th><th>Cao NU</th><th>Prijzen</th><th>Modaal</th></tr></thead><tbody>${rows.reverse().join('')}</tbody></table>`;
+  // 3. reëel
+  let realC = [], realM = [];
+  if (CPI_LAST) {
+    // jaargemiddelde gedeeld door het prijspeil van hetzelfde jaar
+    const c = [], m = [];
+    for (let y = REF_Y; y <= CPI_LAST; y++) {
+      if (path) c.push({ x: y, y: caoAvg(path, y) / priceIdx(y) * 100 });
+      if (MODAAL[y] && MODAAL[REF_Y]) m.push({ x: y, y: (MODAAL[y] / MODAAL[REF_Y] * 100) / priceIdx(y) * 100 });
+    }
+    realC = c; realM = m;
+  }
+  lineChart($('#nl3Chart'), [
+    { name: 'Cao NU', color: '--s1', points: NUI.n3.C ? realC : [] },
+    { name: 'Modaal', color: '--s3', points: NUI.n3.M ? realM : [] },
+    { name: 'Koopkracht (CBS)', color: '--s4', dashedAll: true, points: NUI.n3.K ? kkSeries(REF_Y) : [] }
+  ], { label: 'reële ontwikkeling', yZero: false, refLine: 100, yFmt: fmtIdx, tipFmt: fmtIdx, xFmt: String, tipTitle: avgTitle });
+  chips($('#nl3Chips'), [['C', 'Cao NU', '--s1'], ['M', 'Modaal', '--s3']].concat(Object.keys(KK).length ? [['K', 'Koopkracht (CBS)', '--s4', true]] : []), NUI.n3, renderNederland);
+  // 4. verdeling
+  const ys = Object.keys(PCT).map(Number).sort((a, b) => a - b);
+  if (!ys.length) { $('#nl4Chart').innerHTML = '<div class="note">Nog geen percentielen in externe_data.xlsx.</div>'; $('#nl4Chips').innerHTML = ''; }
+  else {
+    const bands = [[10, 90], [20, 80], [30, 70], [40, 60]].map(([lo, hi]) => ({ lo: new Map(ys.map(y => [y, PCT[y]['p' + lo]])), hi: new Map(ys.map(y => [y, PCT[y]['p' + hi]])), opacity: 0.12 }));
+    lineChart($('#nl4Chart'), [
+      { name: 'Mediaan (p50)', color: '--s1', points: NUI.n4.P ? ys.map(y => ({ x: y, y: PCT[y].p50 })) : [] },
+      { name: 'Modaal', color: '--s3', points: NUI.n4.M ? ys.filter(y => MODAAL[y]).map(y => ({ x: y, y: MODAAL[y] })) : [] }
+    ], { label: 'inkomensverdeling', bands, xFmt: String, tipTitle: String });
+    chips($('#nl4Chips'), [['P', 'Mediaan (p50)', '--s1'], ['M', 'Modaal', '--s3']], NUI.n4, renderNederland);
+  }
+}
+$$('[data-nrange]').forEach(b => b.addEventListener('click', () => { NUI.range = +b.dataset.nrange; setPressed('[data-nrange]', 'data-nrange', NUI.range); renderNederland(); }));
+function renderKoopkracht() {
+  const hasCao = !!caoEvents();
+  $('#caoBanner').style.display = hasCao ? 'none' : '';
+  $$('.cao-only').forEach(c => c.style.display = hasCao ? '' : 'none');
+  const pS = hasCao ? caoNorm(caoPath('S', KUI.eju)) : null, pE = hasCao ? caoNorm(caoPath('E', KUI.eju)) : null;
+  if (hasCao) {
+    const nE = (CAO_FILE ? CAO_FILE.events : []).filter(e => e.type === 'eju_percent').length;
+    const ejuTxt = nE === 0 ? 'Het cao-bestand bevat geen EJU-verhogingen, dus beide keuzes geven hetzelfde beeld.' : KUI.eju
+      ? `Zoals in het notebook: de ${nE} EJU-verhoging${nE === 1 ? ' uit het cao-bestand telt' : 'en uit het cao-bestand tellen'} mee als loonstijging. Dat benadert de ontwikkeling van het jaarinkomen.`
+      : `Alleen verhogingen van het maandsalaris (${nE} EJU-verhoging${nE === 1 ? '' : 'en'} weggelaten). De opsplitsing in carrière en cao gebruikt altijd deze variant.`;
+    $$('.ejuNote').forEach(n => n.textContent = ejuTxt);
+  }
+  const fmtIdx = v => NUM2.format(Math.round(v * 10) / 10);
+  const dateTitle = v => { const d = new Date(v); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+  const yearTicks = (a, b) => { const o = []; for (let y = new Date(a).getUTCFullYear() + 1; y <= new Date(b).getUTCFullYear(); y++) o.push(Date.UTC(y, 0, 1)); return o; };
+
+  // 1. cumulative cao vs inflation
+  const infl = []; if (CPI_LAST) for (let y = REF_Y; y <= CPI_LAST; y++) infl.push({ x: y, y: priceIdx(y) });
+  if (hasCao) {
+    lineChart($('#k1Chart'), [
+      { name: 'Cao Sander', color: '--s1', points: KUI.k1.S ? caoYearly(pS) : [] },
+      { name: 'Cao Ellen', color: '--s2', points: KUI.k1.E ? caoYearly(pE) : [] },
+      { name: 'Inflatie', color: '--s4', points: KUI.k1.I ? infl : [] }
+    ], { label: 'cumulatieve cao-loonstijging en inflatie', yZero: false, refLine: 100, yFmt: fmtIdx, tipFmt: fmtIdx, xFmt: String, tipTitle: avgTitle });
+    const dS = CAO_DIAG.S || [], dE = CAO_DIAG.E || [];
+    $('#k1Diag').innerHTML = !dS.length ? 'Het cao-bestand bevat geen vaste euro-bedragen; daarom zijn de lijnen van Sander en Ellen gelijk.' :
+      'Vaste bedragen in de cao: ' + dS.map((x, i) => {
+        const y = dE[i] || {}; const dt = new Date(x.d);
+        const part = (b, n) => b ? `${n} ${PCT1.format(x.amount / b)} (op ${eur(b)} per fte)` : `${n}: geen loon per fte gevonden`;
+        return `${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]} ${dt.getUTCFullYear()} ${eur(x.amount)}: ${part(x.base, 'Sander')}, ${part(y.base, 'Ellen')}`;
+      }).join('; ') + '.';
+    chips($('#k1Chips'), [['S', 'Cao Sander', '--s1'], ['E', 'Cao Ellen', '--s2'], ['I', 'Inflatie', '--s4']], KUI.k1, renderKoopkracht);
+    const rows = [];
+    for (let y = REF_Y; y <= CPI_LAST; y++) rows.push(`<tr><td>${y}</td><td>${fmtIdx(caoAvg(pS, y))}</td><td>${fmtIdx(caoAvg(pE, y))}</td><td>${fmtIdx(priceIdx(y))}</td></tr>`);
+    const mS = caoMoments(pS), mE = new Map(caoMoments(pE).map((m, i) => [i, m]));
+    $('#k1Moments').innerHTML = `<table><thead><tr><th>Datum</th><th>Afspraak</th><th>Sander</th><th>Ellen</th></tr></thead><tbody>${mS.map((m, i) => `<tr><td>${fmtDate(m.d)}${m.prog ? ' *' : ''}</td><td>${caoDeal(m.ev)}</td><td>${PCT1.format(m.pct)}</td><td>${mE.get(i) ? PCT1.format(mE.get(i).pct) : '–'}</td></tr>`).reverse().join('')}</tbody></table>`;
+    $('#k1Table').innerHTML = `<table><thead><tr><th>Jaar</th><th>Cao Sander</th><th>Cao Ellen</th><th>Prijzen</th></tr></thead><tbody>${rows.reverse().join('')}</tbody></table>`;
+  }
+
+  // 3. real cao
+  if (hasCao) {
+    const real = path => { const o = []; for (let y = REF_Y; y <= CPI_LAST; y++) o.push({ x: y, y: caoAvg(path, y) / priceIdx(y) * 100 }); return o; };
+    lineChart($('#k3Chart'), [
+      { name: 'Sander', color: '--s1', points: KUI.k3.S ? real(pS) : [] },
+      { name: 'Ellen', color: '--s2', points: KUI.k3.E ? real(pE) : [] }
+    ], { label: 'reële cao-loonontwikkeling', yZero: false, refLine: 100, yFmt: fmtIdx, tipFmt: fmtIdx, xFmt: String, tipTitle: avgTitle });
+    chips($('#k3Chips'), [['S', 'Sander', '--s1'], ['E', 'Ellen', '--s2']], KUI.k3, renderKoopkracht);
+
+    renderCareer();
+  }
+
+  // 5. purchasing power of net income
+  const by = {};
+  for (const r of DATA.hist) {
+    const y = new Date(r.d).getUTCFullYear();
+    const o = by[y] || (by[y] = { S: 0, E: 0, n: 0 });
+    o.S += r.sn || 0; o.E += r.en || 0; o.n++;
+  }
+  const ys = Object.keys(by).map(Number).filter(y => by[y].n >= 12 && cpiYear(y) != null && y >= REF_Y && new Date(Date.UTC(y, 11, 31)) < TODAY).sort((a, b) => a - b);
+  const refY = REF_SAMEN != null && ys.includes(REF_SAMEN) ? REF_SAMEN : ys[0];
+  if (refY != null) {
+    const ref = (by[refY].S + by[refY].E) / cpiYear(refY);
+    const mk = k => ys.map(y => ({ x: y, y: (k === 'T' ? by[y].S + by[y].E : by[y][k]) / cpiYear(y) / ref * 100 })).filter(p => p.y > 0);
+    lineChart($('#k5Chart'), [
+      { name: 'Sander', color: '--s1', points: KUI.k5.S ? mk('S') : [] },
+      { name: 'Ellen', color: '--s2', points: KUI.k5.E ? mk('E') : [] },
+      { name: 'Samen', color: '--s3', points: KUI.k5.T ? mk('T') : [] },
+      { name: 'CBS mediaan', color: '--ink-3', dashedAll: true, points: KUI.k5.K ? kkSeries(refY).filter(p => p.x <= ys[ys.length - 1]) : [] }
+    ], { label: 'koopkracht netto inkomen', refLine: 100, yFmt: fmtIdx, tipFmt: fmtIdx, xFmt: String, tipTitle: String });
+    chips($('#k5Chips'), [['S', 'Sander', '--s1'], ['E', 'Ellen', '--s2'], ['T', 'Samen', '--s3']].concat(Object.keys(KK).length ? [['K', 'CBS mediaan', '--ink-3', true]] : []), KUI.k5, renderKoopkracht);
+    const t = mk('T'), s = mk('S'), e = mk('E');
+    $('#k5Table').innerHTML = `<table><thead><tr><th>Jaar</th><th>Sander</th><th>Ellen</th><th>Samen</th></tr></thead><tbody>${
+      t.slice().reverse().map(p => `<tr><td>${p.x}</td><td>${fmtIdx(s.find(q => q.x === p.x)?.y ?? NaN)}</td><td>${fmtIdx(e.find(q => q.x === p.x)?.y ?? NaN)}</td><td>${fmtIdx(p.y)}</td></tr>`).join('')}</tbody></table>`;
+  }
+}
+$$('[data-krange]').forEach(b => b.addEventListener('click', () => { KUI.range = +b.dataset.krange; setPressed('[data-krange]', 'data-krange', KUI.range); renderKoopkracht(); }));
+$$('[data-eju]').forEach(b => b.addEventListener('click', () => { KUI.eju = b.dataset.eju === '1'; setPressed('[data-eju]', 'data-eju', b.dataset.eju); renderKoopkracht(); if ($('section[data-view="nederland"]').classList.contains('active')) renderNederland(); }));
+$$('[data-kperson]').forEach(b => b.addEventListener('click', () => { KUI.person = b.dataset.kperson; setPressed('[data-kperson]', 'data-kperson', KUI.person); renderKoopkracht(); }));
+
+/* ================= modaal, bruto-opbouw, aanstelling, wonen, sparen ================= */
+
+function yearAgg() {
+  const by = {}, now = TODAY.getTime();
+  for (const r of DATA.hist) {
+    const y = new Date(r.d).getUTCFullYear();
+    const o = by[y] || (by[y] = { sb: 0, sn: 0, eb: 0, en: 0, n: 0, prog: false });
+    o.sb += r.sb || 0; o.sn += r.sn || 0; o.eb += r.eb || 0; o.en += r.en || 0; o.n++;
+    if (r.d > now) o.prog = true;
+  }
+  for (const y in by) { const o = by[y]; o.tb = o.sb + o.eb; o.tn = o.sn + o.en; o.ok = o.n >= 12 || o.prog; }
+  return by;
+}
+const GUI = { mod: 'eur', modOn: { S: true, E: true, T: true, M: true }, opWho: 'S', opUnit: 'eur', fteOn: { S: true, E: true, T: true },
+  w1On: { woz: true, hyp: true, ow: true }, w2On: { ltv: true, lti: true, pti: true }, w3On: { q: true, p: true }, baseOn: { n: true, b: true, t: true }, baseReal: false, infl: { r: 0.015 } };
+
+function renderModaal() {
+  const A = yearAgg();
+  const ys = Object.keys(MODAAL).map(Number).filter(y => A[y] && A[y].ok);
+  const keer = GUI.mod === 'keer';
+  const val = (y, k) => keer ? A[y][k] / MODAAL[y] : A[y][k];
+  const mk = k => ys.map(y => ({ x: y, y: val(y, k), prog: A[y].prog }));
+  const ser = [
+    { k: 'S', name: 'Sander', color: '--s1', points: mk('sb') },
+    { k: 'E', name: 'Ellen', color: '--s2', points: mk('eb').filter(p => p.y > 0) },
+    { k: 'T', name: 'Samen', color: '--s3', points: mk('tb') }
+  ];
+  if (!keer) ser.push({ k: 'M', name: 'Modaal', color: '--s4', points: ys.map(y => ({ x: y, y: MODAAL[y] })) });
+  const xf = v => keer ? NUM2.format(Math.round(v * 100) / 100) + '×' : eur(v);
+  lineChart($('#modChart'), ser.map(s => ({ ...s, points: GUI.modOn[s.k] ? s.points : [] })), {
+    label: keer ? 'aantal keer modaal' : 'bruto inkomen en modaal', xFmt: String, tipTitle: String,
+    yFmt: keer ? (v => NUM2.format(v) + '×') : compactEur, tipFmt: xf, refLine: keer ? 1 : null });
+  chips($('#modChips'), ser.map(s => [s.k, s.name, s.color]), GUI.modOn, renderModaal);
+}
+
+function renderOpbouw() {
+  const A = yearAgg(), P = DATA.pens || {};
+  const ys = Object.keys(A).map(Number).filter(y => A[y].ok && P[y]).sort((a, b) => a - b);
+  if (!ys.length) { $('#opChart').innerHTML = '<div class="note">Geen gegevens uit het tabblad pensioen gevonden. Kies financieel_overzicht.xlsx opnieuw.</div>'; $('#opLegend').innerHTML = ''; return; }
+  const who = GUI.opWho, pct = GUI.opUnit === 'pct';
+  const parts = { n: {}, p: {}, b: {} };
+  for (const y of ys) {
+    const br = who === 'S' ? A[y].sb : who === 'E' ? A[y].eb : A[y].tb;
+    const ne = who === 'S' ? A[y].sn : who === 'E' ? A[y].en : A[y].tn;
+    const op = who === 'S' ? P[y].S : who === 'E' ? P[y].E : P[y].S + P[y].E;
+    if (!br) continue;
+    const f = pct ? 100 / br : 1;
+    parts.n[y] = ne * f; parts.p[y] = op * f; parts.b[y] = (br - ne - op) * f;
+  }
+  const cats = ys.filter(y => parts.n[y] != null);
+  const defs = [['n', 'Netto', '--s3'], ['p', 'Pensioenpremie', '--s1'], ['b', 'Loonheffing en overige premies', '--s4']];
+  $('#opLegend').innerHTML = defs.map(([, n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
+  barChart($('#opChart'), cats, defs.map(([k, name, color]) => ({ name, color, on: true, values: parts[k] })), {
+    stack: true, label: 'opbouw bruto inkomen', progCat: y => A[y].prog,
+    fmt: pct ? (v => PCT1.format(v / 100)) : eur, yFmt: pct ? (v => NUM2.format(v) + '%') : compactEur,
+    tipExtra: y => `<div class="r"><span>Bruto</span><span>${pct ? '100%' : eur(parts.n[y] + parts.p[y] + parts.b[y])}</span></div>` });
+}
+
+function renderFte() {
+  const H = DATA.hist.filter(r => r.fs != null || r.fe != null);
+  const mk = f => H.map(r => ({ x: r.d, y: f(r), prog: r.d > TODAY.getTime() }));
+  const ser = [
+    { k: 'S', name: 'Sander', color: '--s1', points: mk(r => r.fs || 0) },
+    { k: 'E', name: 'Ellen', color: '--s2', points: mk(r => r.fe || 0).filter((p, i, a) => p.y > 0 || a.slice(0, i).some(q => q.y > 0)) },
+    { k: 'T', name: 'Samen', color: '--s3', points: mk(r => (r.fs || 0) + (r.fe || 0)) }
+  ];
+  const yearTicks = (a, b) => { const o = []; for (let y = new Date(a).getUTCFullYear() + 1; y <= new Date(b).getUTCFullYear(); y++) o.push(Date.UTC(y, 0, 1)); return o; };
+  lineChart($('#fteChart'), ser.map(s => ({ ...s, points: GUI.fteOn[s.k] ? s.points : [] })), {
+    label: 'omvang aanstellingen', step: true, yFmt: v => NUM2.format(v), tipFmt: v => NUM2.format(Math.round(v * 100) / 100) + ' fte',
+    xFmt: v => String(new Date(v).getUTCFullYear()), xTicks: yearTicks,
+    tipTitle: v => `${MONTHS[new Date(v).getUTCMonth()]} ${new Date(v).getUTCFullYear()}` });
+  chips($('#fteChips'), ser.map(s => [s.k, s.name, s.color]), GUI.fteOn, renderFte);
+}
+
+function renderWonen() {
+  const V = DATA.verm, A = yearAgg();
+  const prog = y => y > THIS_YEAR;
+  const d1 = [['woz', 'WOZ-waarde', '--s2', r => r.woz], ['hyp', 'Hypotheek', '--s4', r => r.hyp], ['ow', 'Overwaarde', '--s3', r => r.woz - r.hyp]];
+  lineChart($('#w1Chart'), d1.map(([k, name, color, f]) => ({ name, color, points: GUI.w1On[k] ? V.map(r => ({ x: r.year, y: f(r), prog: prog(r.year) })) : [] })),
+    { label: 'WOZ en hypotheek', xFmt: String, tipTitle: v => `1 jan ${v}` });
+  chips($('#w1Chips'), d1.map(([k, n, c]) => [k, n, c]), GUI.w1On, renderWonen);
+
+  const gAvg = y => (A[y] && A[y].ok && A[y - 1] && A[y - 1].ok) ? (A[y].tb + A[y - 1].tb) / 2 : null;
+  const rows = V.filter(r => gAvg(r.year));
+  const d2 = [['ltv', 'LTV', '--s1', r => r.hyp / r.woz], ['lti', 'LTI', '--s3', r => r.hyp / gAvg(r.year)], ['pti', 'PTI', '--s2', r => r.woz / gAvg(r.year)]];
+  lineChart($('#w2Chart'), d2.map(([k, name, color, f]) => ({ name, color, points: GUI.w2On[k] ? rows.map(r => ({ x: r.year, y: f(r), prog: prog(r.year) || A[r.year].prog })) : [] })),
+    { label: 'woonratio’s', xFmt: String, tipTitle: v => `1 jan ${v}`, yFmt: v => NUM2.format(v), tipFmt: v => NUM2.format(Math.round(v * 100) / 100) });
+  chips($('#w2Chips'), d2.map(([k, n, c]) => [k, n, c]), GUI.w2On, renderWonen);
+
+  const R = (DATA.vermRaw || []).filter(r => A[r.year] && A[r.year].ok && (r.rente != null || r.aflossing != null));
+  const q = {}, pr = {};
+  for (const r of R) {
+    const g = r.year === HALFJAAR ? A[r.year].tb / 2 : A[r.year].tb; if (!g) continue;
+    q[r.year] = ((r.rente || 0) + (r.aflossing || 0)) / g * 100; pr[r.year] = (r.premie || 0) / g * 100;
+  }
+  const cats = R.map(r => r.year).filter(y => q[y] != null);
+  barChart($('#w3Chart'), cats, [
+    { name: 'Rente + aflossing', color: '--s4', on: GUI.w3On.q, values: q },
+    { name: 'Premie spaarpolis', color: '--s2', on: GUI.w3On.p, values: pr }
+  ], { stack: true, label: 'woonquote', progCat: y => A[y].prog, fmt: v => PCT1.format(v / 100) });
+  chips($('#w3Chips'), [['q', 'Rente + aflossing', '--s4'], ['p', 'Premie spaarpolis', '--s2']], GUI.w3On, renderWonen);
+}
+
+function savingsRows() {
+  const raw = (DATA.vermRaw || []).slice().sort((a, b) => a.year - b.year);
+  const by = {}; raw.forEach(r => by[r.year] = r);
+  const out = [];
+  for (const r of raw) {
+    const nx = by[r.year + 1];
+    if (r.spaar == null || !nx || nx.spaar == null) continue;
+    const ver = nx.spaar - r.spaar, extra = r.extra || 0, inv = r.invest || 0, gift = r.giften || 0;
+    out.push({ year: r.year, ver, extra, inv, gift, total: ver + extra + inv - gift, prog: r.year >= THIS_YEAR });
+  }
+  return out;
+}
+function renderSparen() {
+  const S = savingsRows(), A = yearAgg();
+  if (!S.length) { $('#spChart').innerHTML = '<div class="note">Geen spaargegevens gevonden. Kies financieel_overzicht.xlsx opnieuw.</div>'; return; }
+  const cats = S.map(r => r.year), by = {}; S.forEach(r => by[r.year] = r);
+  const val = f => { const o = {}; S.forEach(r => o[r.year] = f(r)); return o; };
+  const defs = [['Extra aflossing', '--s4', r => r.extra], ['Investeringen in huis', '--s2', r => r.inv], ['Verandering spaarsaldo', '--s3', r => r.ver], ['Incidentele meevallers', '--s1', r => -r.gift]];
+  $('#spLegend').innerHTML = defs.map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
+  barChart($('#spChart'), cats, defs.map(([name, color, f]) => ({ name, color, on: true, values: val(f) })), {
+    stack: true, label: 'spaarvermogen per jaar', fmt: eur, yFmt: compactEur, progCat: y => by[y].prog, height: 240,
+    tipExtra: y => `<div class="r"><span><b>Spaarvermogen</b></span><span><b>${eur(by[y].total)}</b></span></div>` });
+  const done = S.filter(r => !r.prog), last5 = done.slice(-5);
+  const avg5 = last5.reduce((s, r) => s + r.total, 0) / Math.max(1, last5.length);
+  const tot = k => done.reduce((s, r) => s + r[k], 0);
+  $('#spTiles').innerHTML = `
+    <div class="tile"><span>Gemiddeld per jaar</span><b>${eur(avg5)}</b><em>${last5.length ? `${last5[0].year}–${last5[last5.length - 1].year}` : ''}</em></div>
+    <div class="tile"><span>Totaal gespaard</span><b>${eur(tot('total'))}</b><em>${done.length ? `sinds ${done[0].year}` : ''}</em></div>`;
+  const tl = [['Extra aflossing', tot('extra'), '--s4'], ['Investeringen in huis', tot('inv'), '--s2'], ['Verandering spaarsaldo', tot('ver'), '--s3'], ['Incidentele meevallers (gaan eraf)', -tot('gift'), '--s1']];
+  const mx = Math.max(...tl.map(t => Math.abs(t[1])), 1);
+  $('#spTotals').innerHTML = tl.map(([n, v, c]) => `<div class="bar"><div class="top"><span>${n}</span><span class="num">${Math.round(v) ? signed(v) : eur(0)}</span></div>
+    <div class="track"><div class="fill" style="width:${Math.abs(v) / mx * 100}%;background:var(${c})"></div></div></div>`).join('')
+    + `<div class="bar"><div class="top"><span><b>Totaal gespaard</b></span><span class="num"><b>${eur(tot('total'))}</b></span></div></div>`;
+
+  const sq = {}, sqc = [];
+  for (const r of S) if (A[r.year] && A[r.year].ok && A[r.year].tn) { sq[r.year] = r.total / A[r.year].tn * 100; sqc.push(r.year); }
+  barChart($('#sqChart'), sqc, [{ name: 'Spaarquote', color: '--s3', on: true, values: sq }], { label: 'spaarquote', progCat: y => by[y].prog, fmt: v => PCT1.format(v / 100) });
+
+  // bedragen van toen, of alles (inkomen én uitgaven) omgerekend naar prijzen van het laatste jaar met inflatiecijfers
+  const realY = CPI_LAST, cRef = realY ? cpiYear(realY) : null;
+  const canReal = !!cRef;
+  const isReal = GUI.baseReal && canReal;
+  const fac = y => isReal ? cRef / cpiYear(y) : 1;
+  const yrs = sqc.filter(y => !isReal || (y <= realY && cpiYear(y)));
+  const base = yrs.map(y => ({ x: y, y: (A[y].tn - by[y].total) * fac(y), prog: by[y].prog }));
+  const net = yrs.map(y => ({ x: y, y: A[y].tn * fac(y), prog: by[y].prog }));
+  const logTrend = pts => {
+    if (pts.length < 3) return null;
+    const n = pts.length, mx = pts.reduce((a, p) => a + p.x, 0) / n, my = pts.reduce((a, p) => a + Math.log(p.y), 0) / n;
+    const b = pts.reduce((a, p) => a + (p.x - mx) * (Math.log(p.y) - my), 0) / pts.reduce((a, p) => a + (p.x - mx) ** 2, 0);
+    return { a: my - b * mx, b, g: Math.exp(b) - 1 };
+  };
+  const fit = base.filter(p => !p.prog && p.y > 0), tr = logTrend(fit);
+  const trend = tr ? base.map(p => ({ x: p.x, y: Math.exp(tr.a + tr.b * p.x) })) : [];
+  // groei nominaal en reëel, voor de toelichting (onafhankelijk van de schakelaar)
+  const nomFit = sqc.filter(y => !by[y].prog).map(y => ({ x: y, y: A[y].tn - by[y].total })).filter(p => p.y > 0);
+  const realFit = canReal ? nomFit.filter(p => p.x <= realY && cpiYear(p.x)).map(p => ({ x: p.x, y: p.y * cRef / cpiYear(p.x) })) : [];
+  const gN = logTrend(nomFit), gR = logTrend(realFit);
+  $('#baseRealY').textContent = realY || '';
+  $$('[data-breal="1"]').forEach(b => b.disabled = !canReal);
+  lineChart($('#baseChart'), [
+    { name: 'Netto samen', color: '--s3', points: GUI.baseOn.n ? net : [] },
+    { name: 'Basisuitgaven', color: '--s1', points: GUI.baseOn.b ? base : [] },
+    { name: 'Trend', color: '--s1', points: GUI.baseOn.t ? trend : [], dashedAll: true }
+  ], { label: 'basisuitgaven', xFmt: String, tipTitle: y => isReal ? `${y}, in prijzen van ${realY}` : String(y) });
+  chips($('#baseChips'), [['n', 'Netto samen', '--s3'], ['b', 'Basisuitgaven', '--s1'], ['t', 'Trend', '--s1', true]], GUI.baseOn, renderSparen);
+  $('#baseNote').textContent = 'Basisuitgaven = netto inkomen samen − spaarvermogen: wat jullie uitgeven aan het gewone leven.' +
+    (isReal ? ` Inkomen en uitgaven zijn allebei omgerekend naar prijzen van ${realY}, met de jaarinflatie (CBS).` : '') +
+    (gN ? ` In bedragen van toen stijgen de uitgaven gemiddeld ${PCT1.format(gN.g)} per jaar (${nomFit[0].x}–${nomFit[nomFit.length - 1].x}).` : '') +
+    (gR ? ` Gecorrigeerd voor inflatie is dat ${PCT1.format(gR.g)} per jaar: ${gR.g > 0.005 ? 'jullie geven in werkelijkheid ook meer uit' : gR.g < -0.005 ? 'jullie geven in werkelijkheid minder uit' : 'de stijging komt vrijwel helemaal door hogere prijzen'}.` : '');
+}
+$$('[data-breal]').forEach(b => b.addEventListener('click', () => { GUI.baseReal = b.dataset.breal === '1'; setPressed('[data-breal]', 'data-breal', b.dataset.breal); renderSparen(); }));
+function renderInflatie() {
+  const r = GUI.infl.r;
+  $('#inf-r').value = r; $('#inf-r-o').textContent = PCT1.format(r);
+  // inflatie in het kalenderjaar: december-op-december (CBS). Ontbreekt die, dan de jaarinflatie als benadering.
+  const decOf = y => CPI_DEC[y] != null ? CPI_DEC[y] : CPI[y];
+  const rows = DATA.verm.filter(v => decOf(v.year) != null && v.spaar);
+  const loss = {}, gain = {};
+  rows.forEach(v => { loss[v.year] = -v.spaar * decOf(v.year) / 100; gain[v.year] = v.spaar * r; });
+  $('#infDecNote').textContent = Object.keys(CPI_DEC).length ? 'Inflatie gemeten van december tot december (CBS), omdat het spaargeld een stand op één moment is.' : 'Let op: externe_data.xlsx bevat nog geen december-inflatie (kolom inflatie_dec); de jaarinflatie wordt als benadering gebruikt. Draai het notebook opnieuw.';
+  const cats = rows.map(v => v.year);
+  $('#infLegend').innerHTML = [['Verlies door inflatie', '--s2'], ['Opbrengst spaarrente', '--s3']].map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
+  barChart($('#infChart'), cats, [
+    { name: 'Verlies door inflatie', color: '--s2', on: true, values: loss },
+    { name: 'Opbrengst spaarrente', color: '--s3', on: true, values: gain }
+  ], { label: 'spaargeld en inflatie', fmt: eur, yFmt: compactEur,
+       tipExtra: y => `<div class="r"><span><b>Saldo</b></span><span><b>${eur(loss[y] + gain[y])}</b></span></div>` });
+  const tot = cats.reduce((a, y) => a + loss[y] + gain[y], 0);
+  const last = rows[rows.length - 1];
+  $('#infTiles').innerHTML = last ? `
+    <div class="tile"><span>In ${last.year}</span><b class="${loss[last.year] + gain[last.year] < 0 ? 'neg' : 'pos'}">${signed(loss[last.year] + gain[last.year])}</b><em>inflatie ${NUM2.format(decOf(last.year))}% op ${eur(last.spaar)}</em></div>
+    <div class="tile"><span>Sinds ${cats[0]}</span><b class="${tot < 0 ? 'neg' : 'pos'}">${signed(tot)}</b><em>koopkracht van het spaargeld, bij ${PCT1.format(r)} rente</em></div>` : '';
+}
+$('#inf-r').addEventListener('input', e => { GUI.infl.r = +e.target.value; renderInflatie(); });
+// zoals compute_percentile in het notebook: lineaire interpolatie tussen p10..p90
+function pctPos(v, pv) {
+  const ps = [10, 20, 30, 40, 50, 60, 70, 80, 90], vals = ps.map(q => pv['p' + q]);
+  if (v <= vals[0]) return 5;
+  if (v >= vals[8]) return 90 + (v - vals[8]) / vals[8] * 10;
+  for (let i = 0; i < 8; i++) if (v >= vals[i] && v <= vals[i + 1]) return ps[i] + (v - vals[i]) / (vals[i + 1] - vals[i]) * 10;
+  return null;
+}
+GUI.pctv = 'eur'; GUI.pctOn = { S: true, E: true, T: true, M: true };
+function renderPercentiel() {
+  const A = yearAgg();
+  const ys = Object.keys(PCT).map(Number).filter(y => A[y] && A[y].n >= 12).sort((a, b) => a - b);
+  if (!ys.length) { $('#pctChart').innerHTML = '<div class="note">Nog geen percentielen in externe_data.xlsx. Draai het notebook (de cel die externe_data wegschrijft) en kies het bestand opnieuw.</div>'; $('#pctChips').innerHTML = ''; return; }
+  const pos = GUI.pctv === 'pos';
+  const v = (y, k) => k === 'M' ? MODAAL[y] : A[y][{ S: 'sb', E: 'eb', T: 'tb' }[k]];
+  const mk = k => ys.filter(y => v(y, k)).map(y => ({ x: y, y: pos ? pctPos(v(y, k), PCT[y]) : v(y, k), prog: A[y].prog }));
+  const ser = [['S', 'Sander', '--s1'], ['E', 'Ellen', '--s2'], ['T', 'Samen', '--s3'], ['M', 'Modaal', '--s4']];
+  const bandDefs = [[10, 90, 0.12], [20, 80, 0.12], [30, 70, 0.12], [40, 60, 0.12]];
+  const bands = bandDefs.map(([lo, hi, opacity]) => ({
+    lo: new Map(ys.map(y => [y, pos ? lo : PCT[y]['p' + lo]])), hi: new Map(ys.map(y => [y, pos ? hi : PCT[y]['p' + hi]])), opacity }));
+  lineChart($('#pctChart'), ser.map(([k, name, color]) => ({ name, color, points: GUI.pctOn[k] ? mk(k) : [] })), {
+    label: 'inkomenspercentielen', xFmt: String, tipTitle: String, bands,
+    yFmt: pos ? (q => 'p' + q) : compactEur, tipFmt: pos ? (q => 'p' + Math.round(q)) : eur,
+    refLine: pos ? 50 : null, yMinFix: pos ? 0 : null, yMaxFix: pos ? 100 : null });
+  chips($('#pctChips'), ser, GUI.pctOn, renderPercentiel);
+}
+$$('[data-pctv]').forEach(b => b.addEventListener('click', () => { GUI.pctv = b.dataset.pctv; setPressed('[data-pctv]', 'data-pctv', GUI.pctv); renderPercentiel(); }));
+function renderGrafiekenExtra() { renderModaal(); renderOpbouw(); renderFte(); renderWonen(); renderSparen(); }
+$$('[data-mod]').forEach(b => b.addEventListener('click', () => { GUI.mod = b.dataset.mod; setPressed('[data-mod]', 'data-mod', GUI.mod); renderModaal(); }));
+$$('[data-op-who]').forEach(b => b.addEventListener('click', () => { GUI.opWho = b.dataset.opWho; setPressed('[data-op-who]', 'data-op-who', GUI.opWho); renderOpbouw(); }));
+$$('[data-op-unit]').forEach(b => b.addEventListener('click', () => { GUI.opUnit = b.dataset.opUnit; setPressed('[data-op-unit]', 'data-op-unit', GUI.opUnit); renderOpbouw(); }));
+$$('[data-jump]').forEach(b => b.addEventListener('click', () => { const t = document.getElementById(b.dataset.jump); if (t) window.scrollTo({ top: t.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' }); }));
+
+/* ================= loading & storage ================= */
+function aoaOf(wb, name) {
+  const key = wb.SheetNames.find(n => n.trim().toLowerCase() === name);
+  if (!key) return null;
+  const ws = wb.Sheets[key];
+  if (!ws['!ref']) return [];
+  const rg = XLSX.utils.decode_range(ws['!ref']); rg.s.r = 0; rg.s.c = 0;
+  return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: true, range: rg });
+}
+function buildFromWorkbook(wb, fileName) {
+  const need = ['salaris geschiedenis', 'bruto-netto', 'in_uit', 'vermogen ib', 'hypotheek'];
+  const missing = need.filter(n => !aoaOf(wb, n));
+  if (missing.length) throw new Error('Deze tabbladen ontbreken: ' + missing.join(', ') + '.');
+  const hist = parseHist(aoaOf(wb, 'salaris geschiedenis'));
+  const d = {
+    demo: false, fileName, loadedAt: Date.now(), hist,
+    vermRaw: vermByYear(aoaOf(wb, 'vermogen ib')),
+    pens: aoaOf(wb, 'pensioen') ? parsePensioen(aoaOf(wb, 'pensioen')) : {},
+    inuit: parseInUit(aoaOf(wb, 'in_uit')),
+    bn: parseBN(aoaOf(wb, 'bruto-netto'), hist),
+    hyp: parseHyp(aoaOf(wb, 'hypotheek'))
+  };
+  d.verm = alignVerm(d.vermRaw);
+  if (!d.hist.length) throw new Error('Geen salarisregels gevonden in "salaris geschiedenis".');
+  return d;
+}
+/* ================= externe_data.xlsx ================= */
+function parseExt(wb, fileName) {
+  const ext = { fileName, loadedAt: Date.now(), cpi: {}, cpiDec: {}, kk: {}, modaal: {}, pct: {}, params: {}, cao: [] };
+  const pa = aoaOf(wb, 'parameters');
+  if (pa) {
+    const h = (pa[0] || []).map(lc), cn = h.indexOf('naam'), cw = h.indexOf('waarde');
+    for (let i = 1; i < pa.length; i++) {
+      const r = pa[i] || []; const k = lc(r[cn]); if (!k) continue;
+      const v = r[cw]; ext.params[k] = num(v) ?? (typeof v === 'string' ? v.trim() : null);
+    }
+  }
+  const ed = aoaOf(wb, 'externe_data');
+  if (ed) {
+    const h = (ed[0] || []).map(lc), c = n => h.indexOf(n);
+    for (let i = 1; i < ed.length; i++) {
+      const r = ed[i] || []; const y = num(r[c('jaar')]); if (y == null) continue;
+      const inf = num(r[c('inflatie')]), mod = num(r[c('modaal')]);
+      if (inf != null) ext.cpi[y] = inf;
+      const dec = c('inflatie_dec') >= 0 ? num(r[c('inflatie_dec')]) : null, kk = c('koopkracht') >= 0 ? num(r[c('koopkracht')]) : null;
+      if (dec != null) ext.cpiDec[y] = dec;
+      if (kk != null) ext.kk[y] = kk;
+      if (mod != null) ext.modaal[y] = mod;
+      const pv = {}; let ok = true;
+      for (let q = 10; q <= 90; q += 10) { const v = num(r[c('p' + q)]); if (v == null) ok = false; pv['p' + q] = v; }
+      if (ok) ext.pct[y] = pv;
+    }
+  }
+  const ca = aoaOf(wb, 'cao_nu');
+  if (ca) ext.cao = parseCao(ca) || [];
+  if (!pa && !ed && !ca) throw new Error('ik herken dit bestand niet. Verwacht: financieel_overzicht.xlsx of externe_data.xlsx (met de tabbladen parameters, externe_data en cao_NU).');
+  return ext;
+}
+const REQUIRED_PARAMS = ['vakantiegeld_pct', 'eju_pct', 'ewf_pct', 'hillen_pct', 'hillen_afbouw', 'belastingjaar', 'box3_vrijstelling', 'box3_tarief', 'box3_forfait_bank',
+  'ak_grens1', 'ak_pct1', 'ak_grens2', 'ak_basis2', 'ak_pct2', 'ak_basis3', 'ak_pct3', 'referentiejaar_macro', 'referentiejaar_samen'];
+function missingParams() { return EXT ? REQUIRED_PARAMS.filter(k => EXT.params[k] == null) : REQUIRED_PARAMS.slice(); }
+/* ================= openbare cijfers direct bij de bron (CBS en Wikipedia) =================
+   Zelfde bronnen en bewerkingen als het notebook (cel 1, 6–9, 11–12). De laatst opgehaalde versie
+   wordt in de browser bewaard als reserve, zoals de pkl-bestanden van het notebook. */
+let LIVE = null;                       // { fetchedAt, cpi, cpiDec, kk, modaal, pct, status: {bron: 'live'|'cache'|'fout'} }
+const LIVE_KEY = 'onze-financien-live-v1';
+const CBS_API = 'https://opendata.cbs.nl/ODataApi/odata/';
+const numNL = v => { const x = parseFloat(String(v ?? '').trim()); return isFinite(x) ? x : null; };
+async function cbsRows(table, select, filter) {
+  let url = `${CBS_API}${table}/UntypedDataSet?$format=json&$select=${select}` + (filter ? `&$filter=${encodeURIComponent(filter)}` : '');
+  const out = [];
+  while (url) {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error(`${table}: HTTP ${r.status}`);
+    const j = await r.json();
+    out.push(...(j.value || []));
+    url = j['odata.nextLink'] || null;
+  }
+  return out;
+}
+const LIVE_SOURCES = {
+  // CPI, jaarmutatie (JJ00) en december-op-december (MM12); alleen volledige jaren, zoals cpi_data
+  async cpi() {
+    const rows = await cbsRows('70936ned', 'Perioden,JaarmutatieCPI_1', "substringof('JJ',Perioden) or substringof('MM12',Perioden)");
+    const cpi = {}, cpiDec = {}, maxY = new Date().getFullYear() - 1;
+    for (const r of rows) {
+      const per = String(r.Perioden).trim(), y = +per.slice(0, 4), v = numNL(r.JaarmutatieCPI_1);
+      if (!(y >= 1990 && y <= maxY) || v == null) continue;
+      if (per.endsWith('JJ00')) cpi[y] = v; else if (per.endsWith('MM12')) cpiDec[y] = v;
+    }
+    if (!Object.keys(cpi).length) throw new Error('CPI: geen jaarcijfers');
+    return { cpi, cpiDec };
+  },
+  // mediane koopkracht: drie CBS-tabellen achter elkaar, eerste waarde per jaar telt (notebook cel 9)
+  async kk() {
+    const [d1, d2, d3] = await Promise.all([
+      cbsRows('83779NED', 'Perioden,MedianeKoopkrachtontwikkeling_1', "KenmerkenVanPersonen eq 'T009002' and Geslacht eq 'T001038'"),
+      cbsRows('71015NED', 'Perioden,Koopkrachtontwikkeling_1', "trim(KenmerkenVanPersonenEnHuishoudens) eq '1'"),
+      cbsRows('70182NED', 'Perioden,Koopkrachtverandering_1', "KenmerkenVanHuishoudens eq '010909'")
+    ]);
+    const list = [
+      ...d1.map(r => [+String(r.Perioden).slice(0, 4), numNL(r.MedianeKoopkrachtontwikkeling_1)]),
+      ...d2.map(r => [+String(r.Perioden).slice(0, 4), numNL(r.Koopkrachtontwikkeling_1)]),
+      ...d3.map(r => [+String(r.Perioden).slice(0, 4) + 1, numNL(r.Koopkrachtverandering_1)])
+    ];
+    const kk = {}, seen = new Set();
+    for (const [y, v] of list) { if (seen.has(y)) continue; seen.add(y); if (v != null && y >= 1990) kk[y] = v; }
+    if (!Object.keys(kk).length) throw new Error('koopkracht: geen cijfers');
+    return { kk };
+  },
+  // bruto huishoudinkomen p10..p90, particuliere huishoudens (notebook cel 11)
+  async pct() {
+    const rows = await cbsRows('83934NED', 'Populatie,Percentielen,Perioden,PercentielBrutoInkomen_4', "Populatie eq '1050010'");
+    const code = { A044094: 'p10', A044095: 'p20', A044096: 'p30', A044097: 'p40', A044098: 'p50', A044099: 'p60', A044100: 'p70', A044101: 'p80', A044102: 'p90' };
+    const by = {};
+    for (const r of rows) {
+      const k = code[String(r.Percentielen).trim()], y = +String(r.Perioden).slice(0, 4), v = numNL(r.PercentielBrutoInkomen_4);
+      if (!k || v == null) continue;
+      (by[y] = by[y] || {})[k] = v * 1000;
+    }
+    const pct = {};
+    for (const [y, o] of Object.entries(by)) if (Object.keys(o).length === 9) pct[y] = o;
+    if (!Object.keys(pct).length) throw new Error('percentielen: geen cijfers');
+    return { pct };
+  },
+  // modaal inkomen: eerste tabel op de Wikipedia-pagina (notebook cel 1 en 7)
+  async modaal() {
+    const r = await fetch('https://nl.wikipedia.org/w/api.php?action=parse&page=Modaal_inkomen&prop=text&format=json&origin=*', { cache: 'no-store' });
+    if (!r.ok) throw new Error(`Wikipedia: HTTP ${r.status}`);
+    const j = await r.json();
+    const doc = new DOMParser().parseFromString(j.parse.text['*'], 'text/html');
+    const tb = doc.querySelector('table'); if (!tb) throw new Error('Wikipedia: geen tabel');
+    const modaal = {};
+    for (const tr of tb.querySelectorAll('tr')) {
+      const c = [...tr.children].map(td => td.textContent.trim());
+      const ym = (c[0] || '').match(/\d{4}/); if (!ym || c.length < 2) continue;
+      const v = parseFloat(c[1].replace(/\[[^\]]*\]/g, '').replace(/[^\d,]/g, '').replace(',', '.'));
+      if (isFinite(v) && v > 0) modaal[+ym[0]] = v;
+    }
+    if (!Object.keys(modaal).length) throw new Error('Wikipedia: geen bedragen');
+    return { modaal };
+  }
+};
+const LIVE_NAMES = { cpi: 'inflatie (CBS)', kk: 'koopkracht (CBS)', pct: 'percentielen (CBS)', modaal: 'modaal (Wikipedia)' };
+let LIVE_BUSY = false, LIVE_FAIL = false;
+async function fetchLive() {
+  if (LIVE_BUSY) return; LIVE_BUSY = true;
+  $('#stLive').innerHTML = 'Bezig met ophalen…';
+  const next = { ...(LIVE || {}), status: {} };
+  let ok = 0;
+  await Promise.all(Object.entries(LIVE_SOURCES).map(async ([k, f]) => {
+    try { Object.assign(next, await f()); next.status[k] = 'live'; ok++; }
+    catch (e) { next.status[k] = LIVE && LIVE.status ? 'cache' : 'fout'; next.err = (next.err || []).concat(String(e.message || e)); }
+  }));
+  if (ok) next.fetchedAt = Date.now();
+  LIVE_BUSY = false;
+  LIVE_FAIL = !ok;
+  if (!ok && !LIVE) { LIVE = null; updateStatus(); return; }
+  LIVE = next; delete LIVE.err;
+  try { localStorage.setItem(LIVE_KEY, JSON.stringify(LIVE)); } catch (e) { }
+  applyExt(EXT); updateStatus(); renderAll();
+}
+function restoreLive() { try { const x = JSON.parse(localStorage.getItem(LIVE_KEY) || 'null'); if (x && x.cpi) { LIVE = x; LIVE.status = Object.fromEntries(Object.keys(LIVE_SOURCES).map(k => [k, 'cache'])); } } catch (e) { } }
+// opgehaalde cijfers gaan voor die uit externe_data.xlsx; ontbreekt een bron, dan blijft het bestand de reserve
+const overlay = (a, b) => b && Object.keys(b).length ? { ...(a || {}), ...b } : (a || {});
+
+function applyExt(ext) {
+  EXT = ext;
+  const p = ext ? ext.params : {};
+  CPI = overlay(ext?.cpi, LIVE?.cpi);
+  const ys = Object.keys(CPI).map(Number);
+  CPI_LAST = ys.length ? Math.max(...ys) : null;
+  MODAAL = overlay(ext?.modaal, LIVE?.modaal);
+  CPI_DEC = overlay(ext?.cpiDec, LIVE?.cpiDec);
+  KK = overlay(ext?.kk, LIVE?.kk);
+  PCT = overlay(ext?.pct, LIVE?.pct);
+  REF_Y = p.referentiejaar_macro ?? 2000;
+  REF_SAMEN = p.referentiejaar_samen ?? null;
+  HALFJAAR = p.hypotheek_halfjaar ?? null;
+  TAX = ext && missingParams().length === 0 ? {
+    ewf: p.ewf_pct, hillen: p.hillen_pct, hillenStep: p.hillen_afbouw, year: p.belastingjaar,
+    b3free: p.box3_vrijstelling, b3rate: p.box3_tarief, b3bank: p.box3_forfait_bank
+  } : null;
+  CAO_FILE = ext && ext.cao.length ? { events: ext.cao, fileName: ext.fileName } : null;
+  syncParams();
+}
+// bruto-netto: parameters uit financieel_overzicht.xlsx aangevuld met die uit externe_data.xlsx
+function syncParams() {
+  if (!DATA) return;
+  const P = DATA.bn.P, p = EXT ? EXT.params : {};
+  P.vu = p.vakantiegeld_pct; P.eju = p.eju_pct;
+  P.toelPens = p.toelage_pensioengevend ?? 1; P.toelVu = p.toelage_in_vakantiegeld ?? 1; P.toelEju = p.toelage_in_eju ?? 0;
+  P.akG1 = p.ak_grens1; P.akP1 = p.ak_pct1; P.akG2 = p.ak_grens2; P.akB2 = p.ak_basis2; P.akP2 = p.ak_pct2; P.akB3 = p.ak_basis3; P.akP3 = p.ak_pct3;
+}
+function updateStatus() {
+  const has = !!DATA;
+  document.body.classList.toggle('nodata', !has);
+  $('#demoBanner').style.display = has ? 'none' : '';
+  const miss = [];
+  if (has && !EXT) miss.push('Kies ook <b>externe_data.xlsx</b>. Zonder dat bestand ontbreken de cao-afspraken en de parameters (vakantiegeld, eindejaarsuitkering, belastingregels voor eigen woning en box 3).');
+  else if (has) {
+    const mp = missingParams();
+    if (mp.length) miss.push('In externe_data.xlsx (tabblad parameters) ontbreken: ' + mp.join(', ') + '.');
+    if (!CPI_LAST) miss.push('De inflatie ontbreekt: niet opgehaald bij CBS en niet in externe_data.xlsx.');
+    if (!Object.keys(MODAAL).length) miss.push('Het modale inkomen ontbreekt: niet opgehaald en niet in externe_data.xlsx.');
+    if (!Object.keys(PCT).length) miss.push('De inkomenspercentielen ontbreken: niet opgehaald bij CBS en niet in externe_data.xlsx.');
+    if (!CAO_FILE) miss.push('In externe_data.xlsx (tabblad cao_NU) staan geen cao-afspraken.');
+  }
+  $('#extBanner').style.display = miss.length ? '' : 'none';
+  $('#extMsg').innerHTML = miss.map(m => `<div>${m}</div>`).join('');
+  const dd = t => new Date(t).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+  const parts = [];
+  parts.push(DATA ? `Overzicht ${dd(DATA.loadedAt)}` : 'Overzicht ontbreekt');
+  parts.push(EXT ? `Extern ${dd(EXT.loadedAt)}` : 'Extern ontbreekt');
+  if (LIVE && LIVE.fetchedAt) parts.push(`CBS ${dd(LIVE.fetchedAt)}`);
+  $('#srcLabel').textContent = !DATA && !EXT ? 'Nog geen gegevens geladen' : parts.join(' · ');
+  const d8 = t => new Date(t).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+  $('#stMain').innerHTML = DATA ? `<span class="pos">✓</span> ${esc(DATA.fileName || 'geladen')}, ${d8(DATA.loadedAt)}` : '<span class="neg">Nog niet gekozen</span>';
+  $('#stExt').innerHTML = EXT ? `<span class="pos">✓</span> ${esc(EXT.fileName || 'geladen')}, ${d8(EXT.loadedAt)}` : '<span class="neg">Nog niet gekozen</span>';
+  const st = LIVE && LIVE.status ? LIVE.status : {};
+  const liveTxt = Object.keys(LIVE_SOURCES).map(k => `${LIVE_NAMES[k]}: ${st[k] === 'live' ? '<span class="pos">✓ live</span>' : st[k] === 'cache' ? 'bewaarde versie' : '<span class="neg">niet bereikbaar</span>'}`).join(', ');
+  $('#stLive').innerHTML = LIVE ? `${liveTxt}${LIVE.fetchedAt ? `. Laatst opgehaald ${d8(LIVE.fetchedAt)}.` : ''}` : (LIVE_FAIL ? '<span class="neg">Niet bereikbaar.</span> De app gebruikt de cijfers uit externe_data.xlsx.' : 'Nog niet opgehaald.');
+  const src = [];
+  if (CPI_LAST) src.push(`Inflatie: CBS (jaarmutatie CPI) t/m ${CPI_LAST}`);
+  const my = Object.keys(MODAAL).map(Number); if (my.length) src.push(`modaal t/m ${Math.max(...my)}`);
+  const py = Object.keys(PCT).map(Number); if (py.length) src.push(`percentielen (CBS) t/m ${Math.max(...py)}`);
+  $$('.src-note').forEach(n => n.textContent = src.length ? src.join(' · ') + (LIVE && LIVE.fetchedAt ? `, direct van CBS en Wikipedia (${d8(LIVE.fetchedAt)}).` : ', uit ' + (EXT?.fileName || 'externe_data.xlsx') + '.') : '');
+  const hn = $('#halfNote'); if (hn) hn.textContent = HALFJAAR ? `In ${HALFJAAR} telt de helft van het jaarinkomen, omdat de hypotheek toen een half jaar liep.` : '';
+  const ku = $('#k5Unit'); if (ku) ku.textContent = REF_SAMEN ? `index, samen ${REF_SAMEN} = 100` : 'index';
+}
+function applyData(d) {
+  DATA = d;
+  syncParams();
+  initBN(); initInUit(); initW();
+  updateStatus();
+  renderAll();
+}
+function save() {
+  try {
+    const keep = $('#rememberChk').checked;
+    if (keep && DATA) localStorage.setItem(STORE_KEY, JSON.stringify(DATA)); else localStorage.removeItem(STORE_KEY);
+    if (keep && EXT) localStorage.setItem(STORE_KEY + '-ext', JSON.stringify(EXT)); else localStorage.removeItem(STORE_KEY + '-ext');
+    localStorage.setItem(STORE_KEY + '-remember', keep ? '1' : '0');
+  } catch (e) { /* opslag niet beschikbaar */ }
+}
+function restore() {
+  let d = null;
+  try {
+    $('#rememberChk').checked = localStorage.getItem(STORE_KEY + '-remember') === '1';
+    const hadCao = localStorage.getItem(STORE_KEY + '-cao') != null;
+    localStorage.removeItem(STORE_KEY + '-cao');
+    OLD_KEYS.forEach(k => localStorage.removeItem(k));
+    const re = localStorage.getItem(STORE_KEY + '-ext'); if (re) applyExt(JSON.parse(re));
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) { const x = JSON.parse(raw); if (x && x.hist) d = x; }
+    if (hadCao && !EXT) setTimeout(() => {
+      $('#dataPanel').classList.add('open'); $('#dataBtn').setAttribute('aria-expanded', 'true');
+      $('#loadMsg').textContent = 'De app leest de cao-afspraken, inflatie, modaal en belastingregels nu uit externe_data.xlsx. Kies dat bestand één keer.';
+    }, 0);
+  } catch (e) { /* negeren */ }
+  return d;
+}
+async function handleFiles(e, slot) {
+  const files = [...e.target.files];
+  const msg = $('#loadMsg');
+  if (!files.length) return;
+  $('#dataPanel').classList.add('open'); $('#dataBtn').setAttribute('aria-expanded', 'true');
+  if (typeof XLSX === 'undefined') { msg.textContent = 'De Excel-lezer kon niet laden. Controleer je internetverbinding en probeer het opnieuw.'; return; }
+  const notes = [];
+  msg.textContent = 'Bezig met lezen…';
+  // eerst externe_data, zodat de parameters klaarstaan als het overzicht wordt verwerkt
+  const read = [];
+  for (const file of files) {
+    try { read.push({ file, wb: XLSX.read(await file.arrayBuffer(), { type: 'array' }) }); }
+    catch (err) { notes.push(`${file.name}: kon het bestand niet openen.`); }
+  }
+  read.sort((a, b) => (aoaOf(a.wb, 'salaris geschiedenis') ? 1 : 0) - (aoaOf(b.wb, 'salaris geschiedenis') ? 1 : 0));
+  for (const { file, wb } of read) {
+    try {
+      const isMain = !!aoaOf(wb, 'salaris geschiedenis');
+      if (isMain && slot === 'ext') notes.push(`Let op: ${file.name} is het financieel overzicht, niet de externe data. Ik heb het als financieel overzicht ingeladen.`);
+      if (!isMain && slot === 'main') notes.push(`Let op: ${file.name} is niet het financieel overzicht. Ik probeer het als externe data in te laden.`);
+      if (isMain) {
+        applyData(buildFromWorkbook(wb, file.name));
+        notes.push(`${file.name}: ${DATA.hist.length} salarisregels, ${DATA.verm.length} jaren vermogen, ${DATA.inuit.uit.length} uitgavenposten.`);
+      } else {
+        const ext = parseExt(wb, file.name);
+        applyExt(ext);
+        notes.push(`${file.name}: ${Object.keys(ext.params).length} parameters, inflatie ${Object.keys(ext.cpi).length} jaar, modaal ${Object.keys(ext.modaal).length} jaar, percentielen ${Object.keys(ext.pct).length} jaar, ${ext.cao.length} cao-afspraken.`);
+        if (DATA) { initBN(); initW(); }
+        updateStatus(); renderAll();
+      }
+    } catch (err) {
+      notes.push(`${file.name}: ${err && err.message ? err.message : err}`);
+    }
+  }
+  save();
+  msg.textContent = 'Geladen: ' + notes.join(' ');
+  e.target.value = '';
+}
+$('#fileMain').addEventListener('change', e => handleFiles(e, 'main'));
+$('#fileExt').addEventListener('change', e => handleFiles(e, 'ext'));
+$('#rememberChk').addEventListener('change', save);
+$('#forgetBtn').addEventListener('click', () => {
+  try { localStorage.removeItem(STORE_KEY); localStorage.removeItem(STORE_KEY + '-ext'); } catch (e) { }
+  DATA = null; applyExt(null);
+  $('#rememberChk').checked = false; save();
+  updateStatus();
+  $('#loadMsg').textContent = 'De gegevens zijn van dit toestel verwijderd.';
+});
+$('#dataBtn').addEventListener('click', () => {
+  const p = $('#dataPanel'); const open = !p.classList.contains('open');
+  p.classList.toggle('open', open); $('#dataBtn').setAttribute('aria-expanded', String(open));
+});
+
+/* ================= wiring ================= */
+function setPressed(sel, attr, val) { for (const b of $$(sel)) b.setAttribute('aria-pressed', String(b.getAttribute(attr) === String(val))); }
+$$('[data-inc-kind]').forEach(b => b.addEventListener('click', () => { UI.incKind = b.dataset.incKind; setPressed('[data-inc-kind]', 'data-inc-kind', UI.incKind); renderIncome(); }));
+$$('[data-inc-mode]').forEach(b => b.addEventListener('click', () => { UI.incMode = b.dataset.incMode; setPressed('[data-inc-mode]', 'data-inc-mode', UI.incMode); renderIncome(); }));
+$$('[data-range]').forEach(b => b.addEventListener('click', () => { UI.range = +b.dataset.range; setPressed('[data-range]', 'data-range', UI.range); renderIncome(); }));
+$$('[data-person]').forEach(b => b.addEventListener('click', () => { UI.person = b.dataset.person; setPressed('[data-person]', 'data-person', UI.person); renderBNInputs(); renderBN(); }));
+
+const VIEWS = ['nu', 'nederland', 'inkomen', 'carriere', 'vermogen', 'rekenen'];
+// old bookmarks keep working
+const ALIAS = { grafieken: ['inkomen'], 'bruto-netto': ['rekenen', 'bn'], maand: ['nu'], koopkracht: ['carriere'], 'wat-als': ['rekenen', 'wa'] };
+let SUB = 'bn';
+function setSub(v) {
+  SUB = v;
+  setPressed('[data-sub]', 'data-sub', v);
+  for (const d of $$('[data-subview]')) d.classList.toggle('active', d.dataset.subview === v);
+  if (v === 'wa') renderW();
+}
+function route() {
+  let v = location.hash.slice(1);
+  if (ALIAS[v]) { const [to, sub] = ALIAS[v]; if (sub) setSub(sub); v = to; }
+  if (!VIEWS.includes(v)) v = 'nu';
+  for (const s of $$('section[data-view]')) s.classList.toggle('active', s.dataset.view === v);
+  $$('nav.tabs a').forEach(a => { if (a.dataset.tab === v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  renderCharts();
+  window.scrollTo(0, 0);
+}
+$$('[data-sub]').forEach(b => b.addEventListener('click', () => setSub(b.dataset.sub)));
+function renderCharts() {
+  if (!DATA) return;
+  const v = $('section[data-view].active')?.dataset.view;
+  if (v === 'inkomen') { renderIncome(); renderModaal(); renderPercentiel(); renderOpbouw(); renderKoopkracht(); }
+  if (v === 'carriere') { renderKoopkracht(); renderFte(); }
+  if (v === 'nederland') { renderKoopkracht(); renderNederland(); }
+  if (v === 'vermogen') { renderWonen(); renderSparen(); renderInflatie(); renderVerm(); }
+  if (v === 'rekenen' && SUB === 'wa') renderW();
+}
+function renderAll() {
+  if (!DATA) return;
+  renderKpis(); renderBNInputs(); renderBN(); renderMaand(); renderWInputs();
+  renderCharts();
+}
+window.addEventListener('hashchange', route);
+let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(renderCharts, 120); });
+new MutationObserver(renderCharts).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderCharts); } catch (e) { }
+
+restoreLive();
+const stored = restore();
+if (stored) applyData(stored); else { applyExt(EXT); updateStatus(); }
+route();
+$('#liveBtn').addEventListener('click', fetchLive);
+fetchLive();
+</script>
+</body>
+</html>
