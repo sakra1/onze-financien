@@ -225,7 +225,7 @@ section[data-view].active { display: grid; }
     <input type="file" id="fileMain" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <input type="file" id="fileExt" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <div class="controls"><button class="btn" type="button" id="forgetBtn">Vergeet gegevens</button></div>
-    <div class="tiny">App-versie 2026-11-14 12:25 · systeemletters · slot op uitgaand verkeer</div>
+    <div class="tiny">App-versie 2026-11-14 12:30 · systeemletters · slot op uitgaand verkeer</div>
     <label class="small"><input type="checkbox" id="rememberChk"> Onthoud de gegevens op dit toestel, zodat ik de bestanden niet elke keer hoef te kiezen</label>
     <div class="small" id="loadMsg" role="status"></div>
   </div>
@@ -252,6 +252,12 @@ section[data-view].active { display: grid; }
       <div class="note">Per maand, als deel van de totale inkomsten, volgens het tabblad in_uit van de Excel. Jaar-, kwartaal- en weekbedragen zijn omgerekend naar een maand.</div>
     </div>
     <div class="tiles" id="kpis"></div>
+    <div class="card" id="vDet" hidden>
+      <div class="card-head"><h2>Ontwikkeling vermogen</h2><span class="tiny">per 1 januari · licht = prognose</span></div>
+      <div class="legend"><span style="--c:var(--s1)">Netto vermogen</span><span style="--c:var(--s2)">Overwaarde</span><span style="--c:var(--s3)">Spaargeld</span></div>
+      <div class="chart" id="vDetChart"></div>
+      <div class="note">Overwaarde = WOZ-waarde − hypotheek. Meer details en de tabel staan onder Vermogen.</div>
+    </div>
   </section>
 
   <!-- ============ NEDERLAND ============ -->
@@ -1075,9 +1081,10 @@ function renderKpis() {
   const buf = cur && m.uit ? Math.round(cur.spaar / m.uit) : null;
   $('#kpis').innerHTML = `
     <h2 style="grid-column:1/-1;padding:10px 2px 0">${cur ? `Vermogen op 1 januari ${cur.year}` : 'Vermogen'}</h2>
-    <div class="tile" style="grid-column:1/-1"><span>Netto vermogen</span><b>${cur ? eur(cur.net) : '–'}</b><em>overwaarde + spaargeld${(() => { const pr = cur && DATA.verm.find(r => r.year === cur.year - 1); if (!pr) return ''; const d = cur.net - pr.net; return `<br><span class="${d >= 0 ? 'pos' : 'neg'}">${signed(d)}</span> sinds 1 jan ${pr.year}`; })()}</em></div>
+    <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-vdet aria-controls="vDet" aria-expanded="${V_DET}"><span>Netto vermogen</span><i class="chev" aria-hidden="true">▾ ontwikkeling</i><b>${cur ? eur(cur.net) : '–'}</b><em>overwaarde + spaargeld</em></div>
     <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
     <div class="tile"><span>Spaargeld</span><b>${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven (vuistregel: 3 à 6)` : ''}</em></div>`;
+  renderVDet();
 }
 
 /* ================= bruto-netto view ================= */
@@ -1203,6 +1210,23 @@ function renderMaandSummary() {
   }).join('');
   renderKpis();
 }
+// ontwikkeling van het vermogen onder de vermogenstegels (tik op Netto vermogen)
+let V_DET = false;
+function renderVDet() {
+  $('#vDet').hidden = !V_DET;
+  $$('#kpis [data-vdet]').forEach(t => t.setAttribute('aria-expanded', String(V_DET)));
+  if (!V_DET || !DATA) return;
+  const V = DATA.verm, prog = y => y > THIS_YEAR;
+  const mk = f => V.map(r => ({ x: r.year, y: f(r), prog: prog(r.year) }));
+  lineChart($('#vDetChart'), [
+    { name: 'Netto vermogen', color: '--s1', points: mk(r => r.net) },
+    { name: 'Overwaarde', color: '--s2', points: mk(r => r.woz - r.hyp) },
+    { name: 'Spaargeld', color: '--s3', points: mk(r => r.spaar) }
+  ], { label: 'ontwikkeling vermogen', xFmt: String, tipTitle: v => `1 jan ${v}` });
+}
+const toggleV = () => { V_DET = !V_DET; renderVDet(); };
+$('#kpis').addEventListener('click', e => { if (e.target.closest('[data-vdet]')) toggleV(); });
+$('#kpis').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-vdet]')) { e.preventDefault(); toggleV(); } });
 // details van inkomsten of uitgaven tonen onder de tegels (tik nogmaals om te sluiten)
 let M_DET = null;
 function applyDet() {
@@ -2346,6 +2370,7 @@ $$('[data-sub]').forEach(b => b.addEventListener('click', () => setSub(b.dataset
 function renderCharts() {
   if (!DATA) return;
   const v = $('section[data-view].active')?.dataset.view;
+  if (v === 'nu') renderVDet();
   if (v === 'inkomen') { renderIncome(); renderModaal(); renderPercentiel(); renderOpbouw(); renderKoopkracht(); }
   if (v === 'carriere') { renderKoopkracht(); renderFte(); }
   if (v === 'nederland') { renderKoopkracht(); renderNederland(); }
