@@ -2,6 +2,7 @@
 <html lang="nl">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; font-src 'none'; connect-src https://opendata.cbs.nl https://nl.wikipedia.org; img-src 'self' data:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; worker-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#14324f">
 <title>Financiën</title>
@@ -11,10 +12,7 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" href="icon-180.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
 <style>
 /* Layout: one column for the phone, a fixed tab bar at the bottom, cards stacked per tab. */
 :root {
@@ -30,8 +28,8 @@
   --soft: #e8eef5;
   --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
   --good: #0f7b4a; --bad: #b3261e;
-  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
-  --font-body: "Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
   --radius: 14px;
 }
 @media (prefers-color-scheme: dark) {
@@ -52,6 +50,8 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
+/* de iPhone kleurt de rand achter de statusbalk naar de achtergrond van de pagina: die wordt de kleur van de titelbalk */
+html { background: var(--accent); }
 body {
   background: var(--bg); color: var(--ink); font-family: var(--font-body);
   font-size: 15px; line-height: 1.45; -webkit-text-size-adjust: 100%;
@@ -96,7 +96,7 @@ body.nodata main > section { display: none !important; }
 .sub.active { display: grid; }
 
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px; min-width: 0; }
+.tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px; min-width: 0; align-content: start; }
 .tile span { font-size: 12px; color: var(--ink-2); }
 .tile b { font-family: var(--font-display); font-size: 21px; font-weight: 700; overflow-wrap: anywhere; }
 .tile em { font-style: normal; font-size: 12px; color: var(--ink-3); }
@@ -208,6 +208,7 @@ section[data-view].active { display: grid; }
     <input type="file" id="fileMain" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <input type="file" id="fileExt" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <div class="controls"><button class="btn" type="button" id="forgetBtn">Vergeet gegevens</button></div>
+    <div class="tiny">App-versie 2026-11-14 11:25 · systeemletters · slot op uitgaand verkeer</div>
     <label class="small"><input type="checkbox" id="rememberChk"> Onthoud de gegevens op dit toestel, zodat ik de bestanden niet elke keer hoef te kiezen</label>
     <div class="small" id="loadMsg" role="status"></div>
   </div>
@@ -2240,7 +2241,7 @@ async function handleFiles(e, slot) {
   const msg = $('#loadMsg');
   if (!files.length) return;
   $('#dataPanel').classList.add('open'); $('#dataBtn').setAttribute('aria-expanded', 'true');
-  if (typeof XLSX === 'undefined') { msg.textContent = 'De Excel-lezer kon niet laden. Controleer je internetverbinding en probeer het opnieuw.'; return; }
+  if (typeof XLSX === 'undefined') { msg.textContent = 'De Excel-lezer kon niet laden. Controleer je internetverbinding. Lukt het daarna nog steeds niet, dan heeft de browser de code mogelijk geweigerd omdat die niet overeenkomt met de vingerafdruk (veiligheidscontrole).'; return; }
   const notes = [];
   msg.textContent = 'Bezig met lezen…';
   // eerst externe_data, zodat de parameters klaarstaan als het overzicht wordt verwerkt
@@ -2284,8 +2285,13 @@ $('#forgetBtn').addEventListener('click', () => {
   $('#loadMsg').textContent = 'De gegevens zijn van dit toestel verwijderd.';
 });
 $('#dataBtn').addEventListener('click', () => {
-  const p = $('#dataPanel'); const open = !p.classList.contains('open');
+  const p = $('#dataPanel');
+  // staat het venster open maar buiten beeld, dan er alleen naartoe scrollen in plaats van het te sluiten
+  const hdr = $('header.top').getBoundingClientRect().bottom;
+  const visible = p.classList.contains('open') && p.getBoundingClientRect().bottom > hdr + 40;
+  const open = !(p.classList.contains('open') && visible);
   p.classList.toggle('open', open); $('#dataBtn').setAttribute('aria-expanded', String(open));
+  if (open) window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
 /* ================= wiring ================= */
