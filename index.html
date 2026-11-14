@@ -171,6 +171,12 @@ nav.tabs {
   display: grid; grid-template-columns: repeat(6, auto); justify-content: space-evenly;
   padding: 6px max(4px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left));
 }
+/* Als app op het beginscherm (iOS 26+): het systeem legt bovenin een lichte waas over de statusbalk.
+   Titel en knop schuiven daarom wat verder omlaag, en de tabbalk zakt dichter naar de onderrand. */
+@media (display-mode: standalone) {
+  header.top { padding-top: calc(28px + env(safe-area-inset-top)); }
+  nav.tabs { padding-bottom: max(6px, calc(env(safe-area-inset-bottom) - 16px)); }
+}
 nav.tabs a { text-decoration: none; color: var(--ink-3); display: grid; justify-items: center; gap: 2px; font-size: 10.5px; font-weight: 600; padding: 4px 6px; border-radius: 10px; }
 nav.tabs a svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 nav.tabs a[aria-current="page"] { color: var(--accent); background: var(--soft); }
@@ -208,7 +214,7 @@ section[data-view].active { display: grid; }
     <input type="file" id="fileMain" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <input type="file" id="fileExt" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <div class="controls"><button class="btn" type="button" id="forgetBtn">Vergeet gegevens</button></div>
-    <div class="tiny">App-versie 2026-11-14 11:25 · systeemletters · slot op uitgaand verkeer</div>
+    <div class="tiny">App-versie 2026-11-14 11:40 · systeemletters · slot op uitgaand verkeer</div>
     <label class="small"><input type="checkbox" id="rememberChk"> Onthoud de gegevens op dit toestel, zodat ik de bestanden niet elke keer hoef te kiezen</label>
     <div class="small" id="loadMsg" role="status"></div>
   </div>
