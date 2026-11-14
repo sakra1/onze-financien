@@ -98,6 +98,17 @@ body.nodata main > section { display: none !important; }
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px; min-width: 0; align-content: start; }
 .tile span { font-size: 12px; color: var(--ink-2); }
+.tile.tap { cursor: pointer; position: relative; -webkit-tap-highlight-color: transparent; }
+.tile.tap .chev { font-style: normal; position: absolute; top: 12px; right: 12px; font-size: 12px; color: var(--ink-3); transition: transform .15s; }
+.tile.tap[aria-expanded="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.tile.tap[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.mdet { display: grid; gap: 10px; }
+details.gbar > summary { list-style: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+details.gbar > summary::-webkit-details-marker { display: none; }
+details.gbar > summary .top span:first-child::after { content: ' ▾'; color: var(--ink-3); font-size: 11px; }
+details.gbar[open] > summary .top span:first-child::after { content: ' ▴'; }
+details.gbar .items { margin: 6px 0 4px; padding: 6px 0 2px 10px; border-left: 2px solid var(--line); }
+.mdet[hidden], .card[hidden] { display: none; }
 .tile b { font-family: var(--font-display); font-size: 21px; font-weight: 700; overflow-wrap: anywhere; }
 .tile em { font-style: normal; font-size: 12px; color: var(--ink-3); }
 .pos { color: var(--good); } .neg { color: var(--bad); }
@@ -214,7 +225,7 @@ section[data-view].active { display: grid; }
     <input type="file" id="fileMain" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <input type="file" id="fileExt" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <div class="controls"><button class="btn" type="button" id="forgetBtn">Vergeet gegevens</button></div>
-    <div class="tiny">App-versie 2026-11-14 11:40 · systeemletters · slot op uitgaand verkeer</div>
+    <div class="tiny">App-versie 2026-11-14 12:25 · systeemletters · slot op uitgaand verkeer</div>
     <label class="small"><input type="checkbox" id="rememberChk"> Onthoud de gegevens op dit toestel, zodat ik de bestanden niet elke keer hoef te kiezen</label>
     <div class="small" id="loadMsg" role="status"></div>
   </div>
@@ -232,18 +243,15 @@ section[data-view].active { display: grid; }
 
   <!-- ============ NU ============ -->
   <section data-view="nu" class="active" aria-label="Hoe staan we ervoor">
-    <div class="tiles" id="kpis"></div>
     <h2 style="padding:4px 2px 0">Maandbudget</h2>
     <div class="tiles" id="mTiles"></div>
-    <div class="card">
-      <div class="card-head"><h2>Waar gaat het geld heen?</h2></div>
+    <div class="mdet" id="mDetIn" hidden><h3 style="padding:0 2px">Alle inkomsten</h3><div id="mIncome"></div></div>
+    <div class="card" id="mDetUit" hidden>
+      <div class="card-head"><h2>Waar gaat het geld heen?</h2><span class="tiny">tik voor de posten</span></div>
       <div class="bars" id="mBars"></div>
       <div class="note">Per maand, als deel van de totale inkomsten, volgens het tabblad in_uit van de Excel. Jaar-, kwartaal- en weekbedragen zijn omgerekend naar een maand.</div>
     </div>
-    <h2 style="padding:0 2px">Uitgaven</h2>
-    <div class="bars" id="mGroups" style="gap:10px"></div>
-    <h2 style="padding:0 2px">Inkomsten</h2>
-    <div id="mIncome"></div>
+    <div class="tiles" id="kpis"></div>
   </section>
 
   <!-- ============ NEDERLAND ============ -->
@@ -1061,16 +1069,15 @@ function chips(host, defs, onMap, rerender) {
 }
 function renderKpis() {
   const S = DATA.bn.S, E = DATA.bn.E;
-  const netNow = (S.excelNet || 0) + (E.excelNet || 0);
   const m = inuitTotals();
   const cur = DATA.verm.filter(r => r.year <= THIS_YEAR).pop() || DATA.verm[DATA.verm.length - 1];
   const wozTxt = cur ? `WOZ ${eur(cur.woz)}${TODAY >= new Date(Date.UTC(cur.year + 1, 2, 1)) ? ' ' : ' (geschat) '}− hypotheek ${eur(cur.hyp)}` : '';
   const buf = cur && m.uit ? Math.round(cur.spaar / m.uit) : null;
   $('#kpis').innerHTML = `
-    <div class="tile" style="grid-column:1/-1"><span>Netto salaris per maand</span><b>${eur(netNow)}</b><em>samen, volgens bruto-netto</em></div>
+    <h2 style="grid-column:1/-1;padding:10px 2px 0">${cur ? `Vermogen op 1 januari ${cur.year}` : 'Vermogen'}</h2>
+    <div class="tile" style="grid-column:1/-1"><span>Netto vermogen</span><b>${cur ? eur(cur.net) : '–'}</b><em>overwaarde + spaargeld${(() => { const pr = cur && DATA.verm.find(r => r.year === cur.year - 1); if (!pr) return ''; const d = cur.net - pr.net; return `<br><span class="${d >= 0 ? 'pos' : 'neg'}">${signed(d)}</span> sinds 1 jan ${pr.year}`; })()}</em></div>
     <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
-    <div class="tile"><span>Spaargeld</span><b>${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven (vuistregel: 3 à 6)` : ''}</em></div>
-    <div class="tile" style="grid-column:1/-1"><span>Netto vermogen</span><b>${cur ? eur(cur.net) : '–'}</b><em>${cur ? `overwaarde + spaargeld, per 1 jan ${cur.year}` : ''}</em></div>`;
+    <div class="tile"><span>Spaargeld</span><b>${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven (vuistregel: 3 à 6)` : ''}</em></div>`;
 }
 
 /* ================= bruto-netto view ================= */
@@ -1175,22 +1182,36 @@ function renderMaandSummary() {
   };
   const dS = t.spaar - (orig.in - orig.uit);
   $('#mTiles').innerHTML = `
-    <div class="tile" style="grid-column:1/-1"><span>Inkomsten per maand</span><b>${eur(t.in)}</b><em>gemiddeld, incl. vakantiegeld e.d.</em></div>
-    <div class="tile"><span>Uitgaven</span><b>${eur(t.uit)}</b><em>${PCT1.format(t.in ? t.uit / t.in : 0)} van de inkomsten</em></div>
+    <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-det="in" aria-controls="mDetIn"><span>Inkomsten per maand</span><i class="chev" aria-hidden="true">▾ details</i><b>${eur(t.in)}</b><em>gemiddeld, incl. vakantiegeld e.d.${(() => { const n = (DATA.bn.S.excelNet || 0) + (DATA.bn.E.excelNet || 0); return n ? `; waarvan netto salaris ${eur(n)}` : ''; })()}</em></div>
+    <div class="tile tap" role="button" tabindex="0" data-det="uit" aria-controls="mDetUit"><span>Uitgaven</span><i class="chev" aria-hidden="true">▾ details</i><b>${eur(t.uit)}</b><em>${PCT1.format(t.in ? t.uit / t.in : 0)} van de inkomsten</em></div>
     <div class="tile"><span>Sparen</span><b>${eur(t.spaar)}</b><em>${PCT1.format(t.in ? t.spaar / t.in : 0)} van de inkomsten, ${eur(t.spaar * 12)} per jaar</em></div>`;
+  applyDet();
+  // één overzicht: per groep een balk; tik op een groep om de losse posten te zien
   const groups = {};
   for (const i of UI.inuitEdits.uit) groups[i.group] = (groups[i.group] || 0) + i.amount * PER[i.per];
   const list = Object.entries(groups).sort((a, b) => b[1] - a[1]);
   list.push(['Sparen', t.spaar]);
   const max = Math.max(...list.map(g => g[1]), 1);
-  $('#mBars').innerHTML = list.map(([g, v]) => `<div class="bar"><div class="top"><span>${esc(g)}</span><span class="num">${eur(v)} · ${PCT1.format(t.in ? v / t.in : 0)}</span></div>
-    <div class="track"><div class="fill" style="width:${Math.max(0, v) / max * 100}%;${g === 'Sparen' ? 'background:var(--s3)' : ''}"></div></div></div>`).join('');
-  // update group totals in place
-  for (const s of $$('#mGroups summary [data-gtotal]')) {
-    const g = s.dataset.gtotal; s.textContent = eur(groups[g] || 0);
-  }
+  const open = new Set($$('#mBars details[open]').map(d => d.dataset.g));
+  const barHtml = (g, v) => `<div class="bar"><div class="top"><span>${esc(g)}</span><span class="num">${eur(v)} · ${PCT1.format(t.in ? v / t.in : 0)}</span></div>
+    <div class="track"><div class="fill" style="width:${Math.max(0, v) / max * 100}%;${g === 'Sparen' ? 'background:var(--s3)' : ''}"></div></div></div>`;
+  $('#mBars').innerHTML = list.map(([g, v]) => {
+    if (g === 'Sparen') return barHtml(g, v);
+    const items = UI.inuitEdits.uit.map((i, idx) => [i, idx]).filter(([i]) => i.group === g);
+    return `<details class="gbar" data-g="${esc(g)}"${open.has(g) ? ' open' : ''}><summary>${barHtml(g, v)}</summary>
+      <div class="items">${items.map(([i, idx]) => itemRow(i, idx, 'uit')).join('')}</div></details>`;
+  }).join('');
   renderKpis();
 }
+// details van inkomsten of uitgaven tonen onder de tegels (tik nogmaals om te sluiten)
+let M_DET = null;
+function applyDet() {
+  $('#mDetIn').hidden = M_DET !== 'in'; $('#mDetUit').hidden = M_DET !== 'uit';
+  $$('#mTiles [data-det]').forEach(t => t.setAttribute('aria-expanded', String(M_DET === t.dataset.det)));
+}
+const toggleDet = el => { if (!el) return; M_DET = M_DET === el.dataset.det ? null : el.dataset.det; applyDet(); };
+$('#mTiles').addEventListener('click', e => toggleDet(e.target.closest('[data-det]')));
+$('#mTiles').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-det]')) { e.preventDefault(); toggleDet(e.target.closest('[data-det]')); } });
 function itemRow(item, idx, kind) {
   const pm = item.amount * PER[item.per];
   return `<div class="item"><span>${esc(item.label)}</span>
@@ -1201,14 +1222,9 @@ function renderMaand() {
   const E = UI.inuitEdits;
   const order = [];
   E.uit.forEach((i, idx) => { if (!order.includes(i.group)) order.push(i.group); });
-  $('#mGroups').innerHTML = order.map(g => {
-    const items = E.uit.map((i, idx) => [i, idx]).filter(([i]) => i.group === g);
-    return `<details class="group"><summary><span class="name">${esc(g)}</span><span class="num" data-gtotal="${esc(g)}"></span></summary>
-      <div class="items">${items.map(([i, idx]) => itemRow(i, idx, 'uit')).join('')}</div></details>`;
-  }).join('');
   $('#mIncome').innerHTML = `<details class="group" open><summary><span class="name">Inkomsten</span><span class="num" id="inTotal"></span></summary>
     <div class="items">${E.inn.map((i, idx) => itemRow(i, idx, 'inn')).join('')}</div></details>`;
-  for (const inp of $$('#mGroups input, #mIncome input')) {
+  for (const inp of $$('#mIncome input')) {
     inp.addEventListener('input', () => {
       const it = E[inp.dataset.kind][+inp.dataset.idx];
       const v = num(inp.value);
