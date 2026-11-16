@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; font-src 'none'; connect-src https://opendata.cbs.nl https://nl.wikipedia.org; img-src 'self' data:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; worker-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; font-src 'none'; connect-src 'self' https://opendata.cbs.nl https://nl.wikipedia.org; img-src 'self' data:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; worker-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#14324f">
 <title>Financiën</title>
@@ -225,7 +225,7 @@ section[data-view].active { display: grid; }
     <input type="file" id="fileMain" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <input type="file" id="fileExt" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <div class="controls"><button class="btn" type="button" id="forgetBtn">Vergeet gegevens</button></div>
-    <div class="tiny">App-versie 2026-11-16 08:40 · systeemletters · slot op uitgaand verkeer</div>
+    <div class="filerow"><div class="tiny">App-versie <span id="appVer"></span><br><span id="updMsg"></span></div><button class="btn" type="button" id="updBtn">Zoek nieuwe versie</button></div>
     <label class="small"><input type="checkbox" id="rememberChk"> Onthoud de gegevens op dit toestel, zodat ik de bestanden niet elke keer hoef te kiezen</label>
     <div class="small" id="loadMsg" role="status"></div>
   </div>
@@ -2411,6 +2411,29 @@ window.addEventListener('hashchange', route);
 let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(renderCharts, 120); });
 new MutationObserver(renderCharts).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderCharts); } catch (e) { }
+
+/* ================= zelf bijwerken =================
+   Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
+   versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
+const APP_VERSION = '2026-11-16 08:50';
+$('#appVer').textContent = APP_VERSION;
+async function checkUpdate(manual) {
+  try {
+    const t = await (await fetch('./?check=' + Date.now(), { cache: 'no-store' })).text();
+    const m = t.match(/const APP_VERSION = '([^']+)'/);
+    if (!m) { if (manual) $('#updMsg').textContent = 'Kon de versie op GitHub niet lezen.'; return; }
+    if (m[1] !== APP_VERSION) {
+      // voorkom een herlaadlus als GitHub nog even de oude versie uitlevert
+      const key = 'onze-financien-upd-' + m[1];
+      if (!manual && sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+      $('#updMsg').textContent = 'Nieuwe versie ' + m[1] + ' gevonden, bezig met laden…';
+      location.replace(location.pathname + '?v=' + encodeURIComponent(m[1]) + location.hash);
+    } else if (manual) $('#updMsg').textContent = 'Je hebt de nieuwste versie.';
+  } catch (e) { if (manual) $('#updMsg').textContent = 'Geen verbinding met GitHub.'; }
+}
+$('#updBtn').addEventListener('click', () => { $('#updMsg').textContent = 'Bezig met zoeken…'; checkUpdate(true); });
+if (location.protocol === 'https:') checkUpdate(false);
 
 restoreLive();
 const stored = restore();
