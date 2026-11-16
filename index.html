@@ -225,7 +225,7 @@ section[data-view].active { display: grid; }
     <input type="file" id="fileMain" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <input type="file" id="fileExt" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <div class="controls"><button class="btn" type="button" id="forgetBtn">Vergeet gegevens</button></div>
-    <div class="tiny">App-versie 2026-11-16 08:30 · systeemletters · slot op uitgaand verkeer</div>
+    <div class="tiny">App-versie 2026-11-16 08:40 · systeemletters · slot op uitgaand verkeer</div>
     <label class="small"><input type="checkbox" id="rememberChk"> Onthoud de gegevens op dit toestel, zodat ik de bestanden niet elke keer hoef te kiezen</label>
     <div class="small" id="loadMsg" role="status"></div>
   </div>
@@ -1086,12 +1086,22 @@ function renderKpis() {
     const r = calcNet(x, P), uren = 165 * 12 * x.f;
     const bruto = (r.jaarBruto - r.verg * 12) / uren, netto = (r.jaarNet - r.verg * 12) / uren;
     const cao = (x.full + (x.toelage || 0) / x.f) / 165;
-    return `<div class="tile"><span>${naam}${x.f < 1 ? ` · ${NUM2.format(x.f)} fte` : ''}</span><b>${eur2(netto)}</b><em>netto per uur<br>bruto ${eur2(bruto)} per uur<br>cao-uurloon ${eur2(cao)}</em></div>`;
+    const v = { net: netto, bruto, cao }[UUR_MODE];
+    const sub = { net: 'netto per uur', bruto: 'bruto per uur', cao: 'cao-uurloon' }[UUR_MODE];
+    return `<div class="tile"><span>${naam}${x.f < 1 ? ` · ${NUM2.format(x.f)} fte` : ''}</span><b>${eur2(v)}</b><em>${sub}</em></div>`;
   };
   const uurTiles = uur('S', 'Sander') + uur('E', 'Ellen');
+  const uurNote = {
+    net: 'Alles wat je per contractuur overhoudt: maandloon, vakantiegeld, eindejaarsuitkering, toelage en DCA, na loonheffing en pensioenpremie.',
+    bruto: 'Alles wat je per contractuur verdient: maandloon, vakantiegeld, eindejaarsuitkering, toelage en DCA, vóór belasting en premies.',
+    cao: 'Zoals de cao het definieert: voltijd maandsalaris gedeeld door 165, hier plus de toelage. Zonder vakantiegeld en eindejaarsuitkering.'
+  }[UUR_MODE];
   $('#kpis').innerHTML = (uurTiles ? `
-    <h2 style="grid-column:1/-1;padding:10px 2px 0">Uurloon</h2>${uurTiles}
-    <div class="note" style="grid-column:1/-1;margin-top:-4px">Netto en bruto: alles wat je per contractuur verdient, inclusief vakantiegeld, eindejaarsuitkering, toelage en DCA, gedeeld door 165 uur per maand × deeltijdfactor (38 uur per week is voltijd). Cao-uurloon: voltijd maandsalaris plus toelage, gedeeld door 165, zoals de cao het definieert. Vergoedingen zoals reiskosten tellen niet mee.</div>` : '') + `
+    <div style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 2px 0;flex-wrap:wrap">
+      <h2 style="margin:0">Uurloon</h2>
+      <div class="seg" role="group" aria-label="Soort uurloon">${[['net', 'Netto'], ['bruto', 'Bruto'], ['cao', 'Cao']].map(([k, l]) => `<button type="button" data-uur="${k}" aria-pressed="${UUR_MODE === k}">${l}</button>`).join('')}</div>
+    </div>${uurTiles}
+    <div class="note" style="grid-column:1/-1;margin-top:-4px">${uurNote} Per uur: gedeeld door 165 uur per maand × deeltijdfactor (38 uur per week is voltijd). Reiskosten en andere vergoedingen tellen niet mee.</div>` : '') + `
     <h2 style="grid-column:1/-1;padding:10px 2px 0">${cur ? `Vermogen op 1 januari ${cur.year}` : 'Vermogen'}</h2>
     <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-vdet aria-controls="vDet" aria-expanded="${V_DET}"><span>Netto vermogen</span><i class="chev" aria-hidden="true">▾ ontwikkeling</i><b>${cur ? eur(cur.net) : '–'}</b><em>overwaarde + spaargeld</em></div>
     <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
@@ -1222,6 +1232,9 @@ function renderMaandSummary() {
   }).join('');
   renderKpis();
 }
+// keuze netto / bruto / cao voor het uurloon
+let UUR_MODE = 'net';
+$('#kpis').addEventListener('click', e => { const b = e.target.closest('[data-uur]'); if (b) { UUR_MODE = b.dataset.uur; renderKpis(); } });
 // ontwikkeling van het vermogen onder de vermogenstegels (tik op Netto vermogen)
 let V_DET = false;
 function renderVDet() {
