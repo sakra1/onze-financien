@@ -225,7 +225,7 @@ section[data-view].active { display: grid; }
     <input type="file" id="fileMain" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <input type="file" id="fileExt" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <div class="controls"><button class="btn" type="button" id="forgetBtn">Vergeet gegevens</button></div>
-    <div class="tiny">App-versie 2026-11-14 12:30 · systeemletters · slot op uitgaand verkeer</div>
+    <div class="tiny">App-versie 2026-11-16 08:30 · systeemletters · slot op uitgaand verkeer</div>
     <label class="small"><input type="checkbox" id="rememberChk"> Onthoud de gegevens op dit toestel, zodat ik de bestanden niet elke keer hoef te kiezen</label>
     <div class="small" id="loadMsg" role="status"></div>
   </div>
@@ -1079,7 +1079,19 @@ function renderKpis() {
   const cur = DATA.verm.filter(r => r.year <= THIS_YEAR).pop() || DATA.verm[DATA.verm.length - 1];
   const wozTxt = cur ? `WOZ ${eur(cur.woz)}${TODAY >= new Date(Date.UTC(cur.year + 1, 2, 1)) ? ' ' : ' (geschat) '}− hypotheek ${eur(cur.hyp)}` : '';
   const buf = cur && m.uit ? Math.round(cur.spaar / m.uit) : null;
-  $('#kpis').innerHTML = `
+  // uurloon per persoon, per contractuur (cao: 165 uur per maand bij voltijd = 38 uur per week)
+  const uur = (who, naam) => {
+    const x = DATA.bn[who], P = DATA.bn.P;
+    if (!x || !x.full || !x.f) return '';
+    const r = calcNet(x, P), uren = 165 * 12 * x.f;
+    const bruto = (r.jaarBruto - r.verg * 12) / uren, netto = (r.jaarNet - r.verg * 12) / uren;
+    const cao = (x.full + (x.toelage || 0) / x.f) / 165;
+    return `<div class="tile"><span>${naam}${x.f < 1 ? ` · ${NUM2.format(x.f)} fte` : ''}</span><b>${eur2(netto)}</b><em>netto per uur<br>bruto ${eur2(bruto)} per uur<br>cao-uurloon ${eur2(cao)}</em></div>`;
+  };
+  const uurTiles = uur('S', 'Sander') + uur('E', 'Ellen');
+  $('#kpis').innerHTML = (uurTiles ? `
+    <h2 style="grid-column:1/-1;padding:10px 2px 0">Uurloon</h2>${uurTiles}
+    <div class="note" style="grid-column:1/-1;margin-top:-4px">Netto en bruto: alles wat je per contractuur verdient, inclusief vakantiegeld, eindejaarsuitkering, toelage en DCA, gedeeld door 165 uur per maand × deeltijdfactor (38 uur per week is voltijd). Cao-uurloon: voltijd maandsalaris plus toelage, gedeeld door 165, zoals de cao het definieert. Vergoedingen zoals reiskosten tellen niet mee.</div>` : '') + `
     <h2 style="grid-column:1/-1;padding:10px 2px 0">${cur ? `Vermogen op 1 januari ${cur.year}` : 'Vermogen'}</h2>
     <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-vdet aria-controls="vDet" aria-expanded="${V_DET}"><span>Netto vermogen</span><i class="chev" aria-hidden="true">▾ ontwikkeling</i><b>${cur ? eur(cur.net) : '–'}</b><em>overwaarde + spaargeld</em></div>
     <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
