@@ -114,18 +114,6 @@ details.gbar .items { margin: 6px 0 4px; padding: 6px 0 2px 10px; border-left: 2
 .mdet[hidden], .card[hidden] { display: none; }
 .tile b { font-family: var(--font-display); font-size: 21px; font-weight: 700; overflow-wrap: anywhere; }
 .tile em { font-style: normal; font-size: 12px; color: var(--ink-3); }
-.tijd-year { display: flex; align-items: baseline; gap: 8px; }
-.tijd-year b { font-family: var(--font-display); font-size: 40px; line-height: 1; letter-spacing: -0.02em; color: var(--accent); font-variant-numeric: tabular-nums; }
-.tijd-euro { font-size: 14px; color: var(--ink-2); }
-.tijd-euro b { color: var(--ink); font-variant-numeric: tabular-nums; }
-.tijd-rows { display: grid; }
-.tijd-head { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-3); padding-bottom: 2px; }
-.tijd-row { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 12px; padding: 10px 0; border-top: 1px solid var(--line); cursor: pointer; }
-.tijd-row .n { font-size: 15px; display: grid; }
-.tijd-row .n i { font-style: normal; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
-.tijd-row b { font-size: 20px; font-variant-numeric: tabular-nums; }
-.tijd-row .x { grid-column: 1 / -1; font-size: 13px; color: var(--ink-2); display: none; padding-top: 4px; }
-.tijd-row.open .x { display: block; }
 .pos { color: var(--good); } .neg { color: var(--bad); }
 
 .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -416,7 +404,6 @@ section[data-view].active { display: grid; }
       <button type="button" class="chip" data-jump="sec-reeel">Reëel</button>
       <button type="button" class="chip" data-jump="sec-fte">Aanstelling</button>
       <button type="button" class="chip" data-jump="sec-carriere">Carrière</button>
-      <button type="button" class="chip" data-jump="sec-tijd">Tijdmachine</button>
     </div>
     <div class="tiny" style="padding:0 2px">Tik op een grafiek of schuif er met je vinger over om per jaar de bedragen te zien. Tik ernaast om ze weer te verbergen.</div>
     <div class="banner" id="caoBanner" style="display:none">
@@ -475,14 +462,6 @@ section[data-view].active { display: grid; }
     </div>
 
     <div class="note src-note" style="padding:0 2px"></div>
-    <div class="card tijd" id="sec-tijd">
-      <div class="card-head"><h2>Tijdmachine</h2><span class="tiny" id="tijdNow"></span></div>
-      <div class="tijd-year"><span class="tiny">Terug naar</span><b id="tijdY"></b></div>
-      <input type="range" id="tijdR" aria-label="Jaar">
-      <div class="tijd-euro" id="tijdEuro"></div>
-      <div class="tijd-rows" id="tijdRows"></div>
-      <div class="note" id="tijdNote"></div>
-    </div>
   </section>
 
   <!-- ============ VERMOGEN ============ -->
@@ -1734,51 +1713,6 @@ function careerSeries(who) {
   });
   return { S0, y0, rows, hasCao: raise.length > 0 };
 }
-function priceFactor(from, to) { let v = 1; for (let y = from + 1; y <= to; y++) { if (CPI[y] == null) return null; v *= 1 + CPI[y] / 100; } return v; }
-let TIJD_Y = null;
-function renderTijd() {
-  const card = $('#sec-tijd'); if (!card) return;
-  if (!DATA || !CPI_LAST) { card.hidden = true; return; }
-  card.hidden = false;
-  const NOW = CPI_LAST, by = yearAgg();
-  // gemiddeld maandsalaris per fte (incl. toelage) per jaar en persoon
-  const sal = { S: {}, E: {} };
-  for (const r of DATA.hist) { const y = new Date(r.d).getUTCFullYear(); for (const w of ['S', 'E']) { const b = basePerFte(r, w); if (b != null && isFinite(b) && b > 0) { const o = sal[w][y] || (sal[w][y] = [0, 0]); o[0] += b; o[1]++; } } }
-  const avg = (w, y) => sal[w][y] ? sal[w][y][0] / sal[w][y][1] : null;
-  const years = Object.keys(sal.S).concat(Object.keys(sal.E)).map(Number).filter(y => priceFactor(y, NOW) != null && y < NOW);
-  if (!years.length) { card.hidden = true; return; }
-  const minY = Math.min(...years);
-  const R = $('#tijdR'); R.min = minY; R.max = NOW - 1; R.step = 1;
-  if (TIJD_Y == null || TIJD_Y < minY || TIJD_Y > NOW - 1) TIJD_Y = minY;
-  R.value = TIJD_Y;
-  const Y = TIJD_Y, pf = priceFactor(Y, NOW);
-  $('#tijdY').textContent = Y;
-  $('#tijdNow').textContent = `vergeleken met ${NOW}`;
-  $('#tijdEuro').innerHTML = `Prijzen sinds ${Y}: <b>+${PCT1.format(pf - 1)}</b>`;
-  // rustige lijst: per regel toen → nu en de koopkrachtgroei; uitleg pas bij tikken
-  const row = (title, then, now, why) => {
-    const r = now / (then * pf), pct = r >= 1 ? `+${PCT0.format(r - 1)}` : `−${PCT0.format(1 - r)}`;
-    return `<button type="button" class="tijd-row"><span class="n">${title}<i>${eur(then)} → ${eur(now)}</i></span><b class="${r >= 1 ? 'pos' : 'neg'}">${pct}</b><span class="x">${why(then * pf)}</span></button>`;
-  };
-  const keer = (w, y) => MODAAL[y] && avg(w, y) ? NUM2.format(avg(w, y) * 12 * 1.08 / MODAAL[y]) : null;
-  const rows = [];
-  for (const [w, n, hij] of [['S', 'Sander', 'hij'], ['E', 'Ellen', 'zij']]) {
-    const a = avg(w, Y), b = avg(w, NOW);
-    if (a && b) rows.push(row(`Salaris ${n}`, a, b, t => `${eur(a)} per maand in ${Y} was evenveel waard als ${eur(t)} nu. Nu verdient ${hij} ${eur(b)} (voltijd).${keer(w, Y) && keer(w, NOW) ? ` Dat is ${keer(w, NOW)} × modaal, in ${Y} was dat ${keer(w, Y)} ×.` : ''}`));
-  }
-  const mm = y => MODAAL[y] / 12 / 1.08; // modaal per maand, zonder vakantiegeld (zoals de salarissen)
-  if (MODAAL[Y] && MODAAL[NOW]) rows.push(row('Modaal salaris', mm(Y), mm(NOW), t => `Modaal was in ${Y} ${eur(mm(Y))} per maand, evenveel waard als ${eur(t)} nu. In ${NOW} is het ${eur(mm(NOW))}.`));
-  const vY = DATA.verm.find(r => r.year === Y), vN = DATA.verm.find(r => r.year === NOW);
-  if (vY && vN && vY.woz && vN.woz) {
-    const yrs = (v, y) => by[y] && by[y].ok && by[y].tb ? v / by[y].tb : null;
-    const a = yrs(vY.woz, Y), b = yrs(vN.woz, NOW);
-    rows.push(row('Huis (WOZ)', vY.woz, vN.woz, t => `Het huis was in ${Y} ${eur(vY.woz)} waard, evenveel als ${eur(t)} nu.${a && b ? ` Kopen kostte toen ${NUM2.format(a)} bruto jaarinkomens van jullie, nu ${NUM2.format(b)}.` : ''}`));
-  }
-  $('#tijdRows').innerHTML = rows.length ? `<div class="tijd-head"><span>maandsalaris bij voltijd</span><span>groei na inflatie</span></div>${rows.join('')}` : '<div class="note">Voor dit jaar zijn er te weinig gegevens.</div>';
-  $('#tijdNote').textContent = `Groei na inflatie = hoeveel meer het nu waard is dan toen, na aftrek van de prijsstijging (CBS). Tik op een regel voor uitleg.`;
-}
-$('#tijdR').addEventListener('input', e => { TIJD_Y = +e.target.value; renderTijd(); });
-$('#tijdRows').addEventListener('click', e => { const r = e.target.closest('.tijd-row'); if (r) r.classList.toggle('open'); });
 function renderSalTable() {
   const el = $('#k4Table'); if (!el) return;
   const m = {}, prog = {};
@@ -2579,7 +2513,7 @@ function renderCharts() {
   const v = $('section[data-view].active')?.dataset.view;
   if (v === 'nu') { renderVDet(); renderFlow(); }
   if (v === 'inkomen') { renderIncome(); renderModaal(); renderPercentiel(); renderOpbouw(); renderKoopkracht(); }
-  if (v === 'carriere') { renderTijd(); renderKoopkracht(); renderFte(); }
+  if (v === 'carriere') { renderKoopkracht(); renderFte(); }
   if (v === 'nederland') { renderKoopkracht(); renderNederland(); }
   if (v === 'vermogen') { renderWonen(); renderSparen(); renderInflatie(); renderVerm(); }
   if (v === 'rekenen' && SUB === 'wa') renderW();
@@ -2597,7 +2531,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-17 19:10';
+const APP_VERSION = '2026-11-17 19:25';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
