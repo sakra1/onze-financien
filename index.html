@@ -1074,7 +1074,7 @@ function chips(host, defs, onMap, rerender) {
     host.appendChild(b);
   }
 }
-function renderKpis() {
+function renderKpis(onlyKpis) {
   const S = DATA.bn.S, E = DATA.bn.E;
   const m = inuitTotals();
   const cur = DATA.verm.filter(r => r.year <= THIS_YEAR).pop() || DATA.verm[DATA.verm.length - 1];
@@ -1112,6 +1112,7 @@ function renderKpis() {
     <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-vdet aria-controls="vDet" aria-expanded="${V_DET}"><span>Netto vermogen</span><i class="chev" aria-hidden="true">▾ ontwikkeling</i><b>${cur ? eur(cur.net) : '–'}</b><em>overwaarde + spaargeld</em></div>
     <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
     <div class="tile"><span>Spaargeld</span><b>${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven (vuistregel: 3 à 6)` : ''}</em></div>`;
+  if (onlyKpis) return;
   renderVDet();
   renderFlow();
 }
@@ -1270,7 +1271,9 @@ function flowData() {
 }
 function renderFlow() {
   const host = $('#flowChart'); if (!host) return;
+  if (host.offsetHeight) host.style.minHeight = host.offsetHeight + 'px'; // voorkomt verspringen tijdens het opnieuw tekenen
   host.innerHTML = '';
+  requestAnimationFrame(() => { host.style.minHeight = ''; });
   const d = flowData();
   if (!d || !(d.per.S || d.per.E)) { host.innerHTML = '<div class="note">Kies eerst financieel_overzicht.xlsx.</div>'; return; }
   const f = FLOW_PER === 'm' ? 1 / 12 : 1, money = v => eur(v * f), unit = FLOW_PER === 'm' ? 'per maand' : 'per jaar';
@@ -1345,7 +1348,7 @@ function renderFlow() {
 $$('[data-flow]').forEach(b => b.addEventListener('click', () => { FLOW_PER = b.dataset.flow; setPressed('[data-flow]', 'data-flow', FLOW_PER); renderFlow(); }));
 // keuze netto / bruto / cao voor het uurloon
 let UUR_MODE = 'net';
-$('#kpis').addEventListener('click', e => { const b = e.target.closest('[data-uur]'); if (b) { UUR_MODE = b.dataset.uur; renderKpis(); } });
+$('#kpis').addEventListener('click', e => { const b = e.target.closest('[data-uur]'); if (b) { UUR_MODE = b.dataset.uur; renderKpis(true); } });
 // ontwikkeling van het vermogen onder de vermogenstegels (tik op Netto vermogen)
 let V_DET = false;
 function renderVDet() {
@@ -2545,7 +2548,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-18 13:45';
+const APP_VERSION = '2026-11-18 13:50';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
