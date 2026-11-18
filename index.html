@@ -94,8 +94,12 @@ main { max-width: 720px; margin: 0 auto; padding: 14px 16px calc(120px + env(saf
 body.nodata main > section { display: none !important; }
 .sub { display: none; gap: 14px; }
 .sub.active { display: grid; }
+.seg.subseg { justify-self: stretch; display: grid; grid-template-columns: 1fr 1fr; }
+.seg.subseg button { width: 100%; white-space: nowrap; padding-left: 6px; padding-right: 6px; font-size: 14px; }
 
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tiles3 { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tiles3 .tile { padding: 10px; }
 .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px; min-width: 0; align-content: start; }
 .tile span { font-size: 12px; color: var(--ink-2); }
 .tile.tap { cursor: pointer; position: relative; -webkit-tap-highlight-color: transparent; }
@@ -182,7 +186,7 @@ details.group > summary .name { flex: 1; }
 
 nav.tabs {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--card); border-top: 1px solid var(--line);
-  display: grid; grid-template-columns: repeat(6, auto); justify-content: space-evenly;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
   padding: 6px max(4px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left));
 }
 /* Als app op het beginscherm (iOS 26+): het systeem legt bovenin een lichte waas over de statusbalk.
@@ -260,7 +264,7 @@ section[data-view].active { display: grid; }
       </div>
       <div class="chart" id="flowChart" style="overflow:visible"></div>
       <div class="small" id="flowInfo" style="min-height:2.6em"></div>
-      <div class="note">Van bruto (Sander, Ellen en overige inkomsten) via loonheffing en pensioenpremie naar netto, en van netto naar de uitgavengroepen en sparen. Lonen zoals in Rekenen → Bruto-netto, inclusief vakantiegeld, eindejaarsuitkering, toelage, DCA en vergoedingen; uitgaven en overige inkomsten uit het tabblad in_uit. Sparen is wat er overblijft, en kan daardoor iets afwijken van het maandbudget. Tik op een stroom of blok voor de bedragen.</div>
+      <div class="note">Van bruto (Sander, Ellen en overige inkomsten) via loonheffing en pensioenpremie naar netto, en van netto naar de uitgavengroepen en sparen. Lonen zoals in Inkomen → Van bruto naar netto, inclusief vakantiegeld, eindejaarsuitkering, toelage, DCA en vergoedingen; uitgaven en overige inkomsten uit het tabblad in_uit. Sparen is wat er overblijft, en kan daardoor iets afwijken van het maandbudget. Tik op een stroom of blok voor de bedragen.</div>
     </div>
     <div class="tiles" id="kpis"></div>
     <div class="card" id="vDet" hidden>
@@ -315,12 +319,15 @@ section[data-view].active { display: grid; }
 
   <!-- ============ INKOMEN ============ -->
   <section data-view="inkomen" aria-label="Inkomen">
+    <div class="seg subseg" role="group" aria-label="Weergave">
+      <button type="button" data-sub="ov-ink" aria-pressed="true">Inkomen over de jaren</button>
+      <button type="button" data-sub="bn" aria-pressed="false">Van bruto naar netto</button>
+    </div>
+    <div class="sub active" data-subview="ov-ink">
     <div class="controls" aria-label="Spring naar">
       <button type="button" class="chip" data-jump="sec-inkomen">Inkomen</button>
-      <button type="button" class="chip" data-jump="sec-modaal">Modaal</button>
-      <button type="button" class="chip" data-jump="sec-percentiel">Percentielen</button>
+      <button type="button" class="chip" data-jump="sec-modaal">Modaal en percentielen</button>
       <button type="button" class="chip" data-jump="sec-koopkracht">Koopkracht</button>
-      <button type="button" class="chip" data-jump="sec-opbouw">Bruto-opbouw</button>
     </div>
     <div class="tiny" style="padding:0 2px">Tik op een grafiek of schuif er met je vinger over om per jaar de bedragen te zien. Tik ernaast om ze weer te verbergen.</div>
     <div class="card" id="sec-inkomen">
@@ -344,30 +351,26 @@ section[data-view].active { display: grid; }
     </div>
 
     <div class="card" id="sec-modaal">
-      <div class="card-head"><h2>Bruto inkomen en modaal</h2><span class="tiny">per jaar</span></div>
+      <div class="card-head"><h2>Vergeleken met Nederland</h2><span class="tiny" id="cmpSub">bruto per jaar</span></div>
       <div class="controls">
-        <div class="seg" role="group" aria-label="Weergave modaal">
-          <button type="button" data-mod="eur" aria-pressed="true">In euro's</button>
-          <button type="button" data-mod="keer" aria-pressed="false">Keer modaal</button>
+        <div class="seg" role="group" aria-label="Weergave">
+          <button type="button" data-cmp="keer" aria-pressed="true">Keer modaal</button>
+          <button type="button" data-cmp="eur" aria-pressed="false">In euro's</button>
+          <button type="button" data-cmp="pos" aria-pressed="false">Percentiel</button>
         </div>
       </div>
-      <div class="controls" id="modChips"></div>
-      <div class="chart" id="modChart"></div>
-      <div class="note">Modaal inkomen volgens het CPB, bruto per jaar inclusief vakantiegeld. Jullie bruto is inclusief vakantiegeld, eindejaarsuitkering en vergoedingen, zoals in het notebook.</div>
+      <div class="cmp-keer">
+        <div class="controls" id="modChips"></div>
+        <div class="chart" id="modChart"></div>
+        <div class="note">Jullie bruto jaarinkomen gedeeld door het modale inkomen volgens het CPB (bruto per jaar inclusief vakantiegeld). Jullie bruto is inclusief vakantiegeld, eindejaarsuitkering en vergoedingen, zoals in het notebook.</div>
+      </div>
+      <div class="cmp-pct" hidden>
+        <div class="controls" id="pctChips"></div>
+        <div class="chart" id="pctChart"></div>
+        <div class="note" id="pctNote">Grijze banden: p10–p90, p20–p80, p30–p70 en p40–p60 van het bruto huishoudinkomen in Nederland (CBS). Zoals in het notebook worden jullie bruto inkomens, ieder apart en samen, en modaal daartegen afgezet. Onder p10 telt als 5; boven p90 wordt doorgerekend.</div>
+      </div>
     </div>
 
-    <div class="card" id="sec-percentiel">
-      <div class="card-head"><h2>Inkomenspercentielen</h2><span class="tiny">CBS, bruto huishoudinkomen</span></div>
-      <div class="controls">
-        <div class="seg" role="group" aria-label="Weergave percentielen">
-          <button type="button" data-pctv="eur" aria-pressed="true">In euro's</button>
-          <button type="button" data-pctv="pos" aria-pressed="false">Percentiel</button>
-        </div>
-      </div>
-      <div class="controls" id="pctChips"></div>
-      <div class="chart" id="pctChart"></div>
-      <div class="note" id="pctNote">Grijze banden: p10–p90, p20–p80, p30–p70 en p40–p60 van het bruto huishoudinkomen in Nederland (CBS). Zoals in het notebook worden jullie bruto inkomens, ieder apart en samen, en modaal daartegen afgezet. Onder p10 telt als 5; boven p90 wordt doorgerekend.</div>
-    </div>
 
     <div class="card" id="sec-koopkracht">
       <div class="card-head"><h2>Koopkracht van ons netto inkomen</h2><span class="tiny" id="k5Unit">index</span></div>
@@ -376,25 +379,57 @@ section[data-view].active { display: grid; }
       <details class="table"><summary>Toon als tabel</summary><div class="tablewrap" id="k5Table"></div></details>
       <div class="note">Netto inkomen per jaar gedeeld door het gemiddelde prijspeil van dat jaar, zoals in het notebook. Alleen volledige jaren waarvoor de inflatie bekend is. Gestreept: de koopkracht van de mediane Nederlander volgens CBS, vanaf hetzelfde startjaar.</div>
     </div>
-    <div class="card" id="sec-opbouw">
-      <div class="card-head"><h2>Waar gaat het bruto inkomen heen?</h2></div>
-      <div class="controls">
-        <div class="seg" role="group" aria-label="Persoon">
-          <button type="button" data-op-who="S" aria-pressed="true">Sander</button>
-          <button type="button" data-op-who="E" aria-pressed="false">Ellen</button>
-          <button type="button" data-op-who="T" aria-pressed="false">Samen</button>
-        </div>
-        <div class="seg" role="group" aria-label="Euro of procent">
-          <button type="button" data-op-unit="eur" aria-pressed="true">€</button>
-          <button type="button" data-op-unit="pct" aria-pressed="false">%</button>
-        </div>
-      </div>
-      <div class="legend" id="opLegend"></div>
-      <div class="chart" id="opChart"></div>
-      <div class="note" id="opNote">Loonheffing = bruto − netto − ouderdomspensioenpremie, dus inclusief de premies voor arbeidsongeschiktheid en AOV (zoals in het notebook). Pensioenpremies uit het tabblad pensioen.</div>
-    </div>
 
     <div class="note src-note" style="padding:0 2px"></div>
+    </div>
+    <div class="sub" data-subview="bn">
+      <div class="card">
+        <div class="card-head">
+          <h2>Bruto-netto</h2>
+          <div class="seg" role="group" aria-label="Persoon">
+            <button type="button" data-person="S" aria-pressed="true">Sander</button>
+            <button type="button" data-person="E" aria-pressed="false">Ellen</button>
+          </div>
+        </div>
+        <div>
+          <div class="small muted">Netto per maand</div>
+          <div class="big" id="bnNet">–</div>
+          <div class="delta" id="bnDelta"></div>
+        </div>
+        <div class="stackbar" id="bnBar" aria-hidden="true"></div>
+        <div class="legend" id="bnLegend"></div>
+      </div>
+
+      <div class="card" id="bnInputs"></div>
+
+      <div class="card">
+        <h3>Per maand</h3>
+        <div class="rows" id="bnRows"></div>
+      </div>
+      <div class="card">
+        <h3>Per jaar</h3>
+        <div class="rows" id="bnYear"></div>
+        <div class="note" id="bnNote"></div>
+      </div>
+
+    <div class="card" id="sec-opbouw">
+        <div class="card-head"><h2>Van bruto naar netto per jaar</h2></div>
+        <div class="controls">
+          <div class="seg" role="group" aria-label="Persoon">
+            <button type="button" data-op-who="S" aria-pressed="true">Sander</button>
+            <button type="button" data-op-who="E" aria-pressed="false">Ellen</button>
+            <button type="button" data-op-who="T" aria-pressed="false">Samen</button>
+          </div>
+          <div class="seg" role="group" aria-label="Euro of procent">
+            <button type="button" data-op-unit="eur" aria-pressed="true">€</button>
+            <button type="button" data-op-unit="pct" aria-pressed="false">%</button>
+          </div>
+        </div>
+        <div class="legend" id="opLegend"></div>
+        <div class="chart" id="opChart"></div>
+        <div class="note" id="opNote">Loonheffing = bruto − netto − ouderdomspensioenpremie, dus inclusief de premies voor arbeidsongeschiktheid en AOV (zoals in het notebook). Pensioenpremies uit het tabblad pensioen.</div>
+      </div>
+    </div>
   </section>
 
   <!-- ============ CARRIÈRE ============ -->
@@ -466,6 +501,11 @@ section[data-view].active { display: grid; }
 
   <!-- ============ VERMOGEN ============ -->
   <section data-view="vermogen" aria-label="Vermogen">
+    <div class="seg subseg" role="group" aria-label="Weergave">
+      <button type="button" data-sub="ov-verm" aria-pressed="true">Vermogen over de jaren</button>
+      <button type="button" data-sub="wa" aria-pressed="false">Doorrekenen</button>
+    </div>
+    <div class="sub active" data-subview="ov-verm">
     <div class="controls" aria-label="Spring naar">
       <button type="button" class="chip" data-jump="sec-wonen">Wonen</button>
       <button type="button" class="chip" data-jump="sec-sparen">Sparen</button>
@@ -528,43 +568,6 @@ section[data-view].active { display: grid; }
       <details class="table"><summary>Toon als tabel</summary><div class="tablewrap" id="vermTable"></div></details>
       <div class="note">Netto vermogen = WOZ-waarde + spaargeld − hypotheek, alles per 1 januari (zoals in het notebook).</div>
     </div>
-  </section>
-
-  <!-- ============ REKENEN ============ -->
-  <section data-view="rekenen" aria-label="Rekenen">
-    <div class="seg" role="group" aria-label="Rekenhulp" style="justify-self:start">
-      <button type="button" data-sub="bn" aria-pressed="true">Bruto-netto</button>
-      <button type="button" data-sub="wa" aria-pressed="false">Hypotheek en sparen</button>
-    </div>
-    <div class="sub active" data-subview="bn">
-      <div class="card">
-        <div class="card-head">
-          <h2>Bruto-netto</h2>
-          <div class="seg" role="group" aria-label="Persoon">
-            <button type="button" data-person="S" aria-pressed="true">Sander</button>
-            <button type="button" data-person="E" aria-pressed="false">Ellen</button>
-          </div>
-        </div>
-        <div>
-          <div class="small muted">Netto per maand</div>
-          <div class="big" id="bnNet">–</div>
-          <div class="delta" id="bnDelta"></div>
-        </div>
-        <div class="stackbar" id="bnBar" aria-hidden="true"></div>
-        <div class="legend" id="bnLegend"></div>
-      </div>
-
-      <div class="card" id="bnInputs"></div>
-
-      <div class="card">
-        <h3>Per maand</h3>
-        <div class="rows" id="bnRows"></div>
-      </div>
-      <div class="card">
-        <h3>Per jaar</h3>
-        <div class="rows" id="bnYear"></div>
-        <div class="note" id="bnNote"></div>
-      </div>
     </div>
     <div class="sub" data-subview="wa">
       <div class="tiles" id="wTiles"></div>
@@ -578,6 +581,7 @@ section[data-view].active { display: grid; }
       </div>
     </div>
   </section>
+
 </main>
 
 <nav class="tabs" aria-label="Onderdelen">
@@ -586,7 +590,6 @@ section[data-view].active { display: grid; }
   <a href="#inkomen" data-tab="inkomen"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 16l4-5 4 3 6-8"/></svg>Inkomen</a>
   <a href="#carriere" data-tab="carriere"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V6M16 20v-8M22 20H2"/><path d="M3 7l6-4 6 5 6-3"/></svg>Carrière</a>
   <a href="#vermogen" data-tab="vermogen"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>Vermogen</a>
-  <a href="#rekenen" data-tab="rekenen"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2M12 11h2M8 15h2M12 15h2M8 18h8"/></svg>Rekenen</a>
 </nav>
 
 <script>
@@ -597,6 +600,7 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const EUR0 = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 const EUR2 = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const PCT1 = new Intl.NumberFormat('nl-NL', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const FTE = new Intl.NumberFormat('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 const PCT0 = new Intl.NumberFormat('nl-NL', { style: 'percent', maximumFractionDigits: 0 });
 const NUM2 = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 2 });
 const eur = v => (v == null || !isFinite(v)) ? '–' : EUR0.format(Math.round(v));
@@ -1086,12 +1090,12 @@ function renderKpis() {
     const v = { net: netto, bruto, cao }[UUR_MODE];
     const sub = { net: 'netto per uur', bruto: 'bruto per uur', cao: 'cao-uurloon' }[UUR_MODE];
     const mv = modUur ? modUur[UUR_MODE] : null;
-    return `<div class="tile"><span>${naam}${x.f < 1 ? ` · ${NUM2.format(x.f)} fte` : ''}</span><b>${eur2(v)}</b><em>${sub}${mv ? `<br>${NUM2.format(v / mv)} × modaal` : ''}</em></div>`;
+    return `<div class="tile"><span>${naam} · ${FTE.format(x.f)} fte</span><b>${eur2(v)}</b><em>${sub}${mv ? `<br>${NUM2.format(v / mv)} × modaal` : ''}</em></div>`;
   };
   // modaal per uur: voltijd (38 uur = 165 uur per maand), modaal bruto jaarloon is inclusief vakantiegeld; netto zonder pensioenpremie
   const modY = Object.keys(MODAAL).map(Number).filter(y => y <= THIS_YEAR).sort((a, b) => b - a)[0];
   const modUur = modY ? (() => { const M = MODAAL[modY], P = DATA.bn.P; return { bruto: M / 1980, net: (M - heffing(M, P)) / 1980, cao: M / 1.08 / 12 / 165 }; })() : null;
-  const modTile = modUur ? `<div class="tile" style="grid-column:1/-1"><span>Modaal ${modY} · voltijd</span><b>${eur2(modUur[UUR_MODE])}</b><em>${{ net: 'netto per uur, zonder pensioenpremie', bruto: 'bruto per uur', cao: 'maandloon zonder vakantiegeld ÷ 165' }[UUR_MODE]} · modaal ${eur(MODAAL[modY])} bruto per jaar (CPB)</em></div>` : '';
+  const modTile = modUur ? `<div class="tile"><span>Modaal · voltijd</span><b>${eur2(modUur[UUR_MODE])}</b><em>${{ net: 'netto per uur', bruto: 'bruto per uur', cao: 'cao-uurloon' }[UUR_MODE]}<br>modaal ${modY}</em></div>` : '';
   const uurTiles = uur('S', 'Sander') + uur('E', 'Ellen') + modTile;
   const uurNote = {
     net: 'Alles wat je per contractuur overhoudt: maandloon, vakantiegeld, eindejaarsuitkering, toelage en DCA, na loonheffing en pensioenpremie.',
@@ -1102,8 +1106,8 @@ function renderKpis() {
     <div style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 2px 0;flex-wrap:wrap">
       <h2 style="margin:0">Uurloon</h2>
       <div class="seg" role="group" aria-label="Soort uurloon">${[['net', 'Netto'], ['bruto', 'Bruto'], ['cao', 'Cao']].map(([k, l]) => `<button type="button" data-uur="${k}" aria-pressed="${UUR_MODE === k}">${l}</button>`).join('')}</div>
-    </div>${uurTiles}
-    <div class="note" style="grid-column:1/-1;margin-top:-4px">${uurNote} Per uur: gedeeld door 165 uur per maand × deeltijdfactor (38 uur per week is voltijd). Reiskosten en andere vergoedingen tellen niet mee.</div>` : '') + `
+    </div><div class="tiles3">${uurTiles}</div>
+    <div class="note" style="grid-column:1/-1;margin-top:-4px">${uurNote} Per uur: gedeeld door 165 uur per maand × deeltijdfactor (38 uur per week is voltijd). Reiskosten en andere vergoedingen tellen niet mee.${modUur ? ` Modaal: ${eur(MODAAL[modY])} bruto per jaar (CPB), voltijd${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : UUR_MODE === 'cao' ? ', maandloon zonder vakantiegeld ÷ 165' : ''}.` : ''}</div>` : '') + `
     <h2 style="grid-column:1/-1;padding:10px 2px 0">${cur ? `Vermogen op 1 januari ${cur.year}` : 'Vermogen'}</h2>
     <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-vdet aria-controls="vDet" aria-expanded="${V_DET}"><span>Netto vermogen</span><i class="chev" aria-hidden="true">▾ ontwikkeling</i><b>${cur ? eur(cur.net) : '–'}</b><em>overwaarde + spaargeld</em></div>
     <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
@@ -1943,7 +1947,7 @@ function yearAgg() {
   for (const y in by) { const o = by[y]; o.tb = o.sb + o.eb; o.tn = o.sn + o.en; o.ok = o.n >= 12 || o.prog; }
   return by;
 }
-const GUI = { mod: 'eur', modOn: { S: true, E: true, T: true, M: true }, opWho: 'S', opUnit: 'eur', fteOn: { S: true, E: true, T: true },
+const GUI = { mod: 'keer', modOn: { S: true, E: true, T: true, M: true }, opWho: 'S', opUnit: 'eur', fteOn: { S: true, E: true, T: true },
   w1On: { woz: true, hyp: true, ow: true }, w2On: { ltv: true, lti: true, pti: true }, w3On: { q: true, p: true }, baseOn: { n: true, b: true, t: true }, baseReal: false, infl: { r: 0.015 } };
 
 function renderModaal() {
@@ -2154,7 +2158,14 @@ function renderPercentiel() {
     refLine: pos ? 50 : null, yMinFix: pos ? 0 : null, yMaxFix: pos ? 100 : null });
   chips($('#pctChips'), ser, GUI.pctOn, renderPercentiel);
 }
-$$('[data-pctv]').forEach(b => b.addEventListener('click', () => { GUI.pctv = b.dataset.pctv; setPressed('[data-pctv]', 'data-pctv', GUI.pctv); renderPercentiel(); }));
+GUI.cmp = 'keer';
+function renderCmp() {
+  const k = GUI.cmp === 'keer';
+  $('#sec-modaal .cmp-keer').hidden = !k; $('#sec-modaal .cmp-pct').hidden = k;
+  $('#cmpSub').textContent = k ? 'bruto per jaar · 1× = modaal' : 'CBS, bruto huishoudinkomen';
+  if (k) renderModaal(); else { GUI.pctv = GUI.cmp; renderPercentiel(); }
+}
+$$('[data-cmp]').forEach(b => b.addEventListener('click', () => { GUI.cmp = b.dataset.cmp; setPressed('[data-cmp]', 'data-cmp', GUI.cmp); renderCmp(); }));
 function renderGrafiekenExtra() { renderModaal(); renderOpbouw(); renderFte(); renderWonen(); renderSparen(); }
 $$('[data-mod]').forEach(b => b.addEventListener('click', () => { GUI.mod = b.dataset.mod; setPressed('[data-mod]', 'data-mod', GUI.mod); renderModaal(); }));
 $$('[data-op-who]').forEach(b => b.addEventListener('click', () => { GUI.opWho = b.dataset.opWho; setPressed('[data-op-who]', 'data-op-who', GUI.opWho); renderOpbouw(); }));
@@ -2488,19 +2499,21 @@ $$('[data-inc-mode]').forEach(b => b.addEventListener('click', () => { UI.incMod
 $$('[data-range]').forEach(b => b.addEventListener('click', () => { UI.range = +b.dataset.range; setPressed('[data-range]', 'data-range', UI.range); renderIncome(); }));
 $$('[data-person]').forEach(b => b.addEventListener('click', () => { UI.person = b.dataset.person; setPressed('[data-person]', 'data-person', UI.person); renderBNInputs(); renderBN(); }));
 
-const VIEWS = ['nu', 'nederland', 'inkomen', 'carriere', 'vermogen', 'rekenen'];
-// old bookmarks keep working
-const ALIAS = { grafieken: ['inkomen'], 'bruto-netto': ['rekenen', 'bn'], maand: ['nu'], koopkracht: ['carriere'], 'wat-als': ['rekenen', 'wa'] };
-let SUB = 'bn';
+const VIEWS = ['nu', 'nederland', 'inkomen', 'carriere', 'vermogen'];
+// oude bladwijzers blijven werken
+const ALIAS = { grafieken: ['inkomen'], rekenen: ['inkomen', 'bn'], 'bruto-netto': ['inkomen', 'bn'], maand: ['nu'], koopkracht: ['carriere'], 'wat-als': ['vermogen', 'wa'] };
+const SUBS = { inkomen: 'ov-ink', vermogen: 'ov-verm' };
 function setSub(v) {
-  SUB = v;
-  setPressed('[data-sub]', 'data-sub', v);
-  for (const d of $$('[data-subview]')) d.classList.toggle('active', d.dataset.subview === v);
-  if (v === 'wa') renderW();
+  const d = $(`[data-subview="${v}"]`); if (!d) return;
+  const sec = d.closest('section[data-view]');
+  SUBS[sec.dataset.view] = v;
+  for (const b of sec.querySelectorAll('[data-sub]')) b.setAttribute('aria-pressed', String(b.dataset.sub === v));
+  for (const x of sec.querySelectorAll('[data-subview]')) x.classList.toggle('active', x.dataset.subview === v);
+  if (sec.classList.contains('active')) { renderCharts(); window.scrollTo(0, 0); }
 }
 function route() {
   let v = location.hash.slice(1);
-  if (ALIAS[v]) { const [to, sub] = ALIAS[v]; if (sub) setSub(sub); v = to; }
+  if (ALIAS[v]) { const [to, sub] = ALIAS[v]; v = to; if (sub) setSub(sub); }
   if (!VIEWS.includes(v)) v = 'nu';
   for (const s of $$('section[data-view]')) s.classList.toggle('active', s.dataset.view === v);
   $$('nav.tabs a').forEach(a => { if (a.dataset.tab === v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
@@ -2512,11 +2525,12 @@ function renderCharts() {
   if (!DATA) return;
   const v = $('section[data-view].active')?.dataset.view;
   if (v === 'nu') { renderVDet(); renderFlow(); }
-  if (v === 'inkomen') { renderIncome(); renderModaal(); renderPercentiel(); renderOpbouw(); renderKoopkracht(); }
+  if (v === 'inkomen' && SUBS.inkomen === 'ov-ink') { renderIncome(); renderCmp(); renderKoopkracht(); }
+  if (v === 'inkomen' && SUBS.inkomen === 'bn') renderOpbouw();
   if (v === 'carriere') { renderKoopkracht(); renderFte(); }
   if (v === 'nederland') { renderKoopkracht(); renderNederland(); }
-  if (v === 'vermogen') { renderWonen(); renderSparen(); renderInflatie(); renderVerm(); }
-  if (v === 'rekenen' && SUB === 'wa') renderW();
+  if (v === 'vermogen' && SUBS.vermogen === 'ov-verm') { renderWonen(); renderSparen(); renderInflatie(); renderVerm(); }
+  if (v === 'vermogen' && SUBS.vermogen === 'wa') renderW();
 }
 function renderAll() {
   if (!DATA) return;
@@ -2531,7 +2545,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-17 19:25';
+const APP_VERSION = '2026-11-18 13:45';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
