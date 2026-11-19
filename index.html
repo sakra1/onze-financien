@@ -100,6 +100,7 @@ body.nodata main > section { display: none !important; }
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .tiles3 { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .tiles3 .tile { padding: 10px; }
+.tiles3.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px; min-width: 0; align-content: start; }
 .tile span { font-size: 12px; color: var(--ink-2); }
 .tile.tap { cursor: pointer; position: relative; -webkit-tap-highlight-color: transparent; }
@@ -289,7 +290,7 @@ section[data-view].active { display: grid; }
         </div>
       </div>
       <div class="chart" id="nl1Chart"></div>
-      <details class="table"><summary>Toon alle cao-verhogingen</summary><div class="tablewrap" id="nl1Table"></div></details>
+      <details class="table"><summary>Toon alle cao-verhogingen (gemiddeld)</summary><div class="tablewrap" id="nl1Table"></div></details>
       <div class="note">Tik op een jaar om ook de losse cao-verhogingen met hun datum te zien. Cao-verhoging per jaar volgens de cao Nederlandse Universiteiten, gemeten zoals CBS de inflatie meet: jaargemiddelde tegenover het jaargemiddelde ervoor. Vaste euro-bedragen zijn omgerekend met het modale maandsalaris van <span class="refY">2000</span> (opgehoogd met de cao) als referentie, zoals in het notebook.</div>
     </div>
 
@@ -413,13 +414,8 @@ section[data-view].active { display: grid; }
       </div>
 
     <div class="card" id="sec-opbouw">
-        <div class="card-head"><h2>Van bruto naar netto per jaar</h2></div>
+        <div class="card-head"><h2>Van bruto naar netto per jaar</h2><span class="tiny" id="opWho"></span></div>
         <div class="controls">
-          <div class="seg" role="group" aria-label="Persoon">
-            <button type="button" data-op-who="S" aria-pressed="true">Sander</button>
-            <button type="button" data-op-who="E" aria-pressed="false">Ellen</button>
-            <button type="button" data-op-who="T" aria-pressed="false">Samen</button>
-          </div>
           <div class="seg" role="group" aria-label="Euro of procent">
             <button type="button" data-op-unit="eur" aria-pressed="true">€</button>
             <button type="button" data-op-unit="pct" aria-pressed="false">%</button>
@@ -453,7 +449,7 @@ section[data-view].active { display: grid; }
       <div class="controls" id="k1Chips"></div>
       <div class="chart" id="k1Chart"></div>
       <details class="table"><summary>Toon als tabel</summary><div class="tablewrap" id="k1Table"></div></details>
-      <details class="table"><summary>Toon alle cao-verhogingen</summary><div class="tablewrap" id="k1Moments"></div></details>
+      <details class="table"><summary>Toon cao-verhogingen voor Sander en Ellen</summary><div class="tablewrap" id="k1Moments"></div></details>
       <div class="note" id="k1Diag"></div>
       <div class="note">Cumulatieve loonstijging volgens de cao Nederlandse Universiteiten, inclusief de verhogingen van de eindejaarsuitkering (zoals het notebook), naast de cumulatieve inflatie (CPI, CBS). Vaste euro-bedragen wegen per persoon anders, daarom twee cao-lijnen. Elke stip is het gemiddelde cao-loon of prijspeil van dat jaar. 100 = het gemiddelde van <span class="refY">2000</span>.</div>
     </div>
@@ -850,8 +846,14 @@ function el(tag, attrs = {}, parent) {
 function hideOtherTips(except) { for (const h of document.querySelectorAll('.chart')) if (h !== except && h._hide) h._hide(); }
 document.addEventListener('pointerdown', e => { if (!e.target.closest || !e.target.closest('.chart')) hideOtherTips(null); });
 /* series: [{name, color (css var), points:[{x, y, prog}], dashedAll}] ; opts: {xFmt, tipTitle, yFmt, height, yZero} */
-function lineChart(host, series, opts) {
+// grafiek leegmaken zonder dat de pagina even korter wordt (anders springt iOS omhoog)
+function clearHost(host) {
+  const h = host.offsetHeight;
+  if (h) { host.style.minHeight = h + 'px'; requestAnimationFrame(() => { host.style.minHeight = ''; }); }
   host.innerHTML = '';
+}
+function lineChart(host, series, opts) {
+  clearHost(host);
   const W = Math.max(280, host.clientWidth || 320), H = opts.height || 230;
   const m = { l: 52, r: 12, t: 10, b: 26 };
   const vis = series.filter(s => s.points.length);
@@ -1064,7 +1066,7 @@ function renderVerm() {
   }</tbody></table><div class="tiny">* = prognose</div>`;
 }
 function chips(host, defs, onMap, rerender) {
-  host.innerHTML = '';
+  clearHost(host);
   for (const [k, name, color, dashed] of defs) {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'chip'; b.style.setProperty('--c', `var(${color})`);
@@ -1096,7 +1098,11 @@ function renderKpis(onlyKpis) {
   const modY = Object.keys(MODAAL).map(Number).filter(y => y <= THIS_YEAR).sort((a, b) => b - a)[0];
   const modUur = modY ? (() => { const M = MODAAL[modY], P = DATA.bn.P; return { bruto: M / 1980, net: (M - heffing(M, P)) / 1980, cao: M / 1.08 / 12 / 165 }; })() : null;
   const modTile = modUur ? `<div class="tile"><span>Modaal · voltijd</span><b>${eur2(modUur[UUR_MODE])}</b><em>${{ net: 'netto per uur', bruto: 'bruto per uur', cao: 'cao-uurloon' }[UUR_MODE]}<br>modaal ${modY}</em></div>` : '';
-  const uurTiles = uur('S', 'Sander') + uur('E', 'Ellen') + modTile;
+  // wettelijk minimumloon (21+), live van Wikipedia: laatste bedrag dat al ingegaan is; uurloon is zonder vakantiegeld
+  const wmlD = typeof LIVE !== 'undefined' && LIVE && LIVE.wml ? Object.keys(LIVE.wml).filter(d => d <= new Date().toISOString().slice(0, 10)).sort().pop() : null;
+  const wmlUur = wmlD ? (() => { const h = LIVE.wml[wmlD], W = h * 1.08 * 1980, P = DATA.bn.P; return { cao: h, bruto: h * 1.08, net: (W - heffing(W, P)) / 1980 }; })() : null;
+  const wmlTile = wmlUur ? `<div class="tile"><span>Minimumloon · voltijd</span><b>${eur2(wmlUur[UUR_MODE])}</b><em>${{ net: 'netto per uur', bruto: 'bruto per uur', cao: 'wettelijk uurloon' }[UUR_MODE]}<br>sinds ${fmtDate(new Date(wmlD))}</em></div>` : '';
+  const uurTiles = uur('S', 'Sander') + uur('E', 'Ellen') + modTile + wmlTile;
   const uurNote = {
     net: 'Alles wat je per contractuur overhoudt: maandloon, vakantiegeld, eindejaarsuitkering, toelage en DCA, na loonheffing en pensioenpremie.',
     bruto: 'Alles wat je per contractuur verdient: maandloon, vakantiegeld, eindejaarsuitkering, toelage en DCA, vóór belasting en premies.',
@@ -1106,8 +1112,8 @@ function renderKpis(onlyKpis) {
     <div style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 2px 0;flex-wrap:wrap">
       <h2 style="margin:0">Uurloon</h2>
       <div class="seg" role="group" aria-label="Soort uurloon">${[['net', 'Netto'], ['bruto', 'Bruto'], ['cao', 'Cao']].map(([k, l]) => `<button type="button" data-uur="${k}" aria-pressed="${UUR_MODE === k}">${l}</button>`).join('')}</div>
-    </div><div class="tiles3">${uurTiles}</div>
-    <div class="note" style="grid-column:1/-1;margin-top:-4px">${uurNote} Per uur: gedeeld door 165 uur per maand × deeltijdfactor (38 uur per week is voltijd). Reiskosten en andere vergoedingen tellen niet mee.${modUur ? ` Modaal: ${eur(MODAAL[modY])} bruto per jaar (CPB), voltijd${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : UUR_MODE === 'cao' ? ', maandloon zonder vakantiegeld ÷ 165' : ''}.` : ''}</div>` : '') + `
+    </div><div class="tiles3${wmlTile ? ' four' : ''}">${uurTiles}</div>
+    <div class="note" style="grid-column:1/-1;margin-top:-4px">${uurNote} Per uur: gedeeld door 165 uur per maand × deeltijdfactor (38 uur per week is voltijd). Reiskosten en andere vergoedingen tellen niet mee.${modUur ? ` Modaal: ${eur(MODAAL[modY])} bruto per jaar (CPB), voltijd${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : UUR_MODE === 'cao' ? ', maandloon zonder vakantiegeld ÷ 165' : ''}.` : ''}${wmlUur ? ` Minimumloon: € ${NUM2.format(LIVE.wml[wmlD])} bruto per uur voor 21 jaar en ouder (Wikipedia)${UUR_MODE === 'cao' ? '' : ', plus 8% vakantiegeld'}${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : ''}.` : ''}</div>` : '') + `
     <h2 style="grid-column:1/-1;padding:10px 2px 0">${cur ? `Vermogen op 1 januari ${cur.year}` : 'Vermogen'}</h2>
     <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-vdet aria-controls="vDet" aria-expanded="${V_DET}"><span>Netto vermogen</span><i class="chev" aria-hidden="true">▾ ontwikkeling</i><b>${cur ? eur(cur.net) : '–'}</b><em>overwaarde + spaargeld</em></div>
     <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
@@ -1271,9 +1277,7 @@ function flowData() {
 }
 function renderFlow() {
   const host = $('#flowChart'); if (!host) return;
-  if (host.offsetHeight) host.style.minHeight = host.offsetHeight + 'px'; // voorkomt verspringen tijdens het opnieuw tekenen
-  host.innerHTML = '';
-  requestAnimationFrame(() => { host.style.minHeight = ''; });
+  clearHost(host);
   const d = flowData();
   if (!d || !(d.per.S || d.per.E)) { host.innerHTML = '<div class="note">Kies eerst financieel_overzicht.xlsx.</div>'; return; }
   const f = FLOW_PER === 'm' ? 1 / 12 : 1, money = v => eur(v * f), unit = FLOW_PER === 'm' ? 'per maand' : 'per jaar';
@@ -1596,7 +1600,7 @@ const caoAt = (path, t) => { let v = path[0].y; for (const p of path) { if (p.x 
 
 /* bar chart; opts: {stack, fmt (tooltip), yFmt (axis), tipExtra(cat), progCat(cat), height, label} */
 function barChart(host, cats, series, opts) {
-  host.innerHTML = '';
+  clearHost(host);
   const W = Math.max(280, host.clientWidth || 320), H = opts.height || 220;
   const fmt = opts.fmt || (v => NUM2.format(v) + '%'), yFmt = opts.yFmt || (v => NUM2.format(v) + '%');
   const m = { l: opts.yFmt ? 52 : 40, r: 8, t: 10, b: 26 };
@@ -1976,7 +1980,8 @@ function renderOpbouw() {
   const A = yearAgg(), P = DATA.pens || {};
   const ys = Object.keys(A).map(Number).filter(y => A[y].ok && P[y]).sort((a, b) => a - b);
   if (!ys.length) { $('#opChart').innerHTML = '<div class="note">Geen gegevens uit het tabblad pensioen gevonden. Kies financieel_overzicht.xlsx opnieuw.</div>'; $('#opLegend').innerHTML = ''; return; }
-  const who = GUI.opWho, pct = GUI.opUnit === 'pct';
+  const who = UI.person, pct = GUI.opUnit === 'pct';
+  $('#opWho').textContent = who === 'E' ? 'Ellen' : 'Sander';
   const parts = { n: {}, p: {}, b: {} };
   for (const y of ys) {
     const br = who === 'S' ? A[y].sb : who === 'E' ? A[y].eb : A[y].tb;
@@ -2171,7 +2176,6 @@ function renderCmp() {
 $$('[data-cmp]').forEach(b => b.addEventListener('click', () => { GUI.cmp = b.dataset.cmp; setPressed('[data-cmp]', 'data-cmp', GUI.cmp); renderCmp(); }));
 function renderGrafiekenExtra() { renderModaal(); renderOpbouw(); renderFte(); renderWonen(); renderSparen(); }
 $$('[data-mod]').forEach(b => b.addEventListener('click', () => { GUI.mod = b.dataset.mod; setPressed('[data-mod]', 'data-mod', GUI.mod); renderModaal(); }));
-$$('[data-op-who]').forEach(b => b.addEventListener('click', () => { GUI.opWho = b.dataset.opWho; setPressed('[data-op-who]', 'data-op-who', GUI.opWho); renderOpbouw(); }));
 $$('[data-op-unit]').forEach(b => b.addEventListener('click', () => { GUI.opUnit = b.dataset.opUnit; setPressed('[data-op-unit]', 'data-op-unit', GUI.opUnit); renderOpbouw(); }));
 $$('[data-jump]').forEach(b => b.addEventListener('click', () => { const t = document.getElementById(b.dataset.jump); if (t) window.scrollTo({ top: t.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' }); }));
 
@@ -2300,6 +2304,16 @@ const LIVE_SOURCES = {
     if (!Object.keys(pct).length) throw new Error('percentielen: geen cijfers');
     return { pct };
   },
+  // wettelijk minimumuurloon 21+ (sinds 2024 een uurloon): tabel "Vanaf 2024" op de Wikipedia-pagina Minimumloon
+  async wml() {
+    const r = await fetch('https://nl.wikipedia.org/w/api.php?action=parse&page=Minimumloon&prop=wikitext&format=json&origin=*', { cache: 'no-store' });
+    if (!r.ok) throw new Error(`Wikipedia: HTTP ${r.status}`);
+    const w = (await r.json()).parse.wikitext['*'];
+    const mnd = { januari: '01', juli: '07' }, wml = {};
+    for (const m of w.matchAll(/\|\s*1 (januari|juli) (\d{4})\s*\|\|\s*€\s*(\d{1,2},\d{2})(?!\d)/g)) wml[`${m[2]}-${mnd[m[1]]}-01`] = parseFloat(m[3].replace(',', '.'));
+    if (!Object.keys(wml).length) throw new Error('Wikipedia: geen minimumuurloon');
+    return { wml };
+  },
   // modaal inkomen: eerste tabel op de Wikipedia-pagina (notebook cel 1 en 7)
   async modaal() {
     const r = await fetch('https://nl.wikipedia.org/w/api.php?action=parse&page=Modaal_inkomen&prop=text&format=json&origin=*', { cache: 'no-store' });
@@ -2318,7 +2332,7 @@ const LIVE_SOURCES = {
     return { modaal };
   }
 };
-const LIVE_NAMES = { cpi: 'inflatie (CBS)', kk: 'koopkracht (CBS)', pct: 'percentielen (CBS)', modaal: 'modaal (Wikipedia)' };
+const LIVE_NAMES = { cpi: 'inflatie (CBS)', kk: 'koopkracht (CBS)', pct: 'percentielen (CBS)', modaal: 'modaal (Wikipedia)', wml: 'minimumloon (Wikipedia)' };
 let LIVE_BUSY = false, LIVE_FAIL = false;
 async function fetchLive() {
   if (LIVE_BUSY) return; LIVE_BUSY = true;
@@ -2500,7 +2514,7 @@ function setPressed(sel, attr, val) { for (const b of $$(sel)) b.setAttribute('a
 $$('[data-inc-kind]').forEach(b => b.addEventListener('click', () => { UI.incKind = b.dataset.incKind; setPressed('[data-inc-kind]', 'data-inc-kind', UI.incKind); renderIncome(); }));
 $$('[data-inc-mode]').forEach(b => b.addEventListener('click', () => { UI.incMode = b.dataset.incMode; setPressed('[data-inc-mode]', 'data-inc-mode', UI.incMode); renderIncome(); }));
 $$('[data-range]').forEach(b => b.addEventListener('click', () => { UI.range = +b.dataset.range; setPressed('[data-range]', 'data-range', UI.range); renderIncome(); }));
-$$('[data-person]').forEach(b => b.addEventListener('click', () => { UI.person = b.dataset.person; setPressed('[data-person]', 'data-person', UI.person); renderBNInputs(); renderBN(); }));
+$$('[data-person]').forEach(b => b.addEventListener('click', () => { UI.person = b.dataset.person; setPressed('[data-person]', 'data-person', UI.person); renderBNInputs(); renderBN(); renderOpbouw(); }));
 
 const VIEWS = ['nu', 'nederland', 'inkomen', 'carriere', 'vermogen'];
 // oude bladwijzers blijven werken
@@ -2548,7 +2562,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-18 13:50';
+const APP_VERSION = '2026-11-19 08:20';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
