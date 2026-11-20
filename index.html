@@ -100,6 +100,15 @@ body.nodata main > section { display: none !important; }
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .tiles3 { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .tiles3 .tile { padding: 10px; }
+#sec-schat { min-width: 0; }
+#schatList .tablewrap { overflow-x: auto; max-width: 100%; }
+table.schat { font-size: 12px; font-variant-numeric: tabular-nums; width: 100%; }
+table.schat th, table.schat td { padding: 5px 3px; }
+table.schat th:first-child { text-align: left; font-weight: 400; white-space: nowrap; }
+table.schat td { text-align: right; white-space: nowrap; }
+table.schat td.est { font-weight: 600; }
+table.schat tr.sum th, table.schat tr.sum td { font-weight: 700; border-top: 1px solid var(--line); }
+table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); padding-top: 10px; }
 .tiles3.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px; min-width: 0; align-content: start; }
 .tile span { font-size: 12px; color: var(--ink-2); }
@@ -567,8 +576,9 @@ section[data-view].active { display: grid; }
 
     <div class="card" id="sec-schat" hidden>
       <div class="card-head"><h2>Wat de app heeft geschat</h2><span class="tiny">ter controle</span></div>
-      <details class="table"><summary>Toon alle schattingen</summary><div class="bars" id="schatList"></div></details>
-      <div class="note">Alles wat niet in je Excel staat maar door de app is berekend. Vul je een waarde zelf in, dan verdwijnt hij uit deze lijst.</div>
+      <div id="schatList"></div>
+      <div id="schatHuis"></div>
+      <div class="note">Alles wat niet in je Excel staat maar door de app is berekend. Vul je een waarde zelf in, dan verdwijnt het †.</div>
     </div>
 
     <div class="card" id="sec-huisnu" hidden>
@@ -660,7 +670,7 @@ function vermByYear(aoa) {
   const head = aoa[h].map(lc);
   const ci = n => head.indexOf(n);
   const cols = { woz: ci('woz'), hyp: ci('hypotheek'), spaar: ci('spaargeld'), giften: ci('giften'), extra: ci('extra aflossing'),
-    aflossing: ci('aflossing'), premie: ci('premie'), rente: ci('rente'), invest: ci('investeringen') };
+    aflossing: ci('aflossing'), premie: ci('premie'), rente: ci('rente'), invest: ci('investeringen'), extraMaand: ci('maand extra aflossing') };
   const out = [];
   for (let i = h + 1; i < aoa.length; i++) {
     const r = aoa[i] || [];
@@ -1077,14 +1087,16 @@ function fillProjections() {
       if (row.year <= lastAct || !prev || prev.hyp == null) continue;
       let H = prev.hyp, n = Math.max(1, (eY - row.year) * 12 + eM), A = ann(H, n), R = 0, Af = 0;
       const extra = row.extra || 0;
+      // maand: kolom "maand extra aflossing" in vermogen IB, anders de parameter, anders december
+      const emY = row.extraMaand >= 1 && row.extraMaand <= 12 ? Math.round(row.extraMaand) : em;
       for (let m = 1; m <= 12 && H > 0; m++) {
-        if (m === em && extra > 0) { H = Math.max(0, H - extra); if (!keep) A = ann(H, n); }
+        if (m === emY && extra > 0) { H = Math.max(0, H - extra); if (!keep) A = ann(H, n); }
         const i = H * r, a = Math.min(H, A - i); H -= a; R += i; Af += a; n = Math.max(1, n - 1);
       }
       row.hyp = H; row.est.hyp = true;
       if (row.rente == null) { row.rente = R; row.est.rente = true; }
       if (row.aflossing == null) { row.aflossing = Af; row.est.aflossing = true; }
-      row.maandlast = A; row.hypHow = `annuïteit ${PCT1.format(rente)} vanaf ${eur(prev.hyp)} op 31-12-${prev.year}${extra > 0 ? `, extra aflossing ${eur(extra)} in ${MONTHS[em - 1]}${keep ? ' (maandlast gelijk)' : ', daarna maandlast herberekend'}` : ''}; maandlast eind van het jaar ${eur(A)}`;
+      row.maandlast = A; row.hypHow = `annuïteit ${PCT1.format(rente)} vanaf ${eur(prev.hyp)} op 31-12-${prev.year}${extra > 0 ? `, extra aflossing ${eur(extra)} in ${MONTHS[emY - 1]}${keep ? ' (maandlast gelijk)' : ', daarna maandlast herberekend'}` : ''}; maandlast eind van het jaar ${eur(A)}`;
     }
   }
   // spaargeld: spaarvermogen = netto inkomen − uitgaven − rente − aflossing;
@@ -1169,23 +1181,45 @@ function huisSchatting() {
   const f = s.now / a;
   return { woz: off.wozXls, year: off.year, est: off.wozXls * f, pct: f - 1, how: s.how };
 }
-// overzicht van alles wat de app zelf heeft geschat, ter controle
+// overzicht van alles wat de app zelf heeft geschat, ter controle: één tabel met de jaren als kolommen
 function renderSchattingen() {
   const host = $('#schatList'); if (!host || !DATA) return;
-  const rows = [];
-  for (const r of (DATA.vermRaw || []).slice().sort((a, b) => a.year - b.year)) {
-    const e = r.est || {};
-    if (e.hyp) rows.push([r.year, 'Hypotheek op 31-12', r.hyp, r.hypHow || '']);
-    if (e.rente) rows.push([r.year, 'Rente', r.rente, 'idem, opgeteld over het jaar']);
-    if (e.aflossing) rows.push([r.year, 'Gewone aflossing', r.aflossing, 'idem, opgeteld over het jaar']);
-    if (r.svEst != null) rows.push([r.year, 'Spaarvermogen', r.svEst, `netto inkomen ${eur(r.svTn)} − uitgaven ${eur(r.svBase)} (patroon ${DATA.proj.anchor} plus inflatie) − rente − aflossing`]);
-    if (e.spaar) rows.push([r.year, 'Spaargeld op 1-1', r.spaar, `spaargeld 1-1-${r.year - 1} + spaarvermogen − extra aflossing − investeringen + giften van ${r.year - 1}`]);
+  const raw = (DATA.vermRaw || []).slice().sort((a, b) => a.year - b.year), by = {}; raw.forEach(r => by[r.year] = r);
+  const vb = {}; (DATA.verm || []).forEach(v => vb[v.year] = v);
+  const ys = raw.filter(r => Object.keys(r.est || {}).length || r.svEst != null || (vb[r.year] && vb[r.year].wozEst)).map(r => r.year);
+  const h = huisSchatting();
+  $('#sec-schat').hidden = !ys.length && !h;
+  if (!ys.length) { host.innerHTML = ''; } else {
+    const n = v => v == null ? '–' : NUM0.format(Math.round(v));
+    const c = (v, est) => `<td${est ? ' class="est"' : ''}>${n(v)}${est ? '†' : ''}</td>`;
+    const row = (lab, f, cls = '') => `<tr class="${cls}"><th>${lab}</th>${ys.map(y => f(y)).join('')}</tr>`;
+    const R = y => by[y] || {}, E = y => (by[y] && by[y].est) || {};
+    const sv = y => R(y).svEst != null;
+    const body = [
+      `<tr class="grp"><th colspan="${ys.length + 1}">Sparen</th></tr>`,
+      row('Netto inkomen', y => sv(y) ? c(R(y).svTn) : c(null)),
+      row('− Uitgaven', y => sv(y) ? c(R(y).svBase, true) : c(null)),
+      row('− Rente', y => c(R(y).rente, E(y).rente)),
+      row('− Aflossing', y => c(R(y).aflossing, E(y).aflossing)),
+      row('= Spaarvermogen', y => c(sv(y) ? R(y).svEst : null, sv(y)), 'sum'),
+      row('− Extra aflossing', y => `<td>${n(R(y).extra || 0)}${R(y).extra ? `<div class="tiny">${MONTHS[((R(y).extraMaand >= 1 && R(y).extraMaand <= 12) ? Math.round(R(y).extraMaand) : (DATA.proj.em || 12)) - 1]}</div>` : ''}</td>`),
+      row('− Investeringen', y => c(R(y).invest || 0)),
+      row('+ Giften', y => c(R(y).giften || 0)),
+      row('Spaargeld 31-12', y => c(by[y + 1] && by[y + 1].spaar, by[y + 1] && by[y + 1].est && by[y + 1].est.spaar), 'sum'),
+      `<tr class="grp"><th colspan="${ys.length + 1}">Hypotheek</th></tr>`,
+      row('Stand 31-12', y => c(R(y).hyp, E(y).hyp), 'sum'),
+      row('Maandlast (dec)', y => c(R(y).maandlast, !!R(y).maandlast)),
+      `<tr class="grp"><th colspan="${ys.length + 1}">Huis</th></tr>`,
+      row('WOZ op 1-1', y => c(vb[y] && vb[y].woz, vb[y] && vb[y].wozEst))
+    ].join('');
+    const P = DATA.proj || {};
+    host.innerHTML = `<div class="tablewrap"><table class="schat"><thead><tr><th>€</th>${ys.map(y => `<th>${y}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>
+      <div class="tiny">† = geschat door de app; zonder † staat het zo in je Excel of komt het uit de salarisprognose.<br>
+      <b>Uitgaven</b>: wat jullie in ${P.anchor || 'het laatste afgeronde jaar'} uitgaven naast de hypotheek${P.base0 ? ` (${eur(P.base0)})` : ''}, verhoogd met de inflatie.
+      <b>Rente en aflossing</b>: annuïteit met ${DATA.hyp && DATA.hyp.rente != null ? PCT1.format(DATA.hyp.rente) : 'de rente'} uit het tabblad hypotheek${P.em ? `, extra aflossing in de maand onder het bedrag (kolom "maand extra aflossing" in vermogen IB, anders ${MONTHS[P.em - 1]})${P.keep ? ', maandlast blijft gelijk' : ', daarna lagere maandlast'}` : ''}.
+      <b>WOZ</b>: ${(ys.map(y => vb[y]).find(v => v && v.wozHow) || {}).wozHow || '–'}.</div>`;
   }
-  for (const v of DATA.verm || []) if (v.wozEst) rows.push([v.year, 'WOZ-waarde (peildatum 1-1)', v.woz, v.wozHow || '']);
-  const h = huisSchatting(); if (h) rows.push(['nu', 'Waarde huis vandaag', h.est, `WOZ ${eur(h.woz)} (1 jan ${h.year}) ${signedPct(h.pct)}: ${h.how}`]);
-  rows.sort((a, b) => (a[0] === 'nu' ? 9999 : a[0]) - (b[0] === 'nu' ? 9999 : b[0]));
-  $('#sec-schat').hidden = !rows.length;
-  host.innerHTML = rows.map(([y, wat, v, how]) => `<div class="bar"><div class="top"><span>${y} · ${wat}<br><span class="tiny">${how}</span></span><span class="num">${eur(v)}</span></div></div>`).join('');
+  $('#schatHuis').innerHTML = h ? `<div class="tiny"><b>Waarde huis vandaag</b>: ${eur(h.est)} (WOZ ${eur(h.woz)} van 1 jan ${h.year} ${signedPct(h.pct)}, ${h.how}).</div>` : '';
 }
 function renderVerm() {
   const V = DATA.verm;
@@ -2737,7 +2771,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-20 22:30';
+const APP_VERSION = '2026-11-20 22:50';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
