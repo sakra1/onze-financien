@@ -1040,32 +1040,59 @@ function renderIncome() {
   }).reverse().join('');
   $('#incTable').innerHTML = `<table><thead><tr><th>Jaar</th><th>Sander</th><th>Ellen</th><th>Samen</th></tr></thead><tbody>${rows}</tbody></table><div class="tiny">${UI.incKind} per jaar · * = (deels) prognose</div>`;
 }
-// geschatte huiswaarde nu: laatste officiële WOZ × prijsontwikkeling bestaande koopwoningen (CBS) sinds de peildatum
-function huisSchatting() {
+// huizenprijsindex (CBS) op een gekozen regio: index op 1 januari van een jaar en de stand nu
+function huisIdx() {
   if (typeof LIVE === 'undefined' || !LIVE || !LIVE.huis || !LIVE.huis.nl) return null;
-  const off = DATA.verm.filter(r => r.woz && TODAY >= new Date(Date.UTC(r.year + 1, 2, 1))).pop(); if (!off) return null;
-  const P = off.year, nl = LIVE.huis.nl, reg = LIVE.huis.reg || {};
+  const nl = LIVE.huis.nl, reg = LIVE.huis.reg || {};
   const ms = Object.keys(nl).sort(), lastM = ms[ms.length - 1]; if (!lastM) return null;
   const mTxt = m => { const [y, mm] = m.split('-'); return `${MONTHS[+mm - 1]} ${y}`; };
+  const avg2 = (a, b) => a && b ? (a + b) / 2 : null;
+  const [lyM, lmM] = lastM.split('-').map(Number);
+  const prevM = `${lyM - 1}-${String(lmM).padStart(2, '0')}`;
+  const lastDate = Date.UTC(lyM, lmM, 0); // einde van de laatste maand met cijfers
+  const nat = { at: Y => avg2(nl[`${Y - 1}-12`], nl[`${Y}-01`]), now: nl[lastM], g: nl[prevM] ? nl[lastM] / nl[prevM] - 1 : null, lastDate, lastTxt: mTxt(lastM), how: `Nederland t/m ${mTxt(lastM)}` };
   const want = EXT && EXT.params && EXT.params.woningregio ? String(EXT.params.woningregio).trim().toLowerCase() : '';
   const R = want ? Object.entries(reg).find(([n]) => n.toLowerCase() === want) : null;
-  // index op 1 januari: gemiddelde van de periode ervoor en erna
-  const nlPeil = nl[`${P - 1}-12`] && nl[`${P}-01`] ? (nl[`${P - 1}-12`] + nl[`${P}-01`]) / 2 : nl[`${P}-01`];
-  let f = null, how = '';
-  if (R) {
-    const q = R[1], qs = Object.keys(q).sort(), lq = qs[qs.length - 1];
-    const a = q[`${P - 1}-Q4`], b = q[`${P}-Q1`];
-    if (a && b && lq) {
-      const [ly, ln] = lq.split('-Q').map(Number);
-      const qm = [1, 2, 3].map(i => nl[`${ly}-${String((ln - 1) * 3 + i).padStart(2, '0')}`]).filter(Boolean);
-      const bridge = qm.length ? nl[lastM] / (qm.reduce((x, y) => x + y, 0) / qm.length) : 1;
-      f = q[lq] / ((a + b) / 2) * bridge;
-      how = `${R[0]} t/m ${ln}e kwartaal ${ly}${bridge !== 1 ? `, daarna landelijk t/m ${mTxt(lastM)}` : ''}`;
-    }
+  if (!R) { if (want) nat.how += ` (regio "${EXT.params.woningregio}" niet gevonden)`; return nat; }
+  const q = R[1], qs = Object.keys(q).sort(), lq = qs[qs.length - 1];
+  const [ly, ln] = lq.split('-Q').map(Number);
+  const qm = [1, 2, 3].map(i => nl[`${ly}-${String((ln - 1) * 3 + i).padStart(2, '0')}`]).filter(Boolean);
+  const bridge = qm.length ? nl[lastM] / (qm.reduce((x, y) => x + y, 0) / qm.length) : 1;
+  // valt de regio weg voor een jaar, dan de landelijke reeks voor dat hele stuk
+  const qPrev = q[`${ly - 1}-Q${ln}`];
+  return { at: Y => avg2(q[`${Y - 1}-Q4`], q[`${Y}-Q1`]), now: q[lq] * bridge, nat, g: qPrev ? q[lq] / qPrev - 1 : nat.g, lastDate, lastTxt: mTxt(lastM),
+    how: `${R[0]} t/m ${ln}e kwartaal ${ly}${bridge !== 1 ? `, daarna landelijk t/m ${mTxt(lastM)}` : ''}` };
+}
+const wozOfficial = r => TODAY >= new Date(Date.UTC(r.year + 1, 2, 1));
+// WOZ zonder beschikking: niet de schatting uit de Excel, maar de laatste officiële WOZ × prijsindex.
+// Prognosejaren waarvoor nog geen index is: groei uit de Excel, maar vanaf de laatste geschatte waarde.
+function applyHuisIdx() {
+  if (!DATA || !DATA.verm) return;
+  const V = DATA.verm;
+  for (const r of V) { if (r.wozXls == null) r.wozXls = r.woz; r.woz = r.wozXls; r.wozEst = false; r.net = r.woz + r.spaar - r.hyp; }
+  const H = huisIdx(); if (!H) return;
+  const off = V.filter(r => r.woz && wozOfficial(r)).pop(); if (!off) return;
+  const nu = huisSchatting();
+  for (const r of V) {
+    if (r.year <= off.year) continue;
+    let s = H, a = s.at(off.year), b = s.at(r.year);
+    if ((!a || !b) && H.nat) { s = H.nat; a = s.at(off.year); b = s.at(r.year); }
+    if (a && b) r.woz = off.woz * b / a;
+    // voorbij de laatste CBS-cijfers: de schatting van nu, doorgetrokken met de stijging van het afgelopen jaar
+    else if (nu && H.g != null) r.woz = nu.est * Math.pow(1 + H.g, (Date.UTC(r.year, 0, 1) - H.lastDate) / 31557600000);
+    else continue;
+    r.wozEst = true; r.net = r.woz + r.spaar - r.hyp;
   }
-  if (f == null && nlPeil) { f = nl[lastM] / nlPeil; how = `Nederland t/m ${mTxt(lastM)}${want && !R ? ` (regio "${EXT.params.woningregio}" niet gevonden)` : ''}`; }
-  if (f == null) return null;
-  return { woz: off.woz, year: P, est: off.woz * f, pct: f - 1, how };
+}
+// geschatte huiswaarde vandaag
+function huisSchatting() {
+  const H = huisIdx(); if (!H || !DATA) return null;
+  const off = DATA.verm.filter(r => r.wozXls && wozOfficial(r)).pop(); if (!off) return null;
+  let s = H, a = s.at(off.year);
+  if (!a && H.nat) { s = H.nat; a = s.at(off.year); }
+  if (!a) return null;
+  const f = s.now / a;
+  return { woz: off.wozXls, year: off.year, est: off.wozXls * f, pct: f - 1, how: s.how };
 }
 function renderVerm() {
   const V = DATA.verm;
@@ -1084,7 +1111,7 @@ function renderVerm() {
     const prev = V.find(r => r.year === cur.year - 1);
     const line = (lab, v, sub, bold) => `<div class="bar"><div class="top"><span>${bold ? `<b>${lab}</b>` : lab}${sub ? `<br><span class="tiny">${sub}</span>` : ''}</span><span class="num">${bold ? `<b>${v}</b>` : v}</span></div></div>`;
     $('#vermNow').innerHTML =
-      line(`WOZ-waarde`, eur(cur.woz), `peildatum 1 jan ${cur.year}${official ? '' : ` · nog geen beschikking, schatting uit de Excel${prev ? `; laatste officiële WOZ ${eur(prev.woz)} (peildatum 1 jan ${prev.year})` : ''}`}`) +
+      line(`WOZ-waarde`, eur(cur.woz), `peildatum 1 jan ${cur.year}${official ? '' : cur.wozEst ? ` · nog geen beschikking: laatste officiële WOZ${prev ? ` ${eur(prev.wozXls)} (peildatum 1 jan ${prev.year})` : ''} × CBS-prijsindex` : ' · nog geen beschikking'}`) +
       line('+ Spaargeld', eur(cur.spaar)) +
       line('− Hypotheek', eur(cur.hyp)) +
       line(`= Netto vermogen per 1 jan ${cur.year}`, eur(cur.net), '', true) +
@@ -1092,8 +1119,8 @@ function renderVerm() {
         line('Geschatte overwaarde nu', eur(h.est - cur.hyp), `met de hypotheek van 1 jan ${cur.year}`) : '')(huisSchatting()));
   } else $('#vermNow').innerHTML = '';
   $('#vermTable').innerHTML = `<table><thead><tr><th>1 jan</th><th>WOZ</th><th>Spaargeld</th><th>Hypotheek</th><th>Netto</th></tr></thead><tbody>${
-    V.slice().reverse().map(r => `<tr><td>${r.year}${prog(r.year) ? '*' : ''}</td><td>${eur(r.woz)}</td><td>${eur(r.spaar)}</td><td>${eur(r.hyp)}</td><td>${eur(r.net)}</td></tr>`).join('')
-  }</tbody></table><div class="tiny">* = prognose</div>`;
+    V.slice().reverse().map(r => `<tr><td>${r.year}${prog(r.year) ? '*' : ''}</td><td>${eur(r.woz)}${r.wozEst ? '°' : ''}</td><td>${eur(r.spaar)}</td><td>${eur(r.hyp)}</td><td>${eur(r.net)}</td></tr>`).join('')
+  }</tbody></table><div class="tiny">* = prognose · ° = WOZ geschat met de CBS-prijsindex${(H => H && H.g != null ? `; na ${H.lastTxt} doorgetrokken met de stijging van het afgelopen jaar (${H.g >= 0 ? '+' : '−'}${PCT1.format(Math.abs(H.g))} per jaar)` : '')(huisIdx())}</div>`;
 }
 function chips(host, defs, onMap, rerender) {
   clearHost(host);
@@ -1110,7 +1137,7 @@ function renderKpis(onlyKpis) {
   const S = DATA.bn.S, E = DATA.bn.E;
   const m = inuitTotals();
   const cur = DATA.verm.filter(r => r.year <= THIS_YEAR).pop() || DATA.verm[DATA.verm.length - 1];
-  const wozTxt = cur ? `WOZ ${eur(cur.woz)}${TODAY >= new Date(Date.UTC(cur.year + 1, 2, 1)) ? ' ' : ' (geschat) '}− hypotheek ${eur(cur.hyp)}` : '';
+  const wozTxt = cur ? `WOZ ${eur(cur.woz)}${wozOfficial(cur) ? ' ' : ' (geschat via CBS-index) '}− hypotheek ${eur(cur.hyp)}` : '';
   const buf = cur && m.uit ? Math.round(cur.spaar / m.uit) : null;
   // uurloon per persoon, per contractuur (cao: 165 uur per maand bij voltijd = 38 uur per week)
   const uur = (who, naam) => {
@@ -2599,6 +2626,7 @@ function renderCharts() {
 }
 function renderAll() {
   if (!DATA) return;
+  applyHuisIdx();
   renderKpis(); renderBNInputs(); renderBN(); renderMaand(); renderWInputs();
   renderCharts();
 }
@@ -2610,7 +2638,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-20 21:10';
+const APP_VERSION = '2026-11-20 21:30';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
