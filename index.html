@@ -672,8 +672,8 @@ function alignVerm(raw) {
   const out = [];
   for (const r of raw) {
     const y = r.year, sp = r.spaar, hy = by[y - 1]?.hyp, wz = by[y + 1]?.woz;
-    if (sp == null || hy == null || wz == null) continue;
-    out.push({ year: y, woz: wz, hyp: hy, spaar: sp, net: wz + sp - hy });
+    if (sp == null || hy == null) continue;
+    out.push({ year: y, woz: wz, hyp: hy, spaar: sp, net: (wz ?? 0) + sp - hy, hypEst: !!by[y - 1].est?.hyp, spaarEst: !!r.est?.spaar });
   }
   return out;
 }
@@ -1044,6 +1044,62 @@ function renderIncome() {
   }).reverse().join('');
   $('#incTable').innerHTML = `<table><thead><tr><th>Jaar</th><th>Sander</th><th>Ellen</th><th>Samen</th></tr></thead><tbody>${rows}</tbody></table><div class="tiny">${UI.incKind} per jaar · * = (deels) prognose</div>`;
 }
+// ===== Doorrekenen van wat nog niet in de Excel staat =====
+// Lege cellen in "vermogen IB" (hypotheek 31-12, rente, aflossing, spaargeld 1-1) rekent de app uit;
+// wat je invult is werkelijk. Extra aflossing, investeringen en giften zijn plannen en komen uit de Excel.
+function fillProjections() {
+  const raw = (DATA.vermRaw || []).slice().sort((a, b) => a.year - b.year);
+  const F = ['hyp', 'rente', 'aflossing', 'spaar'];
+  for (const r of raw) { if (!r._xls) { r._xls = {}; for (const k of F) r._xls[k] = r[k]; } for (const k of F) r[k] = r._xls[k]; r.est = {}; }
+  const by = {}; raw.forEach(r => by[r.year] = r);
+  const P = (EXT && EXT.params) || {};
+  const em = Math.min(12, Math.max(1, Math.round(num(P['maand extra aflossing']) || 12)));
+  const keep = /gelijk/i.test(String(P['maandlast na extra aflossing'] || ''));
+  const rente = DATA.hyp && DATA.hyp.rente, einde = DATA.hyp && DATA.hyp.einde;
+  // hypotheek maand voor maand (annuïteit), vanaf de laatste werkelijke stand op 31-12
+  if (rente != null && einde) {
+    const r = rente / 12, eY = new Date(einde).getUTCFullYear(), eM = new Date(einde).getUTCMonth();
+    const ann = (H, n) => H <= 0 ? 0 : (r === 0 ? H / n : H * r / (1 - Math.pow(1 + r, -n)));
+    for (const row of raw) {
+      const prev = by[row.year - 1];
+      if (row.hyp != null || !prev || prev.hyp == null) continue;
+      let H = prev.hyp, n = Math.max(1, (eY - row.year) * 12 + eM), A = ann(H, n), R = 0, Af = 0;
+      const extra = row.extra || 0;
+      for (let m = 1; m <= 12 && H > 0; m++) {
+        if (m === em && extra > 0) { H = Math.max(0, H - extra); if (!keep) A = ann(H, n); }
+        const i = H * r, a = Math.min(H, A - i); H -= a; R += i; Af += a; n = Math.max(1, n - 1);
+      }
+      row.hyp = H; row.est.hyp = true;
+      if (row.rente == null) { row.rente = R; row.est.rente = true; }
+      if (row.aflossing == null) { row.aflossing = Af; row.est.aflossing = true; }
+      row.maandlast = A;
+    }
+  }
+  // spaargeld: spaarvermogen = netto inkomen − uitgaven − rente − aflossing;
+  // uitgaven (zonder hypotheek) = het patroon van het laatste afgeronde jaar, plus inflatie
+  const A = yearAgg();
+  const tot = y => { const r0 = by[y], r1 = by[y + 1]; return r0 && r1 && r0.spaar != null && r1.spaar != null ? r1.spaar - r0.spaar + (r0.extra || 0) + (r0.invest || 0) - (r0.giften || 0) : null; };
+  const anc = raw.filter(r => !r.est.spaar && by[r.year + 1] && by[r.year + 1]._xls.spaar != null && A[r.year] && A[r.year].ok && A[r.year].tn && r.rente != null && !r.est.rente).pop();
+  DATA.proj = { em, keep };
+  if (!anc) return;
+  const base0 = A[anc.year].tn - tot(anc.year) - (anc.rente || 0) - (anc.aflossing || 0);
+  let base = base0;
+  DATA.proj.anchor = anc.year; DATA.proj.base0 = base0;
+  for (let y = anc.year + 1; ; y++) {
+    const r0 = by[y], r1 = by[y + 1];
+    if (!r0 || !r1 || r0.spaar == null || r1.spaar != null || !A[y] || !A[y].tn || r0.rente == null) break;
+    base *= 1 + (CPI[y] ?? CPI[CPI_LAST] ?? 2) / 100;
+    const sv = A[y].tn - base - r0.rente - (r0.aflossing || 0);
+    r1.spaar = r0.spaar + sv - (r0.extra || 0) - (r0.invest || 0) + (r0.giften || 0);
+    r1.est.spaar = true; r0.svEst = sv;
+  }
+}
+function recomputeVerm() {
+  if (!DATA || !DATA.vermRaw) return;
+  fillProjections();
+  DATA.verm = alignVerm(DATA.vermRaw);
+  applyHuisIdx();
+}
 // huizenprijsindex (CBS) op een gekozen regio: index op 1 januari van een jaar en de stand nu
 function huisIdx() {
   if (typeof LIVE === 'undefined' || !LIVE || !LIVE.huis || !LIVE.huis.nl) return null;
@@ -1073,8 +1129,9 @@ const wozOfficial = r => TODAY >= new Date(Date.UTC(r.year + 1, 2, 1));
 function applyHuisIdx() {
   if (!DATA || !DATA.verm) return;
   const V = DATA.verm;
-  for (const r of V) { if (r.wozXls == null) r.wozXls = r.woz; r.woz = r.wozXls; r.wozEst = false; r.net = r.woz + r.spaar - r.hyp; }
-  const H = huisIdx(); if (!H) return;
+  for (const r of V) { r.wozXls = r.woz; r.wozEst = false; }
+  const fillFlat = () => { let last = null; for (const r of V) { if (r.woz != null) last = r.woz; else if (last != null) { r.woz = last; r.wozEst = true; } r.net = (r.woz ?? 0) + r.spaar - r.hyp; } };
+  const H = huisIdx(); if (!H) { fillFlat(); return; }
   const off = V.filter(r => r.woz && wozOfficial(r)).pop(); if (!off) return;
   const nu = huisSchatting();
   for (const r of V) {
@@ -1085,8 +1142,9 @@ function applyHuisIdx() {
     // voorbij de laatste CBS-cijfers: de schatting van nu, doorgetrokken met de stijging van het afgelopen jaar
     else if (nu && H.g != null) r.woz = nu.est * Math.pow(1 + H.g, (Date.UTC(r.year, 0, 1) - H.lastDate) / 31557600000);
     else continue;
-    r.wozEst = true; r.net = r.woz + r.spaar - r.hyp;
+    r.wozEst = true;
   }
+  fillFlat();
 }
 // geschatte huiswaarde vandaag
 function huisSchatting() {
@@ -1126,8 +1184,8 @@ function renderVerm() {
   if (h) $('#huisNu').innerHTML = `<div class="tiles"><div class="tile" style="grid-column:1/-1"><span>Geschatte waarde vandaag</span><b>${eur(h.est)}</b><em>${h.pct >= 0 ? '+' : '−'}${PCT1.format(Math.abs(h.pct))} sinds de WOZ van ${eur(h.woz)} (peildatum 1 jan ${h.year})</em></div></div>
     <div class="note">Laatste officiële WOZ doorgerekend met de CBS-prijsindex bestaande koopwoningen: ${h.how}. Een regionaal gemiddelde, geen taxatie.</div>`;
   $('#vermTable').innerHTML = `<table><thead><tr><th>1 jan</th><th>WOZ</th><th>Spaargeld</th><th>Hypotheek</th><th>Netto</th></tr></thead><tbody>${
-    V.slice().reverse().map(r => `<tr><td>${r.year}${prog(r.year) ? '*' : ''}</td><td>${eur(r.woz)}${r.wozEst ? '°' : ''}</td><td>${eur(r.spaar)}</td><td>${eur(r.hyp)}</td><td>${eur(r.net)}</td></tr>`).join('')
-  }</tbody></table><div class="tiny">* = prognose · ° = WOZ geschat met de CBS-prijsindex${(H => H && H.g != null ? `; na ${H.lastTxt} doorgetrokken met de stijging van het afgelopen jaar (${H.g >= 0 ? '+' : '−'}${PCT1.format(Math.abs(H.g))} per jaar)` : '')(huisIdx())}</div>`;
+    V.slice().reverse().map(r => `<tr><td>${r.year}${prog(r.year) ? '*' : ''}</td><td>${eur(r.woz)}${r.wozEst ? '°' : ''}</td><td>${eur(r.spaar)}${r.spaarEst ? '†' : ''}</td><td>${eur(r.hyp)}${r.hypEst ? '†' : ''}</td><td>${eur(r.net)}</td></tr>`).join('')
+  }</tbody></table><div class="tiny">* = prognose · † = berekend door de app (hypotheek: annuïteit met de rente uit het tabblad hypotheek; spaargeld: netto inkomen − uitgaven van ${DATA.proj && DATA.proj.anchor || 'het laatste jaar'} plus inflatie − woonlasten − extra aflossing) · ° = WOZ geschat (CBS-prijsindex; zonder live-gegevens de laatst bekende WOZ)${(H => H && H.g != null ? `; na ${H.lastTxt} doorgetrokken met de stijging van het afgelopen jaar (${H.g >= 0 ? '+' : '−'}${PCT1.format(Math.abs(H.g))} per jaar)` : '')(huisIdx())}</div>`;
 }
 function chips(host, defs, onMap, rerender) {
   clearHost(host);
@@ -2504,6 +2562,7 @@ function updateStatus() {
 function applyData(d) {
   DATA = d;
   syncParams();
+  recomputeVerm();
   initBN(); initInUit(); initW();
   updateStatus();
   renderAll();
@@ -2633,7 +2692,7 @@ function renderCharts() {
 }
 function renderAll() {
   if (!DATA) return;
-  applyHuisIdx();
+  recomputeVerm();
   renderKpis(); renderBNInputs(); renderBN(); renderMaand(); renderWInputs();
   renderCharts();
 }
@@ -2645,7 +2704,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-20 21:40';
+const APP_VERSION = '2026-11-20 22:00';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
