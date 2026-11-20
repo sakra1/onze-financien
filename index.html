@@ -1985,7 +1985,25 @@ function caoPathRef(inclEju) {
   const last = pts[pts.length - 1]; if (last.x < TODAY.getTime()) pts.push({ x: TODAY.getTime(), y: last.y, prog: false });
   return pts;
 }
-const NUI = { range: 10, n1: { I: true, C: true }, n2: { C: true, I: true, M: true }, n3: { C: true, M: true, K: true }, n4: { P: true, M: true } };
+// wettelijk minimumloon voor volwassenen (nu 21+, vóór 2017 23+, 2017–2018 22+) als maandbedrag; sinds 2024 een uurloon, omgerekend × 156 uur (36 uur per week,
+// zoals het referentiemaandloon van de overheid). Jaarbedrag = gemiddelde van de 12 maanden.
+function wmlMonthly() {
+  if (typeof LIVE === 'undefined' || !LIVE || !LIVE.wmlAll) return null;
+  const ds = Object.keys(LIVE.wmlAll).sort(); if (!ds.length) return null;
+  return ds.map(d => ({ d, v: LIVE.wmlAll[d] < 100 ? LIVE.wmlAll[d] * 156 : LIVE.wmlAll[d] }));
+}
+function wmlYear(y) {
+  const L = wmlMonthly(); if (!L) return null;
+  let s = 0;
+  for (let m = 1; m <= 12; m++) {
+    const key = `${y}-${String(m).padStart(2, '0')}-01`;
+    let v = null; for (const e of L) { if (e.d <= key) v = e.v; else break; }
+    if (v == null || key > L[L.length - 1].d.slice(0, 4) + '-12-01') return null;
+    s += v;
+  }
+  return s / 12;
+}
+const NUI = { range: 10, n1: { I: true, C: true }, n2: { C: true, I: true, M: true, W: true }, n3: { C: true, M: true, K: true, W: true }, n4: { P: true, M: true, W: true } };
 function renderNederland() {
   $$('.refY').forEach(n => n.textContent = REF_Y);
   const fmtIdx = v => NUM2.format(Math.round(v * 10) / 10);
@@ -2013,12 +2031,15 @@ function renderNederland() {
   // 2. cumulatief
   const infl = []; if (CPI_LAST) for (let y = REF_Y; y <= CPI_LAST; y++) infl.push({ x: y, y: priceIdx(y) });
   const mod = MODAAL[REF_Y] ? Object.keys(MODAAL).map(Number).filter(y => y >= REF_Y).sort((a, b) => a - b).map(y => ({ x: y, y: MODAAL[y] / MODAAL[REF_Y] * 100, prog: y > THIS_YEAR })) : [];
+  const w0 = wmlYear(REF_Y), wmlIdx = [];
+  if (w0) for (let y = REF_Y; y <= THIS_YEAR; y++) { const v = wmlYear(y); if (v) wmlIdx.push({ x: y, y: v / w0 * 100 }); }
   lineChart($('#nl2Chart'), [
     { name: 'Cao NU', color: '--s1', points: NUI.n2.C ? caoYearly(path) : [] },
     { name: 'Inflatie', color: '--s4', points: NUI.n2.I ? infl : [] },
-    { name: 'Modaal', color: '--s3', points: NUI.n2.M ? mod : [] }
+    { name: 'Modaal', color: '--s3', points: NUI.n2.M ? mod : [] },
+    { name: 'Minimumloon', color: '--s2', points: NUI.n2.W ? wmlIdx : [] }
   ], { label: 'cao, inflatie en modaal sinds referentiejaar', yZero: false, refLine: 100, yFmt: fmtIdx, tipFmt: fmtIdx, xFmt: String, tipTitle: avgTitle });
-  chips($('#nl2Chips'), [['C', 'Cao NU', '--s1'], ['I', 'Inflatie', '--s4'], ['M', 'Modaal', '--s3']], NUI.n2, renderNederland);
+  chips($('#nl2Chips'), [['C', 'Cao NU', '--s1'], ['I', 'Inflatie', '--s4'], ['M', 'Modaal', '--s3']].concat(wmlIdx.length ? [['W', 'Minimumloon', '--s2']] : []), NUI.n2, renderNederland);
   const rows = [];
   if (CPI_LAST) for (let y = REF_Y; y <= CPI_LAST; y++) rows.push(`<tr><td>${y}</td><td>${path ? fmtIdx(caoAvg(path, y)) : '–'}</td><td>${fmtIdx(priceIdx(y))}</td><td>${MODAAL[y] && MODAAL[REF_Y] ? fmtIdx(MODAAL[y] / MODAAL[REF_Y] * 100) : '–'}</td></tr>`);
   $('#nl2Table').innerHTML = `<table><thead><tr><th>Jaar</th><th>Cao NU</th><th>Prijzen</th><th>Modaal</th></tr></thead><tbody>${rows.reverse().join('')}</tbody></table>`;
@@ -2036,9 +2057,10 @@ function renderNederland() {
   lineChart($('#nl3Chart'), [
     { name: 'Cao NU', color: '--s1', points: NUI.n3.C ? realC : [] },
     { name: 'Modaal', color: '--s3', points: NUI.n3.M ? realM : [] },
+    { name: 'Minimumloon', color: '--s2', points: NUI.n3.W ? wmlIdx.filter(p => priceIdx(p.x)).map(p => ({ x: p.x, y: p.y / priceIdx(p.x) * 100 })) : [] },
     { name: 'Koopkracht (CBS)', color: '--s4', dashedAll: true, points: NUI.n3.K ? kkSeries(REF_Y) : [] }
   ], { label: 'reële ontwikkeling', yZero: false, refLine: 100, yFmt: fmtIdx, tipFmt: fmtIdx, xFmt: String, tipTitle: avgTitle });
-  chips($('#nl3Chips'), [['C', 'Cao NU', '--s1'], ['M', 'Modaal', '--s3']].concat(Object.keys(KK).length ? [['K', 'Koopkracht (CBS)', '--s4', true]] : []), NUI.n3, renderNederland);
+  chips($('#nl3Chips'), [['C', 'Cao NU', '--s1'], ['M', 'Modaal', '--s3']].concat(wmlIdx.length ? [['W', 'Minimumloon', '--s2']] : []).concat(Object.keys(KK).length ? [['K', 'Koopkracht (CBS)', '--s4', true]] : []), NUI.n3, renderNederland);
   // 4. verdeling
   const ys = Object.keys(PCT).map(Number).sort((a, b) => a - b);
   if (!ys.length) { $('#nl4Chart').innerHTML = '<div class="note">Nog geen percentielen in externe_data.xlsx.</div>'; $('#nl4Chips').innerHTML = ''; }
@@ -2046,9 +2068,10 @@ function renderNederland() {
     const bands = [[10, 90], [20, 80], [30, 70], [40, 60]].map(([lo, hi]) => ({ lo: new Map(ys.map(y => [y, PCT[y]['p' + lo]])), hi: new Map(ys.map(y => [y, PCT[y]['p' + hi]])), opacity: 0.12 }));
     lineChart($('#nl4Chart'), [
       { name: 'Mediaan (p50)', color: '--s1', points: NUI.n4.P ? ys.map(y => ({ x: y, y: PCT[y].p50 })) : [] },
-      { name: 'Modaal', color: '--s3', points: NUI.n4.M ? ys.filter(y => MODAAL[y]).map(y => ({ x: y, y: MODAAL[y] })) : [] }
+      { name: 'Modaal', color: '--s3', points: NUI.n4.M ? ys.filter(y => MODAAL[y]).map(y => ({ x: y, y: MODAAL[y] })) : [] },
+      { name: 'Minimumloon', color: '--s2', points: NUI.n4.W ? ys.map(y => ({ x: y, y: wmlYear(y) })).filter(p => p.y).map(p => ({ x: p.x, y: p.y * 12 * 1.08 })) : [] }
     ], { label: 'inkomensverdeling', bands, xFmt: String, tipTitle: String });
-    chips($('#nl4Chips'), [['P', 'Mediaan (p50)', '--s1'], ['M', 'Modaal', '--s3']], NUI.n4, renderNederland);
+    chips($('#nl4Chips'), [['P', 'Mediaan (p50)', '--s1'], ['M', 'Modaal', '--s3']].concat(wmlYear(ys[ys.length - 1]) ? [['W', 'Minimumloon', '--s2']] : []), NUI.n4, renderNederland);
   }
 }
 $$('[data-nrange]').forEach(b => b.addEventListener('click', () => { NUI.range = +b.dataset.nrange; setPressed('[data-nrange]', 'data-nrange', NUI.range); renderNederland(); }));
@@ -2516,10 +2539,14 @@ const LIVE_SOURCES = {
     const r = await fetch('https://nl.wikipedia.org/w/api.php?action=parse&page=Minimumloon&prop=wikitext&format=json&origin=*', { cache: 'no-store' });
     if (!r.ok) throw new Error(`Wikipedia: HTTP ${r.status}`);
     const w = (await r.json()).parse.wikitext['*'];
-    const mnd = { januari: '01', juli: '07' }, wml = {};
-    for (const m of w.matchAll(/\|\s*1 (januari|juli) (\d{4})\s*\|\|\s*€\s*(\d{1,2},\d{2})(?!\d)/g)) wml[`${m[2]}-${mnd[m[1]]}-01`] = parseFloat(m[3].replace(',', '.'));
+    const mnd = { januari: '01', juli: '07' }, wml = {}, wmlAll = {};
+    // alle bedragen: maandbedragen (met punt voor duizendtallen) tot 2024, uurlonen daarna
+    for (const m of w.matchAll(/\|\s*1 (januari|juli) (\d{4})\s*\|\|\s*€\s*([\d.]+,\d{2})(?!\d)/g)) {
+      const v = parseFloat(m[3].replace(/\./g, '').replace(',', '.')), d = `${m[2]}-${mnd[m[1]]}-01`;
+      wmlAll[d] = v; if (v < 100) wml[d] = v;
+    }
     if (!Object.keys(wml).length) throw new Error('Wikipedia: geen minimumuurloon');
-    return { wml };
+    return { wml, wmlAll };
   },
   // modaal inkomen: eerste tabel op de Wikipedia-pagina (notebook cel 1 en 7)
   async modaal() {
@@ -2771,7 +2798,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-20 22:50';
+const APP_VERSION = '2026-11-20 23:05';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
