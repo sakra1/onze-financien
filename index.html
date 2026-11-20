@@ -100,6 +100,7 @@ body.nodata main > section { display: none !important; }
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .tiles3 { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .tiles3 .tile { padding: 10px; }
+.bar.est { border-top: 1px dashed var(--line); padding-top: 10px; margin-top: 6px; }
 .tiles3.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px; min-width: 0; align-content: start; }
 .tile span { font-size: 12px; color: var(--ink-2); }
@@ -1039,6 +1040,33 @@ function renderIncome() {
   }).reverse().join('');
   $('#incTable').innerHTML = `<table><thead><tr><th>Jaar</th><th>Sander</th><th>Ellen</th><th>Samen</th></tr></thead><tbody>${rows}</tbody></table><div class="tiny">${UI.incKind} per jaar · * = (deels) prognose</div>`;
 }
+// geschatte huiswaarde nu: laatste officiële WOZ × prijsontwikkeling bestaande koopwoningen (CBS) sinds de peildatum
+function huisSchatting() {
+  if (typeof LIVE === 'undefined' || !LIVE || !LIVE.huis || !LIVE.huis.nl) return null;
+  const off = DATA.verm.filter(r => r.woz && TODAY >= new Date(Date.UTC(r.year + 1, 2, 1))).pop(); if (!off) return null;
+  const P = off.year, nl = LIVE.huis.nl, reg = LIVE.huis.reg || {};
+  const ms = Object.keys(nl).sort(), lastM = ms[ms.length - 1]; if (!lastM) return null;
+  const mTxt = m => { const [y, mm] = m.split('-'); return `${MONTHS[+mm - 1]} ${y}`; };
+  const want = EXT && EXT.params && EXT.params.woningregio ? String(EXT.params.woningregio).trim().toLowerCase() : '';
+  const R = want ? Object.entries(reg).find(([n]) => n.toLowerCase() === want) : null;
+  // index op 1 januari: gemiddelde van de periode ervoor en erna
+  const nlPeil = nl[`${P - 1}-12`] && nl[`${P}-01`] ? (nl[`${P - 1}-12`] + nl[`${P}-01`]) / 2 : nl[`${P}-01`];
+  let f = null, how = '';
+  if (R) {
+    const q = R[1], qs = Object.keys(q).sort(), lq = qs[qs.length - 1];
+    const a = q[`${P - 1}-Q4`], b = q[`${P}-Q1`];
+    if (a && b && lq) {
+      const [ly, ln] = lq.split('-Q').map(Number);
+      const qm = [1, 2, 3].map(i => nl[`${ly}-${String((ln - 1) * 3 + i).padStart(2, '0')}`]).filter(Boolean);
+      const bridge = qm.length ? nl[lastM] / (qm.reduce((x, y) => x + y, 0) / qm.length) : 1;
+      f = q[lq] / ((a + b) / 2) * bridge;
+      how = `${R[0]} t/m ${ln}e kwartaal ${ly}${bridge !== 1 ? `, daarna landelijk t/m ${mTxt(lastM)}` : ''}`;
+    }
+  }
+  if (f == null && nlPeil) { f = nl[lastM] / nlPeil; how = `Nederland t/m ${mTxt(lastM)}${want && !R ? ` (regio "${EXT.params.woningregio}" niet gevonden)` : ''}`; }
+  if (f == null) return null;
+  return { woz: off.woz, year: P, est: off.woz * f, pct: f - 1, how };
+}
 function renderVerm() {
   const V = DATA.verm;
   const prog = y => y > THIS_YEAR;
@@ -1059,7 +1087,9 @@ function renderVerm() {
       line(`WOZ-waarde`, eur(cur.woz), `peildatum 1 jan ${cur.year}${official ? '' : ` · nog geen beschikking, schatting uit de Excel${prev ? `; laatste officiële WOZ ${eur(prev.woz)} (peildatum 1 jan ${prev.year})` : ''}`}`) +
       line('+ Spaargeld', eur(cur.spaar)) +
       line('− Hypotheek', eur(cur.hyp)) +
-      line(`= Netto vermogen per 1 jan ${cur.year}`, eur(cur.net), '', true);
+      line(`= Netto vermogen per 1 jan ${cur.year}`, eur(cur.net), '', true) +
+      ((h => h ? `<div class="bar est"><div class="top"><span><b>Geschatte waarde huis nu</b><br><span class="tiny">WOZ ${eur(h.woz)} (peildatum 1 jan ${h.year}) ${h.pct >= 0 ? '+' : '−'}${PCT1.format(Math.abs(h.pct))} volgens de CBS-prijsindex van ${h.how}. Een regionaal gemiddelde, geen taxatie.</span></span><span class="num"><b>${eur(h.est)}</b></span></div></div>` +
+        line('Geschatte overwaarde nu', eur(h.est - cur.hyp), `met de hypotheek van 1 jan ${cur.year}`) : '')(huisSchatting()));
   } else $('#vermNow').innerHTML = '';
   $('#vermTable').innerHTML = `<table><thead><tr><th>1 jan</th><th>WOZ</th><th>Spaargeld</th><th>Hypotheek</th><th>Netto</th></tr></thead><tbody>${
     V.slice().reverse().map(r => `<tr><td>${r.year}${prog(r.year) ? '*' : ''}</td><td>${eur(r.woz)}</td><td>${eur(r.spaar)}</td><td>${eur(r.hyp)}</td><td>${eur(r.net)}</td></tr>`).join('')
@@ -2248,7 +2278,7 @@ const LIVE_KEY = 'onze-financien-live-v1';
 const CBS_API = 'https://opendata.cbs.nl/ODataApi/odata/';
 const numNL = v => { const x = parseFloat(String(v ?? '').trim()); return isFinite(x) ? x : null; };
 async function cbsRows(table, select, filter) {
-  let url = `${CBS_API}${table}/UntypedDataSet?$format=json&$select=${select}` + (filter ? `&$filter=${encodeURIComponent(filter)}` : '');
+  let url = `${CBS_API}${table}/UntypedDataSet?$format=json` + (select ? `&$select=${select}` : '') + (filter ? `&$filter=${encodeURIComponent(filter)}` : '');
   const out = [];
   while (url) {
     const r = await fetch(url, { cache: 'no-store' });
@@ -2304,6 +2334,24 @@ const LIVE_SOURCES = {
     if (!Object.keys(pct).length) throw new Error('percentielen: geen cijfers');
     return { pct };
   },
+  // prijsindex bestaande koopwoningen (CBS/Kadaster): Nederland per maand, provincies per kwartaal
+  async huis() {
+    const rows = async (t, f) => { try { return await cbsRows(t, null, f); } catch (e) { return await cbsRows(t, null, null); } };
+    const val = r => numNL(r[Object.keys(r).find(k => /^PrijsindexVerkoopprijzen/.test(k))]);
+    const nl = {};
+    for (const r of await rows('85773NED', "substringof('MM',Perioden)")) { const m = String(r.Perioden).match(/^(\d{4})MM(\d{2})/), v = m && val(r); if (v) nl[`${m[1]}-${m[2]}`] = v; }
+    if (!Object.keys(nl).length) throw new Error('huizenprijzen: geen cijfers');
+    const names = {}, reg = {};
+    try {
+      const j = await (await fetch(`${CBS_API}85792NED/RegioS?$format=json`, { cache: 'no-store' })).json();
+      for (const x of j.value || []) names[String(x.Key).trim()] = String(x.Title).replace(/\s*\([^)]*\)\s*$/, '').trim();
+      for (const r of await rows('85792NED', "substringof('KW',Perioden)")) {
+        const m = String(r.Perioden).match(/^(\d{4})KW0(\d)/), n = names[String(r.RegioS).trim()], v = m && val(r);
+        if (v && n) (reg[n] = reg[n] || {})[`${m[1]}-Q${m[2]}`] = v;
+      }
+    } catch (e) { }
+    return { huis: { nl, reg } };
+  },
   // wettelijk minimumuurloon 21+ (sinds 2024 een uurloon): tabel "Vanaf 2024" op de Wikipedia-pagina Minimumloon
   async wml() {
     const r = await fetch('https://nl.wikipedia.org/w/api.php?action=parse&page=Minimumloon&prop=wikitext&format=json&origin=*', { cache: 'no-store' });
@@ -2332,7 +2380,7 @@ const LIVE_SOURCES = {
     return { modaal };
   }
 };
-const LIVE_NAMES = { cpi: 'inflatie (CBS)', kk: 'koopkracht (CBS)', pct: 'percentielen (CBS)', modaal: 'modaal (Wikipedia)', wml: 'minimumloon (Wikipedia)' };
+const LIVE_NAMES = { cpi: 'inflatie (CBS)', kk: 'koopkracht (CBS)', pct: 'percentielen (CBS)', modaal: 'modaal (Wikipedia)', wml: 'minimumloon (Wikipedia)', huis: 'huizenprijzen (CBS)' };
 let LIVE_BUSY = false, LIVE_FAIL = false;
 async function fetchLive() {
   if (LIVE_BUSY) return; LIVE_BUSY = true;
@@ -2562,7 +2610,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-19 08:20';
+const APP_VERSION = '2026-11-20 21:10';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
