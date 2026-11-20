@@ -1057,9 +1057,11 @@ function renderIncome() {
 function fillProjections() {
   const raw = (DATA.vermRaw || []).slice().sort((a, b) => a.year - b.year);
   const F = ['hyp', 'rente', 'aflossing', 'spaar'];
-  // 0 telt als leeg: dat is meestal een formule over lege cellen
-  for (const r of raw) { if (!r._xls) { r._xls = {}; for (const k of F) r._xls[k] = r[k] === 0 && k !== 'hyp' ? null : r[k]; } for (const k of F) r[k] = r._xls[k]; r.est = {}; }
+  for (const r of raw) { if (!r._xls) { r._xls = {}; for (const k of F) r._xls[k] = r[k]; } for (const k of F) r[k] = r._xls[k]; r.est = {}; }
   const by = {}; raw.forEach(r => by[r.year] = r);
+  const lastAct = Math.max(-Infinity, ...raw.filter(r => r._xls.rente != null && r._xls.hyp != null).map(r => r.year));
+  // een spaargeld van 0 na het laatste werkelijke jaar is een formule over lege cellen
+  for (const r of raw) if (r.year > lastAct && r.spaar === 0) r.spaar = null;
   const P = (EXT && EXT.params) || {};
   const em = Math.min(12, Math.max(1, Math.round(num(P['maand extra aflossing']) || 12)));
   const keep = /gelijk/i.test(String(P['maandlast na extra aflossing'] || ''));
@@ -1070,9 +1072,9 @@ function fillProjections() {
     const ann = (H, n) => H <= 0 ? 0 : (r === 0 ? H / n : H * r / (1 - Math.pow(1 + r, -n)));
     for (const row of raw) {
       const prev = by[row.year - 1];
-      // een jaar is pas werkelijk als rente én aflossing zijn ingevuld (uit de aangifte);
-      // een hypotheekbedrag zonder die twee is een formule of schatting in de Excel en wordt opnieuw berekend
-      if ((row._xls.rente != null && row._xls.aflossing != null) || !prev || prev.hyp == null) continue;
+      // alleen jaren ná het laatste werkelijke jaar (rente ingevuld, uit de aangifte);
+      // een hypotheekbedrag daar is een formule of schatting in de Excel en wordt opnieuw berekend
+      if (row.year <= lastAct || !prev || prev.hyp == null) continue;
       let H = prev.hyp, n = Math.max(1, (eY - row.year) * 12 + eM), A = ann(H, n), R = 0, Af = 0;
       const extra = row.extra || 0;
       for (let m = 1; m <= 12 && H > 0; m++) {
@@ -2735,7 +2737,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-20 22:20';
+const APP_VERSION = '2026-11-20 22:30';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
