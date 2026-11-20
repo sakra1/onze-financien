@@ -100,7 +100,6 @@ body.nodata main > section { display: none !important; }
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .tiles3 { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .tiles3 .tile { padding: 10px; }
-.bar.est { border-top: 1px dashed var(--line); padding-top: 10px; margin-top: 6px; }
 .tiles3.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px; min-width: 0; align-content: start; }
 .tile span { font-size: 12px; color: var(--ink-2); }
@@ -564,6 +563,11 @@ section[data-view].active { display: grid; }
       <div class="chart" id="vermChart"></div>
       <details class="table"><summary>Toon als tabel</summary><div class="tablewrap" id="vermTable"></div></details>
       <div class="note">Netto vermogen = WOZ-waarde + spaargeld − hypotheek, alles per 1 januari (zoals in het notebook).</div>
+    </div>
+
+    <div class="card" id="sec-huisnu" hidden>
+      <div class="card-head"><h2>Waarde huis nu</h2><span class="tiny">schatting</span></div>
+      <div id="huisNu"></div>
     </div>
     </div>
     <div class="sub" data-subview="wa">
@@ -1114,10 +1118,13 @@ function renderVerm() {
       line(`WOZ-waarde`, eur(cur.woz), `peildatum 1 jan ${cur.year}${official ? '' : cur.wozEst ? ` · nog geen beschikking: laatste officiële WOZ${prev ? ` ${eur(prev.wozXls)} (peildatum 1 jan ${prev.year})` : ''} × CBS-prijsindex` : ' · nog geen beschikking'}`) +
       line('+ Spaargeld', eur(cur.spaar)) +
       line('− Hypotheek', eur(cur.hyp)) +
-      line(`= Netto vermogen per 1 jan ${cur.year}`, eur(cur.net), '', true) +
-      ((h => h ? `<div class="bar est"><div class="top"><span><b>Geschatte waarde huis nu</b><br><span class="tiny">WOZ ${eur(h.woz)} (peildatum 1 jan ${h.year}) ${h.pct >= 0 ? '+' : '−'}${PCT1.format(Math.abs(h.pct))} volgens de CBS-prijsindex van ${h.how}. Een regionaal gemiddelde, geen taxatie.</span></span><span class="num"><b>${eur(h.est)}</b></span></div></div>` +
-        line('Geschatte overwaarde nu', eur(h.est - cur.hyp), `met de hypotheek van 1 jan ${cur.year}`) : '')(huisSchatting()));
+      line(`= Netto vermogen per 1 jan ${cur.year}`, eur(cur.net), '', true);
   } else $('#vermNow').innerHTML = '';
+  // losse kaart: waarde van het huis vandaag (niet per 1 januari, dus niet in het vermogen)
+  const h = huisSchatting(), hc = $('#sec-huisnu');
+  hc.hidden = !h;
+  if (h) $('#huisNu').innerHTML = `<div class="tiles"><div class="tile" style="grid-column:1/-1"><span>Geschatte waarde vandaag</span><b>${eur(h.est)}</b><em>${h.pct >= 0 ? '+' : '−'}${PCT1.format(Math.abs(h.pct))} sinds de WOZ van ${eur(h.woz)} (peildatum 1 jan ${h.year})</em></div></div>
+    <div class="note">Laatste officiële WOZ doorgerekend met de CBS-prijsindex bestaande koopwoningen: ${h.how}. Een regionaal gemiddelde, geen taxatie.</div>`;
   $('#vermTable').innerHTML = `<table><thead><tr><th>1 jan</th><th>WOZ</th><th>Spaargeld</th><th>Hypotheek</th><th>Netto</th></tr></thead><tbody>${
     V.slice().reverse().map(r => `<tr><td>${r.year}${prog(r.year) ? '*' : ''}</td><td>${eur(r.woz)}${r.wozEst ? '°' : ''}</td><td>${eur(r.spaar)}</td><td>${eur(r.hyp)}</td><td>${eur(r.net)}</td></tr>`).join('')
   }</tbody></table><div class="tiny">* = prognose · ° = WOZ geschat met de CBS-prijsindex${(H => H && H.g != null ? `; na ${H.lastTxt} doorgetrokken met de stijging van het afgelopen jaar (${H.g >= 0 ? '+' : '−'}${PCT1.format(Math.abs(H.g))} per jaar)` : '')(huisIdx())}</div>`;
@@ -2638,7 +2645,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-20 21:30';
+const APP_VERSION = '2026-11-20 21:40';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
