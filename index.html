@@ -1101,15 +1101,20 @@ function projectHist() {
     for (const w of ['S', 'E']) {
       const k = per[w], x = DATA.bn[w], f = tpl[k.f], b0 = tpl[k.base], slot = slots[`${y}-${m}`], fN = slot && slot[k.f] > 0 ? slot[k.f] : f;
       if (!x || !x.full || !f || b0 == null || tpl[k.b] == null || tpl[k.n] == null) continue;
-      const c = { m: b0 / f, f: 1 };
-      for (const e of ev) if (e.d > tpl.d && e.d <= d) caoStep(c, e);
-      const r = c.m / (b0 / f), bN = b0 / f * r * fN;
-      const xn = { ...x, f: fN, full: x.full * r, grondFull: (x.grondFull ?? x.full) * r };
-      const n0 = calcNet(x, P), n1 = calcNet(xn, P);
-      let bru = tpl[k.b] + (bN - b0), net = tpl[k.n] + (n1.netto - n0.netto);
+      const lastR = H.slice().reverse().find(q => q[k.base] != null && q[k.f]) || tpl;
+      const c = { m: (lastR[k.base] != null ? lastR[k.base] / (lastR[k.f] || f) : b0 / f), f: 1 };
+      for (const e of ev) if (e.d > lastR.d && e.d <= d) caoStep(c, e);
+      const r = c.m / (lastR[k.base] != null ? lastR[k.base] / (lastR[k.f] || f) : b0 / f);
+      // salaris en toelage van de laatste werkelijke maand (ook als die een nabetaling of uitkering bevat);
+      // netto: de laatste gewone maand (zonder VU of EJU), plus wat de verschillen in salaris, toelage en fte netto opleveren
+      const fL = lastR[k.f] || f, bL = lastR[k.base] != null ? lastR[k.base] : b0, tL = lastR[k.t] || 0, tT = tpl[k.t] || 0;
+      const fullT = b0 / f, fullN = bL / fL * r, bN = fullN * fN;
+      const xT = { ...x, f, full: fullT, grondFull: fullT, toelage: tT }, xN = { ...x, f: fN, full: fullN, grondFull: fullN, toelage: tL };
+      const n0 = calcNet(xT, P), n1 = calcNet(xN, P);
+      let bru = tpl[k.b] + (bN - b0) + (tL - tT), net = tpl[k.n] + (n1.netto - n0.netto);
       if (m === 5) { bru += n1.vuB; net += n1.vuN; }
       if (m === 11) { bru += n1.ejuB * c.f; net += n1.ejuN * c.f; }
-      Object.assign(row, { [k.b]: bru, [k.n]: net, [k.f]: fN, [k.t]: tpl[k.t], [k.base]: bN });
+      Object.assign(row, { [k.b]: bru, [k.n]: net, [k.f]: fN, [k.t]: tL || null, [k.base]: bN });
     }
     out.push(row);
   }
@@ -1151,7 +1156,7 @@ function renderWerkelijk() {
   const rows = [];
   const real = (DATA.histXls || DATA.hist || []).filter(isRealMonth).pop();
   if (real) rows.push(['Salarissen', fmtMonth(real.d), DATA.histProj ? `${fmtMonth(DATA.histProj.from)} – ${fmtMonth(DATA.histProj.to)}` : '–',
-    'laatste loonstrook doorgetrokken, met cao_nu; VU mei, EJU november; netto met je belastingregels']);
+    'laatste loonstrook doorgetrokken (salaris en toelage van de laatste maand, netto van de laatste gewone maand), met cao_nu en de fte uit je Excel; VU mei, EJU november']);
   const PE = DATA.pensEst || {}, pe = Object.keys(PE).map(Number).sort((a, b) => a - b);
   const pReal = Object.keys(DATA.pensXls || {}).map(Number).filter(y => (DATA.pensXls[y].S || 0) > 0 || (DATA.pensXls[y].E || 0) > 0);
   if (pReal.length || pe.length) rows.push(['Pensioenpremie (OP)', pReal.length ? `${Math.max(...pReal)}` : '–', yr(pe), 'ABP-regels uit bruto-netto']);
@@ -1329,7 +1334,7 @@ function renderSchattingen() {
     ].join('');
     const P = DATA.proj || {};
     host.innerHTML = `<div class="tablewrap"><table class="schat"><thead><tr><th>€</th>${ys.map(y => `<th>${y}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>
-      <div class="tiny">† = geschat door de app; zonder † staat het zo in je Excel.<br>${DATA.histProj ? `<b>Netto inkomen</b>: salarissen na ${fmtMonth(DATA.histProj.from - 864e5 * 28)} doorgetrokken vanaf je laatste loonstrook, met de cao-verhogingen uit cao_nu, vakantiegeld in mei en eindejaarsuitkering in november; netto met de belastingregels uit je tabblad bruto-netto. ` : ''}
+      <div class="tiny">† = geschat door de app; zonder † staat het zo in je Excel.<br>${DATA.histProj ? `<b>Netto inkomen</b>: salarissen na ${fmtMonth(DATA.histProj.from - 864e5 * 28)} doorgetrokken vanuit je laatste loonstrook (salaris en toelage van de laatste maand), met de cao-verhogingen uit cao_nu, vakantiegeld in mei en eindejaarsuitkering in november; netto met de belastingregels uit je tabblad bruto-netto. ` : ''}
       <b>Uitgaven</b>: wat jullie in ${P.anchor || 'het laatste afgeronde jaar'} uitgaven naast de hypotheek${P.base0 ? ` (${eur(P.base0)})` : ''}, verhoogd met de inflatie.
       <b>Rente en aflossing</b>: annuïteit met ${DATA.hyp && DATA.hyp.rente != null ? PCT1.format(DATA.hyp.rente) : 'de rente'} uit het tabblad hypotheek${P.em ? `, extra aflossing in de maand onder het bedrag (kolom "maand extra aflossing" in vermogen IB, anders ${MONTHS[P.em - 1]})${P.keep ? ', maandlast blijft gelijk' : ', daarna lagere maandlast'}` : ''}.
       ${Object.keys(PE).length ? '<b>Pensioenpremie</b>: ABP-regels uit je tabblad bruto-netto, over het salaris per fte van januari en de fte per maand. ' : ''}<b>WOZ</b>: ${(ys.map(y => vb[y]).find(v => v && v.wozHow) || {}).wozHow || '–'}.</div>`;
@@ -2914,7 +2919,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 09:05';
+const APP_VERSION = '2026-11-21 09:35';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
