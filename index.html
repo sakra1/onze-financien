@@ -147,6 +147,8 @@ table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: upper
 .chgl li span:last-child { white-space: nowrap; }
 .chgt tr.tot td { font-weight: 600; }
 .chgt tr.grp td { text-align: left; font-weight: 600; color: var(--ink-2); padding-top: 10px; border-bottom: none; }
+.milhead { margin: 10px 0 0; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.milhead b { font-family: var(--font-display); font-size: 22px; font-weight: 700; }
 .milsvg { touch-action: pan-y; cursor: crosshair; }
 .miltip { position: absolute; top: 0; z-index: 3; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 12px; line-height: 1.35; box-shadow: 0 2px 8px rgba(0,0,0,.12); pointer-events: none; max-width: 260px; }
 .millegend i.b { background: var(--s1); opacity: .2; border: none; border-radius: 2px; width: 14px; }
@@ -1588,9 +1590,19 @@ function milTile(M) {
     const rng = M.lo && M.hi ? (yr(M.hi) === yr(M.lo) ? `Voorzichtig en gunstig: ook ${yr(M.lo)}. ` : `Voorzichtig ${M.lo ? yr(M.lo) : 'later'}, gunstig ${yr(M.hi)}. `) : M.hi ? `Gunstig ${yr(M.hi)}. ` : '';
     em = `${rng}Doorgerekend vanaf 1 januari ${M.lastY}: huizen +${p(A.woz[1])} per jaar (${A.how.woz}; band ${p(A.woz[0])}–${p(A.woz[2])}), rendement spaargeld ${p(A.rend[1])} (${A.how.rend}; band ${p(A.rend[0])}–${p(A.rend[2])}), spaarvermogen ${eur(A.sv)} per jaar plus ${p(A.infl)} inflatie, min ${eur(A.uit)} per jaar ${A.how.uit ? `(${A.how.uit})` : ''}. Hypotheek volgens schema; na het einde gaat de maandlast naar sparen.${A.stop ? ` Vanaf ${A.stop} wordt er niet meer gespaard.` : ' Pensioen is niet meegenomen: zet stop_sparen_jaar in parameters.'} Aan te passen met woz_groei, spaarrendement, uitgaven_per_jaar en stop_sparen_jaar.`;
   } else em = M.t == null ? '' : M.past ? 'naar schatting gepasseerd' : 'schatting, lineair tussen de standen per 1 januari';
-  const seg = `<div class="seg" role="group" aria-label="Doel" style="margin:4px 0 2px">${[1e6, 2e6, 3e6].map(v => `<button type="button" data-milt="${v}" aria-pressed="${T === v}">€ ${v / 1e6} mln</button>`).join('')}</div>`;
+  const seg = `<div class="seg" role="group" aria-label="Doel">${[1e6, 2e6, 3e6].map(v => `<button type="button" data-milt="${v}" aria-pressed="${T === v}">€ ${v / 1e6} mln</button>`).join('')}</div>`;
+  const status = M.never ? 'niet binnen 45 jaar' : M.t == null ? 'al bereikt' : M.past ? 'bereikt' : 'verwacht';
+  const sub = M.lo && M.hi && !M.past ? `voorzichtig ${yr(M.lo)} · gunstig ${yr(M.hi)}` : M.past ? 'naar schatting' : '';
+  // de uitleg zonder de herhaling van voorzichtig/gunstig (staat al bovenaan)
+  const how = em.replace(/^(Voorzichtig[^.]*\.|Gunstig[^.]*\.)\s*/, '');
   return `
-    <div class="tile mil" style="grid-column:1/-1;position:relative"><span>Netto vermogen € ${T / 1e6} miljoen</span>${seg}<b>${head}</b><div class="milwrap" style="position:relative">${milChart(M)}<div class="miltip" hidden></div></div><em>${em}</em></div>`;
+    <div class="card mil" style="grid-column:1/-1;position:relative">
+      <div class="card-head"><h2>Op weg naar € ${T / 1e6} miljoen</h2></div>
+      ${seg}
+      <div class="milhead"><span class="small muted">${status}</span> <b>${head.replace(/^sinds /, '')}</b>${sub ? ` <span class="small muted">${sub}</span>` : ''}</div>
+      <div class="milwrap" style="position:relative">${milChart(M)}<div class="miltip" hidden></div></div>
+      ${how ? `<details class="dp-more"><summary>Hoe berekend</summary><div class="tiny muted">${how}</div></details>` : ''}
+    </div>`;
 }
 // netto vermogen vandaag (schatting): huis via CBS-index, hypotheek via het aflossingsschema, spaargeld via het spaarvermogen van dit jaar
 function vermNu() {
@@ -3476,7 +3488,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 22:10';
+const APP_VERSION = '2026-11-21 22:20';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
