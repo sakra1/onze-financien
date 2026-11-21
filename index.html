@@ -299,7 +299,11 @@ section[data-view].active { display: grid; }
   <section data-view="nu" class="active" aria-label="Hoe staan we ervoor">
     <h2 style="padding:4px 2px 0">Maandbudget</h2>
     <div class="tiles" id="mTiles"></div>
-    <div class="mdet" id="mDetIn" hidden><h3 style="padding:0 2px">Alle inkomsten</h3><div id="mIncome"></div></div>
+    <div class="card" id="mDetIn" hidden>
+      <div class="card-head"><h2>Alle inkomsten</h2><span class="num" id="inTotal"></span></div>
+      <div id="mIncome"></div>
+      <div class="note">Per maand gemiddeld. Bedragen met "berekend" rekent de app zelf uit (Loon en belasting); de rest komt uit het tabblad in_uit.</div>
+    </div>
     <div class="card" id="mDetUit" hidden>
       <div class="card-head"><h2>Waar gaat het geld heen?</h2><span class="tiny">tik voor de posten</span></div>
       <div class="bars" id="mBars"></div>
@@ -2146,8 +2150,7 @@ function renderMaand() {
   const E = UI.inuitEdits;
   const order = [];
   E.uit.forEach((i, idx) => { if (!order.includes(i.group)) order.push(i.group); });
-  $('#mIncome').innerHTML = `<details class="group" open><summary><span class="name">Inkomsten</span><span class="num" id="inTotal"></span></summary>
-    <div class="items">${E.inn.map((i, idx) => itemRow(i, idx, 'inn')).join('')}</div></details>`;
+  $('#mIncome').innerHTML = `<div class="items">${E.inn.map((i, idx) => itemRow(i, idx, 'inn')).join('')}</div>`;
   for (const inp of $$('#mIncome input')) {
     inp.addEventListener('input', () => {
       const it = E[inp.dataset.kind][+inp.dataset.idx];
@@ -3451,7 +3454,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 20:40';
+const APP_VERSION = '2026-11-21 20:50';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
