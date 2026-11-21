@@ -616,12 +616,12 @@ section[data-view].active { display: grid; }
       <div class="note">Netto vermogen = WOZ-waarde + spaargeld − hypotheek, alles per 1 januari (zoals in het notebook).</div>
     </div>
 
-    <div class="card" id="sec-schat" hidden>
-      <div class="card-head"><h2>Wat de app heeft geschat</h2><span class="tiny">ter controle</span></div>
+    <details class="card bn-wa" id="sec-schat" hidden>
+      <summary><h3>Wat de app heeft geschat</h3><span class="tiny muted">ter controle</span></summary>
       <div id="schatList"></div>
       <div id="schatHuis"></div>
       <div class="note">Alles wat niet in je Excel staat maar door de app is berekend. Vul je een waarde zelf in, dan verdwijnt het †.</div>
-    </div>
+    </details>
 
     <div class="card" id="sec-huisnu" hidden>
       <div class="card-head"><h2>Waarde huis nu</h2><span class="tiny">schatting</span></div>
@@ -3454,7 +3454,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 20:50';
+const APP_VERSION = '2026-11-21 21:00';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
