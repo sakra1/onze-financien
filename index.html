@@ -2929,7 +2929,7 @@ $$('[data-cmp]').forEach(b => b.addEventListener('click', () => { GUI.cmp = b.da
 function renderGrafiekenExtra() { renderModaal(); renderOpbouw(); renderFte(); renderWonen(); renderSparen(); }
 $$('[data-mod]').forEach(b => b.addEventListener('click', () => { GUI.mod = b.dataset.mod; setPressed('[data-mod]', 'data-mod', GUI.mod); renderModaal(); }));
 $$('[data-op-unit]').forEach(b => b.addEventListener('click', () => { GUI.opUnit = b.dataset.opUnit; setPressed('[data-op-unit]', 'data-op-unit', GUI.opUnit); renderOpbouw(); }));
-$$('[data-jump]').forEach(b => b.addEventListener('click', () => { const t = document.getElementById(b.dataset.jump); if (t) window.scrollTo({ top: t.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' }); }));
+$$('[data-jump]').forEach(b => b.addEventListener('click', () => { const t = document.getElementById(b.dataset.jump); if (t) { const h = (document.querySelector('header.top') || {}).offsetHeight || 64; window.scrollTo({ top: t.getBoundingClientRect().top + window.scrollY - h - 10, behavior: 'smooth' }); } }));
 
 /* ================= loading & storage ================= */
 function aoaOf(wb, name) {
@@ -3416,7 +3416,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 19:50';
+const APP_VERSION = '2026-11-21 20:00';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
