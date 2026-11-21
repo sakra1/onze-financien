@@ -117,6 +117,7 @@ table.schat td { text-align: right; white-space: nowrap; }
 table.schat td.est { font-weight: 600; }
 table.schat tr.sum th, table.schat tr.sum td { font-weight: 700; border-top: 1px solid var(--line); }
 table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); padding-top: 10px; }
+.legend .dotline::before, #spLegend .dotline::before { border-radius: 50%; }
 .tiles3.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px; min-width: 0; align-content: start; }
 .tile span { font-size: 12px; color: var(--ink-2); }
@@ -2010,6 +2011,13 @@ function barChart(host, cats, series, opts) {
     });
     if (Number.isInteger(c) ? c % stepYb === 0 : i % stepL === 0) { const tx = el('text', { x: m.l + i * band + band / 2, y: H - 6, 'text-anchor': 'middle' }, svg); tx.textContent = String(c); }
   });
+  // optioneel: een lijn met stippen voor het netto totaal per categorie (bijv. spaarvermogen bij gestapelde staven met een negatief deel)
+  if (opts.totals) {
+    const pts = cats.map((c, i) => [m.l + i * band + band / 2, opts.totals.values[c], c]).filter(p => p[1] != null);
+    const col = cssVar(opts.totals.color || '--ink');
+    if (pts.length > 1) el('polyline', { points: pts.map(p => `${p[0]},${Y(p[1])}`).join(' '), fill: 'none', stroke: col, 'stroke-width': 1.5, 'pointer-events': 'none' }, svg);
+    for (const p of pts) el('circle', { cx: p[0], cy: Y(p[1]), r: 3, fill: col, stroke: card, 'stroke-width': 1, opacity: opts.progCat && opts.progCat(p[2]) ? 0.6 : 1, 'pointer-events': 'none' }, svg);
+  }
   if (opts.progCat) {
     const pi = cats.findIndex(c => opts.progCat(c));
     if (pi >= 0) {
@@ -2454,9 +2462,10 @@ function renderSparen() {
   const cats = S.map(r => r.year), by = {}; S.forEach(r => by[r.year] = r);
   const val = f => { const o = {}; S.forEach(r => o[r.year] = f(r)); return o; };
   const defs = [['Extra aflossing', '--s4', r => r.extra], ['Investeringen in huis', '--s2', r => r.inv], ['Verandering spaarsaldo', '--s3', r => r.ver], ['Incidentele meevallers', '--s1', r => -r.gift]];
-  $('#spLegend').innerHTML = defs.map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
+  $('#spLegend').innerHTML = defs.map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('') + `<span class="dotline" style="--c:var(--ink)">Spaarvermogen (netto)</span>`;
   barChart($('#spChart'), cats, defs.map(([name, color, f]) => ({ name, color, on: true, values: val(f) })), {
     stack: true, label: 'spaarvermogen per jaar', fmt: eur, yFmt: compactEur, progCat: y => by[y].prog, height: 240,
+    totals: { values: val(r => r.total), color: '--ink' },
     tipExtra: y => `<div class="r"><span><b>Spaarvermogen</b></span><span><b>${eur(by[y].total)}</b></span></div>` });
   const done = S.filter(r => !r.prog), last5 = done.slice(-5);
   const avg5 = last5.reduce((s, r) => s + r.total, 0) / Math.max(1, last5.length);
@@ -3046,7 +3055,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 11:25';
+const APP_VERSION = '2026-11-21 11:40';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
