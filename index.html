@@ -124,7 +124,7 @@ table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: upper
 .millegend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; border: 1.5px solid var(--s1); }
 .millegend i.s { background: var(--ink-2); border-color: var(--ink-2); } .millegend i.o { background: var(--card); border-color: var(--ink-2); }
 .millegend i.d { border: none; border-top: 2px dotted var(--ink-2); border-radius: 0; height: 0; vertical-align: 3px; }
-.millegend i.m { background: var(--ink); border-color: var(--ink); }
+.millegend .star { color: #E0A100; font-size: 13px; margin-right: 3px; }
 .tiles3.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px; min-width: 0; align-content: start; }
 .tile span { font-size: 12px; color: var(--ink-2); }
@@ -1469,10 +1469,12 @@ function milChart(M) {
     if (c.k === 'net' && M.extrap) { const l = pts[pts.length - 1]; g += `<line x1="${X(l.t)}" y1="${Y(l.v)}" x2="${X(M.t)}" y2="${Y(T)}" stroke="var(${c.c})" stroke-width="${c.w}" stroke-dasharray="1.5 3"/>`; }
     for (const q of pts) g += `<circle cx="${X(q.t)}" cy="${Y(q.v)}" r="${c.k === 'net' ? 3.2 : 2.6}" fill="${q.e ? 'var(--card)' : `var(${c.c})`}" stroke="var(${c.c})" stroke-width="1.4"/>`;
   }
-  g += `<circle cx="${X(M.t)}" cy="${Y(T)}" r="5.5" fill="var(--ink)" stroke="var(--card)" stroke-width="1.5"/>`;
+  { const cx = X(M.t), cy = Y(T), pts = [];
+    for (let i = 0; i < 10; i++) { const rr = i % 2 ? 3.4 : 8, a = -Math.PI / 2 + i * Math.PI / 5; pts.push(`${(cx + rr * Math.cos(a)).toFixed(1)},${(cy + rr * Math.sin(a)).toFixed(1)}`); }
+    g += `<polygon points="${pts.join(' ')}" fill="#E0A100" stroke="var(--card)" stroke-width="1.2"/>`; }
   return `<svg class="milsvg" viewBox="0 0 ${W} ${H}" role="img" aria-label="netto vermogen en onderdelen naar 1 miljoen">${g}</svg>
     <div class="millegend">${comps.map(c => `<span><i style="background:var(${c.c});border-color:var(${c.c})"></i>${c.n}</span>`).join('')}</div>
-    <div class="millegend"><span><i class="s"></i>werkelijk</span><span><i class="o"></i>geschat (gestippeld)</span>${M.extrap ? '<span><i class="d"></i>groei doorgetrokken</span>' : ''}<span><i class="m"></i>€ 1 mln bereikt</span></div>`;
+    <div class="millegend"><span><i class="s"></i>werkelijk</span><span><i class="o"></i>geschat (gestippeld)</span>${M.extrap ? '<span><i class="d"></i>groei doorgetrokken</span>' : ''}<span><b class="star">★</b>€ 1 mln bereikt</span></div>`;
 }
 function renderKpis(onlyKpis) {
   const S = DATA.bn.S, E = DATA.bn.E;
@@ -3111,7 +3113,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 12:30';
+const APP_VERSION = '2026-11-21 12:40';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
