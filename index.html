@@ -123,6 +123,13 @@ table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: upper
 .millegend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--ink-2); margin-top: 2px; }
 .millegend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; border: 1.5px solid var(--s1); }
 .millegend i.s { background: var(--ink-2); border-color: var(--ink-2); } .millegend i.o { background: var(--card); border-color: var(--ink-2); }
+.chgt { width: 100%; border-collapse: collapse; font-size: 13px; }
+.chgt th, .chgt td { padding: 5px 4px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.chgt th:first-child, .chgt td:first-child { text-align: left; white-space: normal; }
+.chgl { list-style: none; margin: 0 0 10px; padding: 0; font-size: 13px; }
+.chgl li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0 2px 10px; color: var(--ink-2); }
+.chgl li span:last-child { white-space: nowrap; }
+.chgt tr.grp td { text-align: left; font-weight: 600; color: var(--ink-2); padding-top: 10px; border-bottom: none; }
 .millegend i.b { background: var(--s1); opacity: .2; border: none; border-radius: 2px; width: 14px; }
 .millegend i.d { border: none; border-top: 2px dotted var(--ink-2); border-radius: 0; height: 0; vertical-align: 3px; }
 .millegend .star { color: #E0A100; font-size: 13px; margin-right: 3px; }
@@ -428,6 +435,8 @@ section[data-view].active { display: grid; }
         <div class="stackbar" id="bnBar" aria-hidden="true"></div>
         <div class="legend" id="bnLegend"></div>
       </div>
+
+      <div class="card" id="bnChanges" style="display:none"></div>
 
       <div class="card" id="bnInputs"></div>
 
@@ -1682,6 +1691,7 @@ function renderBN() {
     }
   }
   $('#bnNote').textContent = note;
+  renderChanges();
 }
 function bnInputsHTML() {
   const x = UI.bn[UI.person], b = UI.bnBase[UI.person];
@@ -1696,6 +1706,80 @@ function bnInputsHTML() {
     ${f('in-reis', 'Reisdagen per maand', 0, 23, 1, x.reis, v => String(v))}
     ${f('in-thuis', 'Thuiswerkdagen per maand', 0, 23, 1, x.thuis, v => String(v))}
     <div class="note">De toelage telt mee voor pensioen en vakantiegeld, niet voor de eindejaarsuitkering. De ABP-premie gebruikt het salaris per 1 januari; schuif je het salaris, dan schuift die mee.</div>`;
+}
+/* ===== Wat verandert er: verschil tussen de laatste twee jaarkolommen van het tabblad parameters ===== */
+function parseParamsMeta(aoa) {
+  const out = []; if (!aoa) return out;
+  let h = -1; for (let i = 0; i < Math.min(aoa.length, 10); i++) if ((aoa[i] || []).map(lc).includes('naam')) { h = i; break; }
+  if (h < 0) return out;
+  const head = aoa[h].map(lc), cn = head.indexOf('naam'), ct = head.indexOf('toelichting');
+  let group = '';
+  for (let i = h + 1; i < aoa.length; i++) {
+    const r = aoa[i] || [], raw = typeof r[cn] === 'string' ? r[cn].trim() : r[cn] != null ? String(r[cn]) : '';
+    if (!raw) continue;
+    if (raw.startsWith('#')) { group = raw.replace(/^#+\s*/, ''); continue; }
+    out.push({ k: raw.toLowerCase(), desc: ct >= 0 && typeof r[ct] === 'string' ? r[ct].trim() : '', group });
+  }
+  return out;
+}
+const CHG_EUR = /grens|_max|basis|start|franchise|dca|vergoeding|vrijstelling/;
+function chgFmt(k, v) {
+  if (typeof v !== 'number') return esc(String(v));
+  if (CHG_EUR.test(k)) return Number.isInteger(v) ? eur(v) : eur2(v);
+  if (Math.abs(v) < 1.5) return new Intl.NumberFormat('nl-NL', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 3 }).format(v);
+  return NUM1.format(v);
+}
+function chgDiff(k, a, b) {
+  if (typeof a !== 'number' || typeof b !== 'number') return '';
+  const d = b - a, s = d > 0 ? '+' : '−';
+  if (CHG_EUR.test(k)) return s + (Number.isInteger(d) ? eur(Math.abs(d)) : eur2(Math.abs(d))).replace('-', '');
+  if (Math.abs(a) < 1.5 && Math.abs(b) < 1.5) return s + new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 3 }).format(Math.abs(d) * 100) + ' procentpunt';
+  return s + NUM1.format(Math.abs(d));
+}
+function paramChanges() {
+  const P = (DATA && DATA.parY) || {};
+  const ys = [...new Set(Object.values(P).flatMap(o => Object.keys(o).map(Number)).filter(y => y >= 1990))].sort((a, b) => a - b);
+  if (ys.length < 2) return null;
+  const y1 = ys[ys.length - 1], y0 = ys[ys.length - 2];
+  const p0 = paramsFor(y0), p1 = paramsFor(y1);
+  const meta = DATA.parMeta && DATA.parMeta.length ? DATA.parMeta : Object.keys(P).map(k => ({ k, desc: '', group: '' }));
+  const rows = meta.filter(m => p0[m.k] != null && p1[m.k] != null && String(p0[m.k]) !== String(p1[m.k]) && !(typeof p0[m.k] === 'number' && typeof p1[m.k] === 'number' && Math.abs(p0[m.k] - p1[m.k]) < 1e-9))
+    .map(m => ({ ...m, a: p0[m.k], b: p1[m.k] }));
+  const filled = Object.values(P).filter(o => o[y1] != null).length;
+  // effect op het netto: zelfde salaris (januari van het nieuwe jaar), alleen de regels anders
+  const eff = {};
+  const B0 = bnP(y0), B1 = bnP(y1);
+  for (const w of ['S', 'E']) {
+    if (!DATA.bn || !DATA.bn[w]) continue;
+    const x = xForYear(w, y1), r0 = calcNet(x, B0), r1 = calcNet(x, B1);
+    const per = [];
+    for (const m of rows) {
+      const key = PARAM_MAP[m.k]; if (!key || typeof m.b !== 'number') continue;
+      const r = calcNet(x, { ...B0, [key]: B1[key] });
+      per.push({ m, mnd: r.netto - r0.netto, jaar: r.jaarNet - r0.jaarNet });
+    }
+    per.sort((a, b) => Math.abs(b.jaar) - Math.abs(a.jaar));
+    eff[w] = { mnd: r1.netto - r0.netto, jaar: r1.jaarNet - r0.jaarNet, per: per.filter(p => Math.abs(p.jaar) >= 6) };
+  }
+  return { y0, y1, rows, eff, filled };
+}
+function renderChanges() {
+  const el = $('#bnChanges'); if (!el) return;
+  let C = null; try { C = DATA && paramChanges(); } catch (e) { console.error(e); }
+  if (!C) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  const name = { S: 'Sander', E: 'Ellen' }, cls = v => v > 0.5 ? 'pos' : v < -0.5 ? 'neg' : 'muted';
+  const lbl = m => esc(m.desc || m.k.replace(/_/g, ' '));
+  const effHTML = Object.entries(C.eff).map(([w, e]) => `<div class="r"><span><b>${name[w]}</b></span><span class="${cls(e.mnd)}">${signed(e.mnd)} per maand</span></div>
+    <div class="tiny muted" style="margin:-2px 0 4px">${signed(e.jaar)} per jaar, met vakantiegeld en eindejaarsuitkering</div>${e.per.length ? `<ul class="chgl">${e.per.slice(0, 3).map(p => `<li><span>${lbl(p.m)}</span><span class="${cls(p.jaar / 12)}">${signed(p.jaar / 12)}</span></li>`).join('')}</ul>` : ''}`).join('');
+  const groups = []; for (const r of C.rows) { let g = groups.find(x => x.g === r.group); if (!g) groups.push(g = { g: r.group, rows: [] }); g.rows.push(r); }
+  const table = C.rows.length ? `<div class="tablewrap"><table class="chgt"><thead><tr><th></th><th>${C.y0}</th><th>${C.y1}</th></tr></thead><tbody>${groups.map(g =>
+      `${g.g ? `<tr class="grp"><td colspan="3">${esc(g.g)}</td></tr>` : ''}${g.rows.map(r => `<tr><td>${lbl(r)}<div class="tiny muted">${chgDiff(r.k, r.a, r.b)}</div></td><td>${chgFmt(r.k, r.a)}</td><td>${chgFmt(r.k, r.b)}</td></tr>`).join('')}`).join('')}</tbody></table></div>`
+    : `<div class="note">In de kolom ${C.y1} staan nog geen waarden die afwijken van ${C.y0}.</div>`;
+  el.innerHTML = `<h3>Wat verandert er in ${C.y1}</h3>
+    ${C.rows.length && Object.keys(C.eff).length ? `<div class="small muted" style="margin-bottom:6px">Effect op het netto per maand, bij hetzelfde salaris (januari ${C.y1}): alleen de regels verschillen. Daaronder de grootste posten.</div><div class="rows">${effHTML}</div>` : ''}
+    ${table}
+    <div class="note">Uit het tabblad parameters: de kolom ${C.y1} vergeleken met ${C.y0} (${C.filled} parameters ingevuld voor ${C.y1}; lege velden tellen als ongewijzigd). Maatregelen zonder parameter staan er niet in.</div>`;
 }
 function renderBNYearSeg() {
   const el = $('#bnYearSeg'); if (!el) return;
@@ -2748,6 +2832,7 @@ function buildFromWorkbook(wb, fileName) {
     inuit: parseInUit(aoaOf(wb, 'in_uit')),
     bn: parseBN(aoaOf(wb, 'bruto-netto'), hist),
     parY: parseParamsSheet(aoaOf(wb, 'parameters')),
+    parMeta: parseParamsMeta(aoaOf(wb, 'parameters')),
     hyp: parseHyp(aoaOf(wb, 'hypotheek')),
     cao: aoaOf(wb, 'cao_nu') ? (parseCao(aoaOf(wb, 'cao_nu')) || []) : []
   };
@@ -3205,7 +3290,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 13:20';
+const APP_VERSION = '2026-11-21 15:30';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
