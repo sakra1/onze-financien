@@ -153,9 +153,8 @@ table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: upper
 #netLive span { font: inherit; color: inherit; margin: 0; padding: 0; letter-spacing: inherit; }
 #netLive .odo-d { display: inline-block; height: 1.15em; overflow: hidden; }
 #netLive .odo-c { display: inline-block; height: 1.15em; }
-#netLive .odo-s { display: flex; flex-direction: column; transition: transform .6s cubic-bezier(.2,.8,.2,1); }
+#netLive .odo-s { display: flex; flex-direction: column; will-change: transform; }
 #netLive .odo-s > span { display: block; height: 1.15em; }
-@media (prefers-reduced-motion: reduce) { #netLive .odo-s { transition: none; } }
 .milhead { margin: 10px 0 0; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .milhead b { font-family: var(--font-display); font-size: 22px; font-weight: 700; }
 .milsvg { touch-action: pan-y; cursor: crosshair; }
@@ -1660,38 +1659,39 @@ function vermNu(at) {
 const toel = (html, sum = 'Toelichting', style = '') => `<details class="dp-more toel"${style ? ` style="${style}"` : ''}><summary>${sum}</summary><div class="tiny muted">${html}</div></details>`;
 // live teller: het geschatte vermogen loopt door met de groei per dag
 let NET_LIVE = null;
-// rollende cijfers (zoals een fruitautomaat): per cijfer een strook 0–9 (+0 voor de overgang 9 → 0)
-function odoSet(el, str) {
-  const chars = [...str];
-  if (el.dataset.odo !== chars.map(c => /\d/.test(c) ? 'd' : c).join('')) {
-    el.dataset.odo = chars.map(c => /\d/.test(c) ? 'd' : c).join('');
-    el.innerHTML = chars.map(c => /\d/.test(c)
-      ? `<span class="odo-d"><span class="odo-s" data-v="${c}" style="transform:translateY(-${+c * 10 / 11 * 100 / 10}%)">${[0,1,2,3,4,5,6,7,8,9,0].map(n => `<span>${n}</span>`).join('')}</span></span>`
-      : `<span class="odo-c">${c}</span>`).join('');
-    el.setAttribute('aria-label', str);
-    return;
-  }
-  el.setAttribute('aria-label', str);
-  const strips = el.querySelectorAll('.odo-s'); let k = 0;
-  for (const c of chars) {
-    if (!/\d/.test(c)) continue;
-    const st = strips[k++], old = +st.dataset.v, nv = +c;
-    if (old === nv) continue;
-    st.dataset.v = c;
-    const pos = n => `translateY(-${n * 100 / 11}%)`;
-    if (nv < old) {
-      // 9 → 0: doorrollen naar de extra 0 onderaan en dan zonder animatie terug naar boven
-      st.style.transform = pos(10);
-      clearTimeout(st._t);
-      st._t = setTimeout(() => { st.style.transition = 'none'; st.style.transform = pos(+st.dataset.v); void st.offsetHeight; st.style.transition = ''; }, 650);
-    } else { clearTimeout(st._t); st.style.transform = pos(nv); }
-  }
+// rollende cijfers als een kilometerteller: de centen rollen continu mee met de groei per dag,
+// een hoger cijfer rolt mee terwijl het cijfer rechts ervan van 9 naar 0 gaat
+function odoBuild(el, str) {
+  el.dataset.odo = [...str].map(c => /\d/.test(c) ? 'd' : c).join('');
+  el.innerHTML = [...str].map(c => /\d/.test(c)
+    ? `<span class="odo-d"><span class="odo-s">${[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(n => `<span>${n}</span>`).join('')}</span></span>`
+    : `<span class="odo-c">${c}</span>`).join('');
+  el._strips = [...el.querySelectorAll('.odo-s')].reverse(); // van rechts (centen) naar links
 }
-setInterval(() => {
-  if (!NET_LIVE || document.hidden) return;
+function odoSet(el, value) {
+  const str = eur2(value), shape = [...str].map(c => /\d/.test(c) ? 'd' : c).join('');
+  if (el.dataset.odo !== shape || !el._strips) odoBuild(el, str);
+  el.setAttribute('aria-label', str);
+  const v = Math.abs(value) * 100; // in centen
+  let lower = 0;
+  el._strips.forEach((st, i) => {
+    const vi = v / Math.pow(10, i);
+    let pos;
+    if (i === 0) pos = ((vi % 10) + 10) % 10;
+    else { const d = Math.floor(vi) % 10; pos = d + (lower > 9 ? lower - 9 : 0); }
+    lower = pos;
+    st.style.transform = `translateY(-${(pos * 100 / 11).toFixed(3)}%)`;
+  });
+}
+let odoLast = 0;
+function odoTick(ts) {
+  requestAnimationFrame(odoTick);
+  if (!NET_LIVE || document.hidden || ts - odoLast < 33) return;
+  odoLast = ts;
   const el = document.getElementById('netLive'); if (!el) return;
-  odoSet(el, eur2(NET_LIVE.base + NET_LIVE.pd * (Date.now() - NET_LIVE.t0) / 864e5));
-}, 250);
+  odoSet(el, NET_LIVE.base + NET_LIVE.pd * (Date.now() - NET_LIVE.t0) / 864e5);
+}
+requestAnimationFrame(odoTick);
 function renderKpis(onlyKpis) {
   const S = DATA.bn.S, E = DATA.bn.E;
   const m = inuitTotals();
@@ -3539,7 +3539,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 23:10';
+const APP_VERSION = '2026-11-21 23:20';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
