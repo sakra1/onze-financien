@@ -556,7 +556,6 @@ section[data-view].active { display: grid; }
     <div class="controls jump" aria-label="Spring naar">
       <button type="button" class="chip" data-jump="sec-vermogen">Vermogen</button>
       <button type="button" class="chip" data-jump="sec-wonen">Wonen</button>
-      <button type="button" class="chip" data-jump="sec-inflatie">Spaargeld</button>
       <button type="button" class="chip" data-jump="sec-sparen">Sparen</button>
     </div>
     <div class="tiny" style="padding:0 2px">Tik op een grafiek of schuif er met je vinger over om per jaar de bedragen te zien. Tik ernaast om ze weer te verbergen.</div>
@@ -586,16 +585,6 @@ section[data-view].active { display: grid; }
     <div class="card" id="sec-huisnu" hidden>
       <div class="card-head"><h2>Waarde huis nu</h2><span class="tiny">schatting</span></div>
       <div id="huisNu"></div>
-    </div>
-
-    <div class="card" id="sec-inflatie">
-      <div class="card-head"><h2>Spaargeld en inflatie</h2></div>
-      <div class="tiles" id="infTiles"></div>
-      <div class="field"><div class="lbl"><label for="inf-r">Gemiddelde spaarrente (aanname)</label><output id="inf-r-o"></output></div>
-        <input type="range" id="inf-r" min="0" max="0.04" step="0.0025" value="0.015"></div>
-      <div class="legend" id="infLegend"></div>
-      <div class="chart" id="infChart"></div>
-      <div class="note">Per jaar: wat de inflatie van de koopkracht van het spaargeld (per 1 januari) afhaalt, tegenover wat de spaarrente oplevert. De werkelijke spaarrente staat niet in de Excel; schuif hierboven met de aanname. Box 3-belasting is niet meegenomen. <span id="infDecNote"></span></div>
     </div>
 
     <div class="card" id="sec-sparen">
@@ -2907,29 +2896,7 @@ function renderSparen() {
     (gR ? ` Gecorrigeerd voor inflatie is dat ${PCT1.format(gR.g)} per jaar: ${gR.g > 0.005 ? 'jullie geven in werkelijkheid ook meer uit' : gR.g < -0.005 ? 'jullie geven in werkelijkheid minder uit' : 'de stijging komt vrijwel helemaal door hogere prijzen'}.` : '');
 }
 $$('[data-breal]').forEach(b => b.addEventListener('click', () => { GUI.baseReal = b.dataset.breal === '1'; setPressed('[data-breal]', 'data-breal', b.dataset.breal); renderSparen(); }));
-function renderInflatie() {
-  const r = GUI.infl.r;
-  $('#inf-r').value = r; $('#inf-r-o').textContent = PCT1.format(r);
-  // inflatie in het kalenderjaar: december-op-december (CBS). Ontbreekt die, dan de jaarinflatie als benadering.
-  const decOf = y => CPI_DEC[y] != null ? CPI_DEC[y] : CPI[y];
-  const rows = DATA.verm.filter(v => decOf(v.year) != null && v.spaar);
-  const loss = {}, gain = {};
-  rows.forEach(v => { loss[v.year] = -v.spaar * decOf(v.year) / 100; gain[v.year] = v.spaar * r; });
-  $('#infDecNote').textContent = Object.keys(CPI_DEC).length ? 'Inflatie gemeten van december tot december (CBS), omdat het spaargeld een stand op één moment is.' : 'Let op: de december-inflatie is nog niet opgehaald; de jaarinflatie wordt als benadering gebruikt.';
-  const cats = rows.map(v => v.year);
-  $('#infLegend').innerHTML = [['Verlies door inflatie', '--s2'], ['Opbrengst spaarrente', '--s3']].map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
-  barChart($('#infChart'), cats, [
-    { name: 'Verlies door inflatie', color: '--s2', on: true, values: loss },
-    { name: 'Opbrengst spaarrente', color: '--s3', on: true, values: gain }
-  ], { label: 'spaargeld en inflatie', fmt: eur, yFmt: compactEur,
-       tipExtra: y => `<div class="r"><span><b>Saldo</b></span><span><b>${eur(loss[y] + gain[y])}</b></span></div>` });
-  const tot = cats.reduce((a, y) => a + loss[y] + gain[y], 0);
-  const last = rows[rows.length - 1];
-  $('#infTiles').innerHTML = last ? `
-    <div class="tile"><span>In ${last.year}</span><b class="${loss[last.year] + gain[last.year] < 0 ? 'neg' : 'pos'}">${signed(loss[last.year] + gain[last.year])}</b><em>inflatie ${NUM2.format(decOf(last.year))}% op ${eur(last.spaar)}</em></div>
-    <div class="tile"><span>Sinds ${cats[0]}</span><b class="${tot < 0 ? 'neg' : 'pos'}">${signed(tot)}</b><em>koopkracht van het spaargeld, bij ${PCT1.format(r)} rente</em></div>` : '';
-}
-$('#inf-r').addEventListener('input', e => { GUI.infl.r = +e.target.value; renderInflatie(); });
+
 // zoals compute_percentile in het notebook: lineaire interpolatie tussen p10..p90
 function pctPos(v, pv) {
   const ps = [10, 20, 30, 40, 50, 60, 70, 80, 90], vals = ps.map(q => pv['p' + q]);
@@ -3436,7 +3403,7 @@ function renderCharts() {
   if (v === 'inkomen' && SUBS.inkomen === 'ov-ink') { renderIncome(); renderOpbouw(); renderCmp(); renderKoopkracht(); }
   if (v === 'carriere') { renderKoopkracht(); renderFte(); }
   if (v === 'nederland') { renderKoopkracht(); renderNederland(); }
-  if (v === 'vermogen' && SUBS.vermogen === 'ov-verm') { renderWonen(); renderSparen(); renderInflatie(); renderVerm(); }
+  if (v === 'vermogen' && SUBS.vermogen === 'ov-verm') { renderWonen(); renderSparen(); renderVerm(); }
   if (v === 'vermogen' && SUBS.vermogen === 'wa') renderW();
 }
 function renderAll() {
@@ -3454,7 +3421,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 21:15';
+const APP_VERSION = '2026-11-21 21:20';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
