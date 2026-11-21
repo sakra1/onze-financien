@@ -1036,7 +1036,7 @@ let DATA = null;
 const UI = {
   incKind: 'netto', incMode: 'jaar', range: 0,
   incOn: { S: true, E: true, T: true },
-  vermOn: { net: true, woz: false, spaar: true, hyp: true },
+  vermOn: { net: true, woz: true, spaar: true, hyp: true },
   person: 'S', bn: null, bnBase: null,
   inuitEdits: null,
   w: null, wOn: { spaar: true, hyp: true }
@@ -3454,7 +3454,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 21:00';
+const APP_VERSION = '2026-11-21 21:05';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
