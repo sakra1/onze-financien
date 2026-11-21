@@ -1762,14 +1762,18 @@ function paramChanges() {
     for (const m of rows) {
       const key = PARAM_MAP[m.k]; if (!key || typeof m.b !== 'number') continue;
       const P = { ...B0, [key]: B1[key] };
-      const it = { label: m.desc || m.k.replace(/_/g, ' '), mnd: N(x1, P) - N(x1, B0), jaar: J(x1, P) - J(x1, B0) };
+      const it = { k: m.k, label: m.desc || m.k.replace(/_/g, ' '), mnd: N(x1, P) - N(x1, B0), jaar: J(x1, P) - J(x1, B0) };
       sumP += it.mnd; sumJ += it.jaar; per.push(it);
     }
     const restM = (N(x1, B1) - N(x1, B0)) - sumP, restJ = (J(x1, B1) - J(x1, B0)) - sumJ;
     if (Math.abs(restM) >= 0.5 || Math.abs(restJ) >= 6) per.push({ label: 'Samenloop van de regels', mnd: restM, jaar: restJ });
     eff[w] = { mnd: N(x1, B1) - N(x0, B0), jaar: J(x1, B1) - J(x0, B0), per: per.filter(p => Math.abs(p.mnd) >= 0.5 || Math.abs(p.jaar) >= 6) };
   }
-  return { y0, y1, rows, eff, filled };
+  // tabel: alleen wat jullie raakt — effect op het netto van een van beiden, of regels voor eigen woning en box 3 (Wat als, vermogen)
+  const TAX_KEYS = ['ewf_pct', 'hillen_pct', 'hillen_afbouw', 'box3_vrijstelling', 'box3_tarief', 'box3_forfait_bank'];
+  const hit = new Set(Object.values(eff).flatMap(e => e.per.filter(p => p.k).map(p => p.k)));
+  const shown = rows.filter(r => hit.has(r.k) || TAX_KEYS.includes(r.k)), hidden = rows.filter(r => !shown.includes(r));
+  return { y0, y1, rows: shown, hidden, eff, filled };
 }
 function renderChanges() {
   const el = $('#bnChanges'); if (!el) return;
@@ -1783,11 +1787,11 @@ function renderChanges() {
   const groups = []; for (const r of C.rows) { let g = groups.find(x => x.g === r.group); if (!g) groups.push(g = { g: r.group, rows: [] }); g.rows.push(r); }
   const table = C.rows.length ? `<div class="tablewrap"><table class="chgt"><thead><tr><th></th><th>${C.y0}</th><th>${C.y1}</th></tr></thead><tbody>${groups.map(g =>
       `${g.g ? `<tr class="grp"><td colspan="3">${esc(g.g)}</td></tr>` : ''}${g.rows.map(r => `<tr><td>${lbl(r)}<div class="tiny muted">${chgDiff(r.k, r.a, r.b)}</div></td><td>${chgFmt(r.k, r.a)}</td><td>${chgFmt(r.k, r.b)}</td></tr>`).join('')}`).join('')}</tbody></table></div>`
-    : `<div class="note">In de kolom ${C.y1} staan nog geen waarden die afwijken van ${C.y0}.</div>`;
+    : `<div class="note">In de kolom ${C.y1} staan nog geen waarden die afwijken van ${C.y0}${C.hidden.length ? ' en die jullie raken' : ''}.</div>`;
   el.innerHTML = `<h3>Wat verandert er in ${C.y1}</h3>
     ${C.rows.length && Object.keys(C.eff).length ? `<div class="small muted" style="margin-bottom:6px">Netto per maand in januari ${C.y1} vergeleken met ${C.y0 >= THIS_YEAR ? 'nu' : C.y0}, en waar het verschil vandaan komt.</div><div class="rows">${effHTML}</div>` : ''}
     ${table}
-    <div class="note">Uit het tabblad parameters: de kolom ${C.y1} vergeleken met ${C.y0} (${C.filled} parameters ingevuld voor ${C.y1}; lege velden tellen als ongewijzigd). Maatregelen zonder parameter staan er niet in.</div>`;
+    <div class="note">Uit het tabblad parameters: de kolom ${C.y1} vergeleken met ${C.y0} (${C.filled} parameters ingevuld voor ${C.y1}; lege velden tellen als ongewijzigd). Alleen wat jullie raakt: effect op het netto van een van jullie, of de regels voor eigen woning en box 3 (Wat als).${C.hidden.length ? ` Wel veranderd, maar zonder effect voor jullie: ${C.hidden.map(r => lbl(r)).join(', ')}.` : ''} Maatregelen zonder parameter staan er niet in.</div>`;
 }
 function renderBNYearSeg() {
   const el = $('#bnYearSeg'); if (!el) return;
@@ -3298,7 +3302,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 15:45';
+const APP_VERSION = '2026-11-21 16:00';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
