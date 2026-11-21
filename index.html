@@ -771,8 +771,8 @@ function parseBN(aoa, hist) {
     else if (h.startsWith('franchise arbeidsongeschiktheid')) { if (v != null) P.frAOP = v; if (num(r[10]) != null) P.pAOP = num(r[10]); }
     else if (h.startsWith('premie aov') && v != null) P.pAOV = v;
     else if (h.startsWith('1e schijf')) { if (v != null) P.b1 = v; if (num(r[9]) != null) P.r1 = num(r[9]); }
-    else if (h.startsWith('2e schijf')) { if (v != null) P.b2 = v; if (num(r[9]) != null) P.r2 = num(r[9]); }
-    else if (h.startsWith('3e schijf')) { if (num(r[9]) != null) P.r3 = num(r[9]); }
+    else if (h.startsWith('2e schijf')) { if (v != null) P.b2 = v; if (num(r[9]) != null) P.r2 = num(r[9]); if (num(r[10]) != null) P.verr2 = num(r[10]); }
+    else if (h.startsWith('3e schijf')) { if (num(r[9]) != null) P.r3 = num(r[9]); if (num(r[10]) != null) P.verr3 = num(r[10]); }
     else if (h.startsWith('maximale algemene heffingskorting') && v != null) P.ahkMax = v;
     else if (h.startsWith('start afbouw algemene') && v != null) P.ahkStart = v;
     else if (h.startsWith('afbouwpercentage algemene') && v != null) P.ahkAfb = v;
@@ -848,7 +848,11 @@ function calcNet(x, P) {
   const ejuB = (bruto + tE * x.toelage) * 12 * P.eju;
   const dcaB = (P.dca + P.dcaSport) * f;
   const yTot = hlY + vuB + ejuB + dcaB;
-  const marg = (heffing(yTot + 100, P) - heffing(yTot, P)) / 100;
+  // netto VU/EJU/DCA: zoals in je Excel het bijzonder tarief = schijftarief + % verrekening loonheffingskorting
+  // (schijf 2 als het jaarloon onder de grens van schijf 2 blijft, anders schijf 3); zonder die percentages de marginale druk
+  const marg = P.verr2 != null && P.verr3 != null && P.r2 != null && P.r3 != null && P.b2 != null
+    ? (yTot < P.b2 ? P.r2 + P.verr2 : P.r3 + P.verr3)
+    : (heffing(yTot + 100, P) - heffing(yTot, P)) / 100;
   const k = 1 - marg;
   return {
     bruto, toelage: x.toelage, op, aaop, ipap, premies, hlM, lhM, verg, netto, jaarABP,
@@ -1110,7 +1114,7 @@ function projectHist() {
       const fL = lastR[k.f] || f, bL = lastR[k.base] != null ? lastR[k.base] : b0, tL = lastR[k.t] || 0, tT = tpl[k.t] || 0;
       const fullT = b0 / f, fullN = bL / fL * r, bN = fullN * fN;
       const xT = { ...x, f, full: fullT, grondFull: fullT, toelage: tT }, xN = { ...x, f: fN, full: fullN, grondFull: fullN, toelage: tL };
-      const n0 = calcNet(xT, P), n1 = calcNet(xN, P);
+      const n0 = calcNet(xT, bnP(new Date(tpl.d).getUTCFullYear())), n1 = calcNet(xN, bnP(y));
       let bru = tpl[k.b] + (bN - b0) + (tL - tT), net = tpl[k.n] + (n1.netto - n0.netto);
       if (m === 5) { bru += n1.vuB; net += n1.vuN; }
       if (m === 11) { bru += n1.ejuB * c.f; net += n1.ejuN * c.f; }
@@ -1142,7 +1146,8 @@ function estPens() {
       if (rows.length < 12) continue;
       const jan = rows[0], grond = jan[per[w].b] / jan[per[w].f];
       let op = 0;
-      for (const r of rows) op += calcNet({ ...x, grondFull: grond, f: r[per[w].f] }, P).op;
+      const Py = bnP(y);
+      for (const r of rows) op += calcNet({ ...x, grondFull: grond, f: r[per[w].f] }, Py).op;
       (out[y] = out[y] || { S: 0, E: 0 })[w] = op;
       (est[y] = est[y] || {})[w] = true;
     }
@@ -1808,7 +1813,7 @@ function renderW() {
   chips($('#wChips'), [['spaar', 'Spaargeld', '--s3'], ['hyp', 'Hypotheek', '--s4']], UI.wOn, renderW);
   $('#wTable').innerHTML = `<table><thead><tr><th>1 jan</th><th>Hypotheek</th><th>Spaargeld</th><th>Netto vermogen</th></tr></thead><tbody>${
     sc.rows.map(r => `<tr><td>${r.year}</td><td>${eur(r.hyp)}</td><td>${eur(r.spaar)}</td><td>${eur(r.net)}</td></tr>`).join('')}</tbody></table>`;
-  $('#wNote').textContent = `Met belasting volgens de parameters uit externe_data.xlsx (belastingjaar ${TAX.year}): eigenwoningforfait ${NUM2.format(TAX.ewf * 100)}% van de WOZ, Wet Hillen ${PCT1.format(hillenPct(w.year))} in ${w.year} (daarna jaarlijks ${NUM2.format(TAX.hillenStep * 100)} procentpunt minder), renteaftrek tegen maximaal ${PCT1.format(P.r2)}, het forfait belast tegen ${PCT1.format(P.r3)}. Box 3: ${PCT1.format(TAX.b3rate)} over maximaal ${NUM2.format(TAX.b3bank * 100)}% rendement op spaargeld boven ${eur(TAX.b3free)}. Het maandbudget bevat de huidige belasting op de woning al; de berekening telt alleen de verandering. Toekomstige wetswijzigingen en inflatie zitten er niet in. Kijk bij je hypotheekverstrekker hoeveel je per jaar boetevrij mag aflossen.`;
+  $('#wNote').textContent = `Met belasting volgens je parameters (belastingjaar ${TAX.year}): eigenwoningforfait ${NUM2.format(TAX.ewf * 100)}% van de WOZ, Wet Hillen ${PCT1.format(hillenPct(w.year))} in ${w.year} (daarna jaarlijks ${NUM2.format(TAX.hillenStep * 100)} procentpunt minder), renteaftrek tegen maximaal ${PCT1.format(P.r2)}, het forfait belast tegen ${PCT1.format(P.r3)}. Box 3: ${PCT1.format(TAX.b3rate)} over maximaal ${NUM2.format(TAX.b3bank * 100)}% rendement op spaargeld boven ${eur(TAX.b3free)}. Het maandbudget bevat de huidige belasting op de woning al; de berekening telt alleen de verandering. Toekomstige wetswijzigingen en inflatie zitten er niet in. Kijk bij je hypotheekverstrekker hoeveel je per jaar boetevrij mag aflossen.`;
 }
 
 /* ================= cao, inflatie en koopkracht ================= */
@@ -2531,6 +2536,7 @@ function buildFromWorkbook(wb, fileName) {
     pens: aoaOf(wb, 'pensioen') ? parsePensioen(aoaOf(wb, 'pensioen')) : {},
     inuit: parseInUit(aoaOf(wb, 'in_uit')),
     bn: parseBN(aoaOf(wb, 'bruto-netto'), hist),
+    parY: parseParamsSheet(aoaOf(wb, 'parameters')),
     hyp: parseHyp(aoaOf(wb, 'hypotheek'))
   };
   d.verm = alignVerm(d.vermRaw);
@@ -2711,7 +2717,6 @@ const overlay = (a, b) => b && Object.keys(b).length ? { ...(a || {}), ...b } : 
 
 function applyExt(ext) {
   EXT = ext;
-  const p = ext ? ext.params : {};
   CPI = overlay(ext?.cpi, LIVE?.cpi);
   const ys = Object.keys(CPI).map(Number);
   CPI_LAST = ys.length ? Math.max(...ys) : null;
@@ -2719,23 +2724,76 @@ function applyExt(ext) {
   CPI_DEC = overlay(ext?.cpiDec, LIVE?.cpiDec);
   KK = overlay(ext?.kk, LIVE?.kk);
   PCT = overlay(ext?.pct, LIVE?.pct);
+  CAO_FILE = ext && ext.cao.length ? { events: ext.cao, fileName: ext.fileName } : null;
+  if (ext && !ext.paramsXls) ext.paramsXls = { ...ext.params };
+  if (ext) ext.params = mergedParams(THIS_YEAR);
+  applyParamDerived();
+  if (DATA) syncParams();
+}
+function applyParamDerived() {
+  const p = EXT ? EXT.params : {};
   REF_Y = p.referentiejaar_macro ?? 2000;
   REF_SAMEN = p.referentiejaar_samen ?? null;
   HALFJAAR = p.hypotheek_halfjaar ?? null;
-  TAX = ext && missingParams().length === 0 ? {
+  TAX = EXT && missingParams().length === 0 ? {
     ewf: p.ewf_pct, hillen: p.hillen_pct, hillenStep: p.hillen_afbouw, year: p.belastingjaar,
     b3free: p.box3_vrijstelling, b3rate: p.box3_tarief, b3bank: p.box3_forfait_bank
   } : null;
-  CAO_FILE = ext && ext.cao.length ? { events: ext.cao, fileName: ext.fileName } : null;
-  syncParams();
+}
+/* ===== Parameters per jaar: tabblad "parameters" in financieel_overzicht.xlsx =====
+   Kolom "naam" en een kolom per jaar (2025, 2026, …). Per jaar telt het laatste jaar dat er staat (t/m dat jaar).
+   Overgang: wat hier ontbreekt komt uit externe_data.xlsx (parameters) of uit het tabblad bruto-netto. */
+const PARAM_MAP = {
+  schijf1_grens: 'b1', schijf1_tarief: 'r1', schijf2_grens: 'b2', schijf2_tarief: 'r2', schijf3_tarief: 'r3',
+  ahk_max: 'ahkMax', ahk_start_afbouw: 'ahkStart', ahk_afbouw_pct: 'ahkAfb',
+  ak_max: 'akMax', ak_start_afbouw: 'akStart', ak_afbouw_pct: 'akAfb',
+  ak_grens1: 'akG1', ak_pct1: 'akP1', ak_grens2: 'akG2', ak_basis2: 'akB2', ak_pct2: 'akP2', ak_basis3: 'akB3', ak_pct3: 'akP3',
+  abp_franchise_op: 'frOP', abp_premie_op: 'pOP', abp_franchise_aop: 'frAOP', abp_premie_aop: 'pAOP', aov_premie: 'pAOV',
+  vakantiegeld_pct: 'vu', eju_pct: 'eju', toelage_pensioengevend: 'toelPens', toelage_in_vakantiegeld: 'toelVu', toelage_in_eju: 'toelEju',
+  dca: 'dca', dca_sport: 'dcaSport', km_vergoeding: 'kmRate', thuiswerk_vergoeding: 'thuisRate',
+  lhk_verrekening_schijf2: 'verr2', lhk_verrekening_schijf3: 'verr3'
+};
+function parseParamsSheet(aoa) {
+  const out = {}; if (!aoa) return null;
+  let h = -1; for (let i = 0; i < Math.min(aoa.length, 10); i++) if ((aoa[i] || []).map(lc).includes('naam')) { h = i; break; }
+  if (h < 0) return null;
+  const head = aoa[h], cn = head.map(lc).indexOf('naam');
+  const ycols = head.map((v, i) => [num(v), i]).filter(([y]) => y >= 1990 && y <= 2100);
+  const cw = head.map(lc).indexOf('waarde');
+  for (let i = h + 1; i < aoa.length; i++) {
+    const r = aoa[i] || [], k = lc(r[cn]); if (!k) continue;
+    const val = v => num(v) ?? (typeof v === 'string' && v.trim() ? v.trim() : null);
+    const o = {};
+    for (const [y, c] of ycols) { const v = val(r[c]); if (v != null) o[y] = v; }
+    if (cw >= 0) { const v = val(r[cw]); if (v != null) o[0] = v; }
+    if (Object.keys(o).length) out[k] = o;
+  }
+  return out;
+}
+function paramsFor(y) {
+  const P = (DATA && DATA.parY) || {}, out = {};
+  for (const k in P) {
+    const ys = Object.keys(P[k]).map(Number).sort((a, b) => a - b);
+    const le = ys.filter(v => v <= y); out[k] = P[k][le.length ? le[le.length - 1] : ys[0]];
+  }
+  const all = Object.values(P).flatMap(o => Object.keys(o).map(Number)).filter(v => v > 0 && v <= y);
+  if (all.length && out.belastingjaar == null) out.belastingjaar = Math.max(...all);
+  return out;
+}
+const mergedParams = y => ({ ...((EXT && (EXT.paramsXls || EXT.params)) || {}), ...paramsFor(y) });
+function bnP(y) {
+  const P = { ...((DATA && DATA.bn && (DATA.bn.P0 || DATA.bn.P)) || {}) }, m = mergedParams(y);
+  for (const k in PARAM_MAP) if (m[k] != null && m[k] !== '') P[PARAM_MAP[k]] = m[k];
+  P.toelPens ??= 1; P.toelVu ??= 1; P.toelEju ??= 0;
+  return P;
 }
 // bruto-netto: parameters uit financieel_overzicht.xlsx aangevuld met die uit externe_data.xlsx
 function syncParams() {
   if (!DATA) return;
-  const P = DATA.bn.P, p = EXT ? EXT.params : {};
-  P.vu = p.vakantiegeld_pct; P.eju = p.eju_pct;
-  P.toelPens = p.toelage_pensioengevend ?? 1; P.toelVu = p.toelage_in_vakantiegeld ?? 1; P.toelEju = p.toelage_in_eju ?? 0;
-  P.akG1 = p.ak_grens1; P.akP1 = p.ak_pct1; P.akG2 = p.ak_grens2; P.akB2 = p.ak_basis2; P.akP2 = p.ak_pct2; P.akB3 = p.ak_basis3; P.akP3 = p.ak_pct3;
+  if (!DATA.bn.P0) DATA.bn.P0 = { ...DATA.bn.P };
+  if (EXT && !EXT.paramsXls) EXT.paramsXls = { ...EXT.params };
+  DATA.bn.P = bnP(THIS_YEAR);
+  if (EXT) { EXT.params = mergedParams(THIS_YEAR); applyParamDerived(); }
 }
 function updateStatus() {
   const has = !!DATA;
@@ -2919,7 +2977,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 09:35';
+const APP_VERSION = '2026-11-21 10:25';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
