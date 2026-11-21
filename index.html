@@ -554,12 +554,21 @@ section[data-view].active { display: grid; }
     </div>
     <div class="sub active" data-subview="ov-verm">
     <div class="controls jump" aria-label="Spring naar">
-      <button type="button" class="chip" data-jump="sec-wonen">Wonen</button>
-      <button type="button" class="chip" data-jump="sec-sparen">Sparen</button>
-      <button type="button" class="chip" data-jump="sec-inflatie">Inflatie</button>
       <button type="button" class="chip" data-jump="sec-vermogen">Vermogen</button>
+      <button type="button" class="chip" data-jump="sec-wonen">Wonen</button>
+      <button type="button" class="chip" data-jump="sec-inflatie">Spaargeld</button>
+      <button type="button" class="chip" data-jump="sec-sparen">Sparen</button>
     </div>
     <div class="tiny" style="padding:0 2px">Tik op een grafiek of schuif er met je vinger over om per jaar de bedragen te zien. Tik ernaast om ze weer te verbergen.</div>
+    <div class="card" id="sec-vermogen">
+      <div class="card-head"><h2>Netto vermogen</h2><span class="tiny">per 1 januari · licht = prognose</span></div>
+      <div class="bars" id="vermNow"></div>
+      <div class="controls" id="vermChips"></div>
+      <div class="chart" id="vermChart"></div>
+      <details class="table"><summary>Toon als tabel</summary><div class="tablewrap" id="vermTable"></div></details>
+      <div class="note">Netto vermogen = WOZ-waarde + spaargeld − hypotheek, alles per 1 januari (zoals in het notebook).</div>
+    </div>
+
     <div class="card" id="sec-wonen">
       <div class="card-head"><h2>Wonen: WOZ en hypotheek</h2><span class="tiny">per 1 januari</span></div>
       <div class="controls" id="w1Chips"></div>
@@ -574,8 +583,23 @@ section[data-view].active { display: grid; }
       <div class="note">Hypotheekrente + aflossing als deel van het bruto inkomen samen; premies voor de spaarpolis los. <span id="halfNote"></span></div>
     </div>
 
+    <div class="card" id="sec-huisnu" hidden>
+      <div class="card-head"><h2>Waarde huis nu</h2><span class="tiny">schatting</span></div>
+      <div id="huisNu"></div>
+    </div>
+
+    <div class="card" id="sec-inflatie">
+      <div class="card-head"><h2>Spaargeld en inflatie</h2></div>
+      <div class="tiles" id="infTiles"></div>
+      <div class="field"><div class="lbl"><label for="inf-r">Gemiddelde spaarrente (aanname)</label><output id="inf-r-o"></output></div>
+        <input type="range" id="inf-r" min="0" max="0.04" step="0.0025" value="0.015"></div>
+      <div class="legend" id="infLegend"></div>
+      <div class="chart" id="infChart"></div>
+      <div class="note">Per jaar: wat de inflatie van de koopkracht van het spaargeld (per 1 januari) afhaalt, tegenover wat de spaarrente oplevert. De werkelijke spaarrente staat niet in de Excel; schuif hierboven met de aanname. Box 3-belasting is niet meegenomen. <span id="infDecNote"></span></div>
+    </div>
+
     <div class="card" id="sec-sparen">
-      <div class="card-head"><h2>Spaarvermogen per jaar</h2></div>
+      <div class="card-head"><h2>Sparen per jaar</h2></div>
       <div class="tiles" id="spTiles"></div>
       <div class="legend" id="spLegend"></div>
       <div class="chart" id="spChart"></div>
@@ -597,36 +621,12 @@ section[data-view].active { display: grid; }
       <div class="note" id="baseNote"></div>
     </div>
 
-    <div class="card" id="sec-inflatie">
-      <div class="card-head"><h2>Spaargeld en inflatie</h2></div>
-      <div class="tiles" id="infTiles"></div>
-      <div class="field"><div class="lbl"><label for="inf-r">Gemiddelde spaarrente (aanname)</label><output id="inf-r-o"></output></div>
-        <input type="range" id="inf-r" min="0" max="0.04" step="0.0025" value="0.015"></div>
-      <div class="legend" id="infLegend"></div>
-      <div class="chart" id="infChart"></div>
-      <div class="note">Per jaar: wat de inflatie van de koopkracht van het spaargeld (per 1 januari) afhaalt, tegenover wat de spaarrente oplevert. De werkelijke spaarrente staat niet in de Excel; schuif hierboven met de aanname. Box 3-belasting is niet meegenomen. <span id="infDecNote"></span></div>
-    </div>
-
-    <div class="card" id="sec-vermogen">
-      <div class="card-head"><h2>Vermogen per 1 januari</h2><span class="tiny">licht = prognose</span></div>
-      <div class="bars" id="vermNow"></div>
-      <div class="controls" id="vermChips"></div>
-      <div class="chart" id="vermChart"></div>
-      <details class="table"><summary>Toon als tabel</summary><div class="tablewrap" id="vermTable"></div></details>
-      <div class="note">Netto vermogen = WOZ-waarde + spaargeld − hypotheek, alles per 1 januari (zoals in het notebook).</div>
-    </div>
-
     <details class="card bn-wa" id="sec-schat" hidden>
       <summary><h3>Wat de app heeft geschat</h3><span class="tiny muted">ter controle</span></summary>
       <div id="schatList"></div>
       <div id="schatHuis"></div>
       <div class="note">Alles wat niet in je Excel staat maar door de app is berekend. Vul je een waarde zelf in, dan verdwijnt het †.</div>
     </details>
-
-    <div class="card" id="sec-huisnu" hidden>
-      <div class="card-head"><h2>Waarde huis nu</h2><span class="tiny">schatting</span></div>
-      <div id="huisNu"></div>
-    </div>
     </div>
     <div class="sub" data-subview="wa">
       <div class="tiles" id="wTiles"></div>
@@ -3454,7 +3454,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 21:05';
+const APP_VERSION = '2026-11-21 21:15';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
