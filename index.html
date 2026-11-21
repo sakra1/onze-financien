@@ -89,6 +89,14 @@ main { max-width: 720px; margin: 0 auto; padding: 14px 16px calc(120px + env(saf
 .banner strong { font-family: var(--font-display); }
 .panel { display: none; }
 .panel.open { display: grid; }
+.dp-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.dp-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+.dp-row .btn { flex: none; }
+.btn.sm { padding: 6px 14px; font-size: 14px; min-height: 0; }
+.dp-chk { display: flex; align-items: center; gap: 8px; padding: 6px 0 2px; border-top: 1px solid var(--line); }
+.dp-more { border-top: 1px solid var(--line); padding: 7px 0 0; }
+.dp-more > summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 2px 0 6px; }
+.dp-more[open] > summary { margin-bottom: 2px; }
 .filerow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
 .filerow .btn { flex: none; }
 body.nodata main > section { display: none !important; }
@@ -249,38 +257,31 @@ section[data-view].active { display: grid; }
 
 <main>
   <div class="banner panel" id="dataPanel">
-    <strong>Gegevens laden</strong>
-    <div class="small muted">De app gebruikt twee bestanden, elk met een eigen knop. Ze worden alleen op dit toestel gelezen en nergens naartoe gestuurd.</div>
-    <div class="filerow">
-      <div><b>1. Financieel overzicht</b><div class="tiny">financieel_overzicht.xlsx: salarissen, bruto-netto, uitgaven, vermogen</div><div class="small" id="stMain"></div></div>
-      <label class="btn primary" for="fileMain">Kiezen</label>
-    </div>
-    <div class="filerow">
-      <div><b>2. Externe data (optioneel)</b><div class="tiny">externe_data.xlsx is niet meer nodig: de cao-afspraken (tabblad cao_NU) mogen in het financieel overzicht. Alleen nog als reserve voor de openbare cijfers.</div><div class="small" id="stExt"></div></div>
-      <label class="btn primary" for="fileExt">Kiezen</label>
-    </div>
-    <div class="filerow">
-      <div><b>3. Openbare cijfers</b><div class="tiny">inflatie, koopkracht en percentielen van CBS, modaal van Wikipedia: haalt de app zelf op bij het openen</div><div class="small" id="stLive"></div></div>
-      <button class="btn" type="button" id="liveBtn">Ververs</button>
-    </div>
+    <div class="dp-head"><strong>Gegevens</strong><span class="tiny muted">alleen op dit toestel gelezen</span></div>
+    <div class="dp-row"><div><b>Financieel overzicht</b> <span class="small" id="stMain"></span></div><label class="btn primary sm" for="fileMain">Kiezen</label></div>
+    <div class="dp-row"><div><b>CBS en Wikipedia</b> <span class="small" id="stLive"></span></div><button class="btn sm" type="button" id="liveBtn">Ververs</button></div>
+    <label class="small dp-chk"><input type="checkbox" id="rememberChk"> Onthoud op dit toestel</label>
+    <div class="small" id="loadMsg" role="status"></div>
+    <div class="small" id="stWarn"></div>
+    <details class="dp-more" id="dpEst"><summary>Werkelijk en geschat</summary><div class="small" id="stEst"></div></details>
+    <details class="dp-more"><summary>Meer</summary>
+      <div class="dp-row"><div><b>Externe data</b> <span class="tiny muted">optioneel, alleen reserve</span><div class="small" id="stExt"></div></div><label class="btn sm" for="fileExt">Kiezen</label></div>
+      <div class="dp-row"><div class="small">Versie <span id="appVer"></span> <span class="muted" id="updMsg"></span></div><button class="btn sm" type="button" id="updBtn">Zoek update</button></div>
+      <div class="dp-row"><div class="small muted">Wis de gegevens van dit toestel</div><button class="btn sm" type="button" id="forgetBtn">Vergeet</button></div>
+    </details>
     <input type="file" id="fileMain" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <input type="file" id="fileExt" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
-    <div class="small" id="stEst"></div>
-    <div class="controls"><button class="btn" type="button" id="forgetBtn">Vergeet gegevens</button></div>
-    <div class="filerow"><div class="tiny">App-versie <span id="appVer"></span><br><span id="updMsg"></span></div><button class="btn" type="button" id="updBtn">Zoek nieuwe versie</button></div>
-    <label class="small"><input type="checkbox" id="rememberChk"> Onthoud de gegevens op dit toestel, zodat ik de bestanden niet elke keer hoef te kiezen</label>
-    <div class="small" id="loadMsg" role="status"></div>
   </div>
 
   <div class="banner" id="demoBanner">
     <strong>Kies je bestanden</strong>
-    <div class="small muted">De app bevat zelf geen gegevens. Kies de twee bestanden; ze worden alleen op dit toestel gelezen.</div>
-    <div class="controls"><label class="btn primary" for="fileMain">1. Financieel overzicht</label><label class="btn primary" for="fileExt">2. Externe data</label></div>
+    <div class="small muted">De app bevat zelf geen gegevens. Kies financieel_overzicht.xlsx; het wordt alleen op dit toestel gelezen.</div>
+    <div class="controls"><label class="btn primary" for="fileMain">Financieel overzicht kiezen</label></div>
   </div>
   <div class="banner" id="extBanner" style="display:none">
     <strong>Er ontbreken gegevens</strong>
     <div class="small" id="extMsg"></div>
-    <div><label class="btn primary" for="fileExt">Externe data kiezen</label></div>
+    <div id="extBtnRow"><label class="btn primary" for="fileMain">Financieel overzicht kiezen</label></div>
   </div>
 
   <!-- ============ NU ============ -->
@@ -477,7 +478,7 @@ section[data-view].active { display: grid; }
     <div class="banner" id="caoBanner" style="display:none">
       <strong>Cao-gegevens ontbreken</strong>
       <div class="small muted">Er is geen tabblad <b>cao_NU</b> met cao-afspraken gevonden. Zet het in financieel_overzicht.xlsx. Zonder cao-afspraken zijn alleen de inflatiegrafieken te zien.</div>
-      <div><label class="btn primary" for="fileExt">Externe data kiezen</label></div>
+      <div><label class="btn primary" for="fileMain">Financieel overzicht kiezen</label></div>
     </div>
 
 
@@ -1197,7 +1198,9 @@ function renderWerkelijk() {
   if (typeof huisSchatting === 'function' && huisSchatting()) rows.push(['Waarde huis vandaag', '–', 'vandaag', 'CBS-prijsindex']);
   const bad = Object.keys(BAD_PARAMS);
   const warn = (CALC_ERR.length || bad.length) ? `<div class="neg">${bad.length ? `Deze parameters zijn geen getal: ${bad.map(k => `${k} ("${esc(String(BAD_PARAMS[k]))}")`).join(', ')}. ` : ''}${CALC_ERR.map(esc).join('; ')}</div>` : '';
-  host.innerHTML = warn + (rows.length ? `<b>Werkelijk en geschat</b>
+  if ($('#stWarn')) $('#stWarn').innerHTML = warn;
+  if ($('#dpEst')) $('#dpEst').style.display = rows.length ? '' : 'none';
+  host.innerHTML = (rows.length ? `
     <div class="wg">${rows.map(r => `<div class="wg-r"><div class="wg-h"><b>${r[0]}</b><span>werkelijk t/m ${r[1]}</span></div><div class="wg-e">geschat: <b>${r[2]}</b> · ${r[3]}</div></div>`).join('')}</div>
     <div class="tiny">"Werkelijk" is wat je in je Excel hebt ingevuld. Alle geschatte bedragen per jaar staan onder Vermogen → Wat de app heeft geschat.</div>` : '');
 }
@@ -3134,6 +3137,7 @@ function updateStatus() {
   }
   $('#extBanner').style.display = miss.length ? '' : 'none';
   $('#extMsg').innerHTML = miss.map(m => `<div>${m}</div>`).join('');
+  $('#extBtnRow').style.display = miss.some(m => !/nog niet opgehaald/.test(m)) ? '' : 'none';
   const dd = t => new Date(t).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
   const parts = [];
   parts.push(DATA ? `Overzicht ${dd(DATA.loadedAt)}` : 'Overzicht ontbreekt');
@@ -3141,11 +3145,13 @@ function updateStatus() {
   if (LIVE && LIVE.fetchedAt) parts.push(`CBS ${dd(LIVE.fetchedAt)}`);
   $('#srcLabel').textContent = !DATA && (!EXT || EXT.virtual) ? 'Nog geen gegevens geladen' : parts.join(' · ');
   const d8 = t => new Date(t).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
-  $('#stMain').innerHTML = DATA ? `<span class="pos">✓</span> ${esc(DATA.fileName || 'geladen')}, ${d8(DATA.loadedAt)}` : '<span class="neg">Nog niet gekozen</span>';
-  $('#stExt').innerHTML = EXT && !EXT.virtual ? `<span class="pos">✓</span> ${esc(EXT.fileName || 'geladen')}, ${d8(EXT.loadedAt)}${DATA && DATA.cao && DATA.cao.length && EXT.cao && EXT.cao.length ? ' (cao-afspraken komen uit het financieel overzicht)' : ''}` : 'Niet gekozen, niet nodig';
+  $('#stMain').innerHTML = DATA ? `<span class="pos">✓</span> ${d8(DATA.loadedAt)}` : '<span class="neg">nog niet gekozen</span>';
+  $('#stMain').title = DATA ? (DATA.fileName || '') : '';
+  $('#stExt').innerHTML = EXT && !EXT.virtual ? `<span class="pos">✓</span> ${esc(EXT.fileName || 'geladen')}, ${d8(EXT.loadedAt)}${DATA && DATA.cao && DATA.cao.length && EXT.cao && EXT.cao.length ? ' · cao uit het overzicht' : ''}` : 'niet gekozen (niet nodig)';
   const st = LIVE && LIVE.status ? LIVE.status : {};
-  const liveTxt = Object.keys(LIVE_SOURCES).map(k => `${LIVE_NAMES[k]}: ${st[k] === 'live' ? '<span class="pos">✓ live</span>' : st[k] === 'cache' ? 'bewaarde versie' : '<span class="neg">niet bereikbaar</span>'}`).join(', ');
-  $('#stLive').innerHTML = LIVE ? `${liveTxt}${LIVE.fetchedAt ? `. Laatst opgehaald ${d8(LIVE.fetchedAt)}.` : ''}` : (LIVE_FAIL ? (EXT && !EXT.virtual ? '<span class="neg">Niet bereikbaar.</span> De app gebruikt de cijfers uit externe_data.xlsx.' : '<span class="neg">Niet bereikbaar.</span> Probeer het later opnieuw.') : 'Nog niet opgehaald.');
+  const ks = Object.keys(LIVE_SOURCES), bad = ks.filter(k => st[k] && st[k] !== 'live' && st[k] !== 'cache'), cached = ks.filter(k => st[k] === 'cache');
+  const liveTxt = `<span class="${bad.length ? 'neg' : 'pos'}">${bad.length ? '!' : '✓'}</span> ${LIVE && LIVE.fetchedAt ? d8(LIVE.fetchedAt) : ''}${cached.length ? ` · bewaard: ${cached.map(k => LIVE_NAMES[k]).join(', ')}` : ''}${bad.length ? ` · <span class="neg">niet bereikbaar: ${bad.map(k => LIVE_NAMES[k]).join(', ')}</span>` : ''}`;
+  $('#stLive').innerHTML = LIVE ? liveTxt : (LIVE_FAIL ? (EXT && !EXT.virtual ? '<span class="neg">niet bereikbaar</span>, cijfers uit externe_data' : '<span class="neg">niet bereikbaar</span>') : 'nog niet opgehaald');
   const src = [];
   if (CPI_LAST) src.push(`Inflatie: CBS (jaarmutatie CPI) t/m ${CPI_LAST}`);
   const my = Object.keys(MODAAL).map(Number); if (my.length) src.push(`modaal t/m ${Math.max(...my)}`);
@@ -3302,7 +3308,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 16:00';
+const APP_VERSION = '2026-11-21 16:20';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
