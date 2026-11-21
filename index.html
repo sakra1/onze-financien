@@ -1175,9 +1175,11 @@ function renderWerkelijk() {
   const V = DATA.verm || [], wE = V.filter(v => v.wozEst).map(v => v.year), wR = V.filter(v => !v.wozEst && v.woz != null).map(v => v.year);
   if (wR.length || wE.length) rows.push(['WOZ (peildatum 1-1)', wR.length ? `${Math.max(...wR)}` : '–', yr(wE), (V.find(v => v.wozEst) || {}).wozHow ? 'CBS-prijsindex vanaf de laatste officiële WOZ' : '–']);
   if (typeof huisSchatting === 'function' && huisSchatting()) rows.push(['Waarde huis vandaag', '–', 'vandaag', 'CBS-prijsindex']);
-  host.innerHTML = rows.length ? `<b>Werkelijk en geschat</b>
+  const bad = Object.keys(BAD_PARAMS);
+  const warn = (CALC_ERR.length || bad.length) ? `<div class="neg">${bad.length ? `Deze parameters zijn geen getal: ${bad.map(k => `${k} ("${esc(String(BAD_PARAMS[k]))}")`).join(', ')}. ` : ''}${CALC_ERR.map(esc).join('; ')}</div>` : '';
+  host.innerHTML = warn + (rows.length ? `<b>Werkelijk en geschat</b>
     <div class="wg">${rows.map(r => `<div class="wg-r"><div class="wg-h"><b>${r[0]}</b><span>werkelijk t/m ${r[1]}</span></div><div class="wg-e">geschat: <b>${r[2]}</b> · ${r[3]}</div></div>`).join('')}</div>
-    <div class="tiny">"Werkelijk" is wat je in je Excel hebt ingevuld. Alle geschatte bedragen per jaar staan onder Vermogen → Wat de app heeft geschat.</div>` : '';
+    <div class="tiny">"Werkelijk" is wat je in je Excel hebt ingevuld. Alle geschatte bedragen per jaar staan onder Vermogen → Wat de app heeft geschat.</div>` : '');
 }
 // ===== Doorrekenen van wat nog niet in de Excel staat =====
 // Lege cellen in "vermogen IB" (hypotheek 31-12, rente, aflossing, spaargeld 1-1) rekent de app uit;
@@ -1236,14 +1238,33 @@ function fillProjections() {
     r1.est.spaar = true; r0.svEst = sv; r0.svTn = A[y].tn; r0.svBase = base;
   }
 }
+const CALC_ERR = [];
+const safe = (name, f) => { try { f(); } catch (e) { CALC_ERR.push(`${name}: ${e.message}`); console.error(e); } };
 function recomputeVerm() {
   if (!DATA) return;
-  projectHist();
-  estPens();
+  CALC_ERR.length = 0;
+  safe('salarisprognose', projectHist);
+  safe('pensioenpremie', estPens);
+  // controle: ontbreekt er iets voor de nettoberekening, zeg dan precies wat
+  safe('controle', () => {
+    const P = DATA.bn && DATA.bn.P; if (!P) return;
+    const need = { b1: 'schijf1_grens', r1: 'schijf1_tarief', b2: 'schijf2_grens', r2: 'schijf2_tarief', r3: 'schijf3_tarief', ahkMax: 'ahk_max', ahkStart: 'ahk_start_afbouw', ahkAfb: 'ahk_afbouw_pct',
+      akMax: 'ak_max', akStart: 'ak_start_afbouw', akAfb: 'ak_afbouw_pct', akG1: 'ak_grens1', akP1: 'ak_pct1', akG2: 'ak_grens2', akB2: 'ak_basis2', akP2: 'ak_pct2', akB3: 'ak_basis3', akP3: 'ak_pct3',
+      frOP: 'abp_franchise_op', pOP: 'abp_premie_op', frAOP: 'abp_franchise_aop', pAOP: 'abp_premie_aop', pAOV: 'aov_premie', vu: 'vakantiegeld_pct', eju: 'eju_pct' };
+    const miss = Object.keys(need).filter(k => typeof P[k] !== 'number' || !isFinite(P[k])).map(k => need[k]);
+    if (miss.length) CALC_ERR.push(`voor de nettoberekening ontbreekt in het tabblad parameters: ${miss.join(', ')}`);
+    for (const [w, n] of [['S', 'Sander'], ['E', 'Ellen']]) {
+      const x = DATA.bn[w]; if (!x) continue;
+      const xm = { full: 'actueel bruto loon', f: 'deeltijdfactor', grondFull: 'bruto maandloon ABP grondslag', extra: 'extra looncomponent' };
+      const mx = Object.keys(xm).filter(k => typeof x[k] !== 'number' || !isFinite(x[k])).map(k => xm[k]);
+      if (mx.length) CALC_ERR.push(`in het tabblad bruto-netto vind ik voor ${n} niet: ${mx.join(', ')}`);
+    }
+    if ((DATA.hist || []).some(r => r.proj && (!isFinite(r.sn ?? 0) || !isFinite(r.en ?? 0)))) CALC_ERR.push('de netto salarisprognose kon niet worden berekend');
+  });
   if (!DATA.vermRaw) return;
-  fillProjections();
+  safe('hypotheek en spaargeld', fillProjections);
   DATA.verm = alignVerm(DATA.vermRaw);
-  applyHuisIdx();
+  safe('WOZ', applyHuisIdx);
 }
 // huizenprijsindex (CBS) op een gekozen regio: index op 1 januari van een jaar en de stand nu
 function huisIdx() {
@@ -2753,6 +2774,19 @@ const PARAM_MAP = {
   dca: 'dca', dca_sport: 'dcaSport', km_vergoeding: 'kmRate', thuiswerk_vergoeding: 'thuisRate',
   lhk_verrekening_schijf2: 'verr2', lhk_verrekening_schijf3: 'verr3'
 };
+// getal dat als tekst is ingevoerd, zoals "€ 29.736", "29,736" of "35,75%"
+function looseNum(v) {
+  if (typeof v !== 'string') return null;
+  let t = v.replace(/[€\s\u00a0]/g, ''); if (!t) return null;
+  const pct = t.endsWith('%'); if (pct) t = t.slice(0, -1);
+  if (!/^-?[\d.,]+$/.test(t)) return null;
+  const lc_ = t.lastIndexOf(','), ld = t.lastIndexOf('.');
+  if (lc_ >= 0 && ld >= 0) t = lc_ > ld ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+  else if (lc_ >= 0) t = /,\d{3}$/.test(t) && !pct ? t.replace(/,/g, '') : t.replace(',', '.');
+  else if (ld >= 0 && /\.\d{3}$/.test(t) && (t.match(/\./g) || []).length >= 1 && !pct && Number(t.replace(/\./g, '')) >= 1000) t = t.replace(/\./g, '');
+  const x = Number(t); if (!isFinite(x)) return null;
+  return pct ? x / 100 : x;
+}
 function parseParamsSheet(aoa) {
   const out = {}; if (!aoa) return null;
   let h = -1; for (let i = 0; i < Math.min(aoa.length, 10); i++) if ((aoa[i] || []).map(lc).includes('naam')) { h = i; break; }
@@ -2762,7 +2796,7 @@ function parseParamsSheet(aoa) {
   const cw = head.map(lc).indexOf('waarde');
   for (let i = h + 1; i < aoa.length; i++) {
     const r = aoa[i] || [], k = lc(r[cn]); if (!k) continue;
-    const val = v => num(v) ?? (typeof v === 'string' && v.trim() ? v.trim() : null);
+    const val = v => num(v) ?? looseNum(v) ?? (typeof v === 'string' && v.trim() ? v.trim() : null);
     const o = {};
     for (const [y, c] of ycols) { const v = val(r[c]); if (v != null) o[y] = v; }
     if (cw >= 0) { const v = val(r[cw]); if (v != null) o[0] = v; }
@@ -2780,10 +2814,12 @@ function paramsFor(y) {
   if (all.length && out.belastingjaar == null) out.belastingjaar = Math.max(...all);
   return out;
 }
+const BAD_PARAMS = {};
 const mergedParams = y => ({ ...((EXT && (EXT.paramsXls || EXT.params)) || {}), ...paramsFor(y) });
 function bnP(y) {
   const P = { ...((DATA && DATA.bn && (DATA.bn.P0 || DATA.bn.P)) || {}) }, m = mergedParams(y);
-  for (const k in PARAM_MAP) if (m[k] != null && m[k] !== '') P[PARAM_MAP[k]] = m[k];
+  for (const k in PARAM_MAP) if (typeof m[k] === 'number' && isFinite(m[k])) P[PARAM_MAP[k]] = m[k];
+    else if (m[k] != null && m[k] !== '') (BAD_PARAMS[k] = m[k]);
   P.toelPens ??= 1; P.toelVu ??= 1; P.toelEju ??= 0;
   return P;
 }
@@ -2977,7 +3013,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 10:25';
+const APP_VERSION = '2026-11-21 10:50';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
