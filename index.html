@@ -147,6 +147,8 @@ table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: upper
 .chgl li span:last-child { white-space: nowrap; }
 .chgt tr.tot td { font-weight: 600; }
 .chgt tr.grp td { text-align: left; font-weight: 600; color: var(--ink-2); padding-top: 10px; border-bottom: none; }
+.milsvg { touch-action: pan-y; cursor: crosshair; }
+.miltip { position: absolute; top: 0; z-index: 3; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 12px; line-height: 1.35; box-shadow: 0 2px 8px rgba(0,0,0,.12); pointer-events: none; max-width: 260px; }
 .millegend i.b { background: var(--s1); opacity: .2; border: none; border-radius: 2px; width: 14px; }
 .millegend i.d { border: none; border-top: 2px dotted var(--ink-2); border-radius: 0; height: 0; vertical-align: 3px; }
 .millegend .star { color: #E0A100; font-size: 13px; margin-right: 3px; }
@@ -318,12 +320,6 @@ section[data-view].active { display: grid; }
       <div class="note">Van bruto (Sander, Ellen en overige inkomsten) via loonheffing en pensioenpremie naar netto, en van netto naar de uitgavengroepen en sparen. Lonen zoals in Inkomen → Loon en belasting, inclusief vakantiegeld, eindejaarsuitkering, toelage, DCA en vergoedingen; uitgaven en overige inkomsten uit het tabblad in_uit. Sparen is wat er overblijft, en kan daardoor iets afwijken van het maandbudget. Tik op een stroom of blok voor de bedragen.</div>
     </div>
     <div class="tiles" id="kpis"></div>
-    <div class="card" id="vDet" hidden>
-      <div class="card-head"><h2>Ontwikkeling vermogen</h2><span class="tiny">per 1 januari · licht = prognose</span></div>
-      <div class="legend"><span style="--c:var(--s1)">Netto vermogen</span><span style="--c:var(--s2)">Overwaarde</span><span style="--c:var(--s3)">Spaargeld</span></div>
-      <div class="chart" id="vDetChart"></div>
-      <div class="note">Overwaarde = WOZ-waarde − hypotheek. Meer details en de tabel staan onder Vermogen.</div>
-    </div>
   </section>
 
   <!-- ============ NEDERLAND ============ -->
@@ -1446,6 +1442,7 @@ function chips(host, defs, onMap, rerender) {
 // voorbij de laatste stand doorgetrokken met de stijging van het laatste jaar
 // ---- vermogen doorrekenen na het laatste jaar: per onderdeel, met een voorzichtige, midden- en gunstige variant ----
 // parameters (tabblad parameters, leeg = app schat): woz_groei, spaarrendement, uitgaven_per_jaar, stop_sparen_jaar, inflatie_prognose
+let MIL_IX = null;
 let MIL_T = (() => { try { return +localStorage.getItem('milT') || 1e6; } catch (e) { return 1e6; } })();
 function pctPar(v) { let x = typeof v === 'number' ? v : looseNum(v) ?? num(v); if (x == null || !isFinite(x)) return null; if (typeof v === 'string' && /%/.test(v)) return x / 100; return Math.abs(x) >= 0.5 ? x / 100 : x; }
 function vermAssump() {
@@ -1559,6 +1556,12 @@ function milChart(M) {
     for (const q of pts) g += `<circle cx="${X(q.t)}" cy="${Y(q.v)}" r="${c.k === 'net' ? 3.2 : 2.6}" fill="${q.e ? 'var(--card)' : `var(${c.c})`}" stroke="var(${c.c})" stroke-width="1.4"/>`;
   }
   g += '</g>';
+  // aanraakpunten: per jaar de standen (werkelijk/geschat en doorgerekend, met band)
+  const ix = R.map(r => ({ year: r.year, net: r.net, woz: r.woz, spaar: r.spaar, hyp: r.hyp, kind: (r.wozEst || r.hypEst || r.spaarEst) ? 'geschat' : 'werkelijk' }));
+  if (band && band[1].length) band[1].forEach((q, i) => ix.push({ year: q.year, net: q.net, woz: q.woz, spaar: q.spaar, hyp: q.hyp, lo: band[0][i] && band[0][i].net, hi: band[2][i] && band[2][i].net, kind: 'doorgerekend' }));
+  ix.forEach(q => q.x = X(Date.UTC(q.year, 0, 1)));
+  MIL_IX = { pts: ix, W, top: mt, bot: H - mb };
+  g += `<line class="milguide" x1="0" x2="0" y1="${mt}" y2="${H - mb}" stroke="var(--ink-2)" stroke-width="1" opacity="0"/>`;
   if (M.t != null) { const cx = X(M.t), cy = Y(T), pts = [];
     if (M.lo && M.hi) g += `<line x1="${X(M.hi)}" x2="${X(M.lo)}" y1="${cy}" y2="${cy}" stroke="#E0A100" stroke-width="3" stroke-linecap="round" opacity="0.55"/>`;
     for (let i = 0; i < 10; i++) { const rr = i % 2 ? 3.4 : 8, a = -Math.PI / 2 + i * Math.PI / 5; pts.push(`${(cx + rr * Math.cos(a)).toFixed(1)},${(cy + rr * Math.sin(a)).toFixed(1)}`); }
@@ -1579,7 +1582,7 @@ function milTile(M) {
   } else em = M.t == null ? '' : M.past ? 'naar schatting gepasseerd' : 'schatting, lineair tussen de standen per 1 januari';
   const seg = `<div class="seg" role="group" aria-label="Doel" style="margin:4px 0 2px">${[1e6, 2e6, 3e6].map(v => `<button type="button" data-milt="${v}" aria-pressed="${T === v}">€ ${v / 1e6} mln</button>`).join('')}</div>`;
   return `
-    <div class="tile mil" style="grid-column:1/-1"><span>Netto vermogen € ${T / 1e6} miljoen</span>${seg}<b>${head}</b>${milChart(M)}<em>${em}</em></div>`;
+    <div class="tile mil" style="grid-column:1/-1;position:relative"><span>Netto vermogen € ${T / 1e6} miljoen</span>${seg}<b>${head}</b><div class="milwrap" style="position:relative">${milChart(M)}<div class="miltip" hidden></div></div><em>${em}</em></div>`;
 }
 function renderKpis(onlyKpis) {
   const S = DATA.bn.S, E = DATA.bn.E;
@@ -1620,11 +1623,10 @@ function renderKpis(onlyKpis) {
     </div><div class="tiles3${wmlTile ? ' four' : ''}">${uurTiles}</div>
     <div class="note" style="grid-column:1/-1;margin-top:-4px">${uurNote} Per uur: gedeeld door 165 uur per maand × deeltijdfactor (38 uur per week is voltijd). Reiskosten en andere vergoedingen tellen niet mee.${modUur ? ` Modaal: ${eur(MODAAL[modY])} bruto per jaar (CPB), voltijd${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : UUR_MODE === 'cao' ? ', maandloon zonder vakantiegeld ÷ 165' : ''}.` : ''}${wmlUur ? ` Minimumloon: € ${NUM2.format(LIVE.wml[wmlD])} bruto per uur voor 21 jaar en ouder (Wikipedia)${UUR_MODE === 'cao' ? '' : ', plus 8% vakantiegeld'}${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : ''}.` : ''}</div>` : '') + `
     <h2 style="grid-column:1/-1;padding:10px 2px 0">${cur ? `Vermogen op 1 januari ${cur.year}` : 'Vermogen'}</h2>
-    <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-vdet aria-controls="vDet" aria-expanded="${V_DET}"><span>Netto vermogen</span><i class="chev" aria-hidden="true">▾ ontwikkeling</i><b>${cur ? eur(cur.net) : '–'}</b><em>overwaarde + spaargeld</em></div>
+    <div class="tile" style="grid-column:1/-1"><span>Netto vermogen</span><b>${cur ? eur(cur.net) : '–'}</b><em>overwaarde + spaargeld</em></div>
     <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
     <div class="tile"><span>Spaargeld</span><b>${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven (vuistregel: 3 à 6)` : ''}</em></div>${(() => { try { return milTile(miljoen()); } catch (e) { console.error(e); return ''; } })()}`;
   if (onlyKpis) return;
-  renderVDet();
   renderFlow();
 }
 
@@ -2101,23 +2103,23 @@ $$('[data-flow]').forEach(b => b.addEventListener('click', () => { FLOW_PER = b.
 // keuze netto / bruto / cao voor het uurloon
 let UUR_MODE = 'net';
 $('#kpis').addEventListener('click', e => { const b = e.target.closest('[data-uur]'); if (b) { UUR_MODE = b.dataset.uur; renderKpis(true); } const m = e.target.closest('[data-milt]'); if (m) { MIL_T = +m.dataset.milt; try { localStorage.setItem('milT', MIL_T); } catch (x) {} renderKpis(true); } });
-// ontwikkeling van het vermogen onder de vermogenstegels (tik op Netto vermogen)
-let V_DET = false;
-function renderVDet() {
-  $('#vDet').hidden = !V_DET;
-  $$('#kpis [data-vdet]').forEach(t => t.setAttribute('aria-expanded', String(V_DET)));
-  if (!V_DET || !DATA) return;
-  const V = DATA.verm, prog = y => y > THIS_YEAR;
-  const mk = f => V.map(r => ({ x: r.year, y: f(r), prog: prog(r.year) }));
-  lineChart($('#vDetChart'), [
-    { name: 'Netto vermogen', color: '--s1', points: mk(r => r.net) },
-    { name: 'Overwaarde', color: '--s2', points: mk(r => r.woz - r.hyp) },
-    { name: 'Spaargeld', color: '--s3', points: mk(r => r.spaar) }
-  ], { label: 'ontwikkeling vermogen', xFmt: String, tipTitle: v => `1 jan ${v}` });
+// miljoengrafiek: tik of schuif met je vinger voor de standen per jaar
+function milShow(e) {
+  const svg = e.target.closest && e.target.closest('.milsvg'); if (!svg || !MIL_IX) return;
+  const rc = svg.getBoundingClientRect(), vx = (e.clientX - rc.left) / rc.width * MIL_IX.W;
+  let best = null; for (const q of MIL_IX.pts) if (!best || Math.abs(q.x - vx) < Math.abs(best.x - vx)) best = q;
+  if (!best) return;
+  const gl = svg.querySelector('.milguide'); gl.setAttribute('x1', best.x); gl.setAttribute('x2', best.x); gl.setAttribute('opacity', '0.6');
+  const tip = svg.parentNode.querySelector('.miltip'), k = v => v == null ? '–' : eur(v);
+  tip.innerHTML = `<b>1 jan ${best.year}</b> <span class="muted">${best.kind}</span><br>Netto ${k(best.net)}${best.lo != null && best.hi != null ? `<br><span class="muted">band ${k(best.lo)} – ${k(best.hi)}</span>` : ''}<br>WOZ ${k(best.woz)} · spaargeld ${k(best.spaar)} · hypotheek ${k(best.hyp)}`;
+  tip.hidden = false;
+  const px = best.x / MIL_IX.W * rc.width, w = tip.offsetWidth;
+  tip.style.left = Math.max(0, Math.min(rc.width - w, px - w / 2)) + 'px';
 }
-const toggleV = () => { V_DET = !V_DET; renderVDet(); };
-$('#kpis').addEventListener('click', e => { if (e.target.closest('[data-vdet]')) toggleV(); });
-$('#kpis').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-vdet]')) { e.preventDefault(); toggleV(); } });
+function milHide() { for (const t of $$('.miltip')) t.hidden = true; for (const l of $$('.milguide')) l.setAttribute('opacity', '0'); }
+$('#kpis').addEventListener('pointerdown', milShow);
+$('#kpis').addEventListener('pointermove', e => { if (e.pointerType === 'mouse' || e.buttons || e.pressure) milShow(e); });
+document.addEventListener('pointerdown', e => { if (!e.target.closest || !e.target.closest('.milsvg')) milHide(); });
 // details van inkomsten of uitgaven tonen onder de tegels (tik nogmaals om te sluiten)
 let M_DET = null;
 function applyDet() {
@@ -3399,7 +3401,7 @@ $$('[data-sub]').forEach(b => b.addEventListener('click', () => setSub(b.dataset
 function renderCharts() {
   if (!DATA) return;
   const v = $('section[data-view].active')?.dataset.view;
-  if (v === 'nu') { renderVDet(); renderFlow(); }
+  if (v === 'nu') { renderFlow(); }
   if (v === 'inkomen' && SUBS.inkomen === 'ov-ink') { renderIncome(); renderOpbouw(); renderCmp(); renderKoopkracht(); }
   if (v === 'carriere') { renderKoopkracht(); renderFte(); }
   if (v === 'nederland') { renderKoopkracht(); renderNederland(); }
@@ -3421,7 +3423,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 21:20';
+const APP_VERSION = '2026-11-21 21:35';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
