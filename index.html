@@ -120,11 +120,11 @@ table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: upper
 .legend .dotline::before, #spLegend .dotline::before { border-radius: 50%; }
 .tile em .exp { font-weight: 600; color: var(--ink); }
 .milsvg { width: 100%; height: auto; display: block; margin: 6px 0 2px; }
-.millegend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--ink-2); }
+.millegend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--ink-2); margin-top: 2px; }
 .millegend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; border: 1.5px solid var(--s1); }
-.millegend i.s { background: var(--s1); } .millegend i.o { background: var(--card); }
-.millegend i.d { border: none; border-top: 2px dotted var(--s1); border-radius: 0; height: 0; vertical-align: 3px; }
-.millegend i.m { background: var(--s3); border-color: var(--s3); }
+.millegend i.s { background: var(--ink-2); border-color: var(--ink-2); } .millegend i.o { background: var(--card); border-color: var(--ink-2); }
+.millegend i.d { border: none; border-top: 2px dotted var(--ink-2); border-radius: 0; height: 0; vertical-align: 3px; }
+.millegend i.m { background: var(--ink); border-color: var(--ink); }
 .tiles3.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px; min-width: 0; align-content: start; }
 .tile span { font-size: 12px; color: var(--ink-2); }
@@ -1441,24 +1441,38 @@ function miljoen(T = 1e6) {
   const t = b.t + (T - b.v) / slope;
   return { t, past: false, est: true, extrap: true };
 }
-// kleine grafiek bij de miljoen-tegel: werkelijk (doorgetrokken), geschat door de app (gestippeld), doorgetrokken groei (gestreept)
+// kleine grafiek bij de miljoen-tegel: netto vermogen en de onderdelen WOZ, spaargeld en hypotheek;
+// dichte stip = werkelijk (Excel), open stip = geschat door de app; fijn gestippeld = doorgetrokken groei
 function milChart(M) {
-  const V = (DATA.verm || []).filter(r => r.net != null && isFinite(r.net)).slice(-7)
-    .map(r => ({ t: Date.UTC(r.year, 0, 1), v: r.net, est: !!(r.wozEst || r.hypEst || r.spaarEst), y: r.year }));
-  if (V.length < 2 || !M || M.t == null) return '';
-  const T = 1e6, tEnd = Math.max(V[V.length - 1].t, M.t), t0 = V[0].t;
-  const vMin = Math.min(...V.map(p => p.v)), vMax = Math.max(T, ...V.map(p => p.v));
-  const W = 320, H = 110, ml = 4, mr = 4, mt = 14, mb = 18;
-  const X = t => ml + (t - t0) / (tEnd - t0) * (W - ml - mr), Y = v => mt + (1 - (v - vMin * 0.95) / (vMax * 1.03 - vMin * 0.95)) * (H - mt - mb);
-  const seg = (a, b, dash, col) => `<line x1="${X(a.t)}" y1="${Y(a.v)}" x2="${X(b.t)}" y2="${Y(b.v)}" stroke="var(${col})" stroke-width="2" ${dash ? `stroke-dasharray="${dash}"` : ''}/>`;
-  let g = `<line x1="${ml}" x2="${W - mr}" y1="${Y(T)}" y2="${Y(T)}" stroke="var(--ink-3)" stroke-width="1" stroke-dasharray="2 3"/><text x="${ml}" y="${Y(T) - 4}" font-size="10" fill="var(--ink-3)">€ 1 mln</text>`;
-  for (let i = 1; i < V.length; i++) g += seg(V[i - 1], V[i], V[i].est ? '4 3' : '', '--s1');
-  if (M.extrap) g += seg(V[V.length - 1], { t: M.t, v: T }, '1.5 3', '--s1');
-  for (const p of V) g += `<circle cx="${X(p.t)}" cy="${Y(p.v)}" r="3" fill="${p.est ? 'var(--card)' : 'var(--s1)'}" stroke="var(--s1)" stroke-width="1.5"/>`;
-  g += `<circle cx="${X(M.t)}" cy="${Y(T)}" r="4.5" fill="var(--s3)" stroke="var(--card)" stroke-width="1.5"/>`;
-  const yrs = [V[0], V[V.length - 1]].map(p => `<text x="${X(p.t)}" y="${H - 4}" font-size="10" fill="var(--ink-3)" text-anchor="${p === V[0] ? 'start' : 'middle'}">${p.y}</text>`).join('');
-  return `<svg class="milsvg" viewBox="0 0 ${W} ${H}" role="img" aria-label="netto vermogen naar 1 miljoen">${g}${yrs}</svg>
-    <div class="millegend"><span><i class="s"></i>werkelijk</span><span><i class="o"></i>geschat door de app</span>${M.extrap ? '<span><i class="d"></i>groei doorgetrokken</span>' : ''}<span><i class="m"></i>€ 1 mln</span></div>`;
+  const R = (DATA.verm || []).filter(r => r.net != null && isFinite(r.net)).slice(-7);
+  if (R.length < 2 || !M || M.t == null) return '';
+  const T = 1e6, t0 = Date.UTC(R[0].year, 0, 1), tLast = Date.UTC(R[R.length - 1].year, 0, 1);
+  const yEnd = Math.max(R[R.length - 1].year, new Date(M.t).getUTCFullYear() + (new Date(M.t).getUTCMonth() > 0 ? 1 : 0));
+  const tEnd = Date.UTC(yEnd, 0, 1);
+  const comps = [
+    { k: 'net', n: 'Netto vermogen', c: '--s1', est: r => r.wozEst || r.hypEst || r.spaarEst, w: 2.4 },
+    { k: 'woz', n: 'WOZ', c: '--s3', est: r => r.wozEst, w: 1.5 },
+    { k: 'spaar', n: 'Spaargeld', c: '--s2', est: r => r.spaarEst, w: 1.5 },
+    { k: 'hyp', n: 'Hypotheek', c: '--s4', est: r => r.hypEst, w: 1.5 }
+  ];
+  const vMax = Math.max(T, ...R.flatMap(r => comps.map(c => r[c.k] || 0))) * 1.06;
+  const W = 330, H = 170, ml = 30, mr = 8, mt = 8, mb = 18;
+  const X = t => ml + (t - t0) / (tEnd - t0) * (W - ml - mr), Y = v => mt + (1 - v / vMax) * (H - mt - mb);
+  let g = '';
+  for (const v of [0, 250e3, 500e3, 750e3]) if (v < vMax) g += `<line x1="${ml}" x2="${W - mr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-width="0.7"/><text x="${ml - 4}" y="${Y(v) + 3}" font-size="9" fill="var(--ink-3)" text-anchor="end">${v ? v / 1000 + 'k' : '0'}</text>`;
+  g += `<line x1="${ml}" x2="${W - mr}" y1="${Y(T)}" y2="${Y(T)}" stroke="var(--ink-2)" stroke-width="1" stroke-dasharray="3 3"/><text x="${ml - 4}" y="${Y(T) + 3}" font-size="9" fill="var(--ink-2)" text-anchor="end">1 mln</text>`;
+  for (let y = R[0].year; y <= yEnd; y++) g += `<text x="${X(Date.UTC(y, 0, 1))}" y="${H - 4}" font-size="9" fill="var(--ink-3)" text-anchor="middle">'${String(y).slice(2)}</text>`;
+  if (tLast < tEnd) g += `<rect x="${X(tLast)}" y="${mt}" width="${X(tEnd) - X(tLast)}" height="${H - mt - mb}" fill="var(--ink-3)" opacity="0.07"/>`;
+  for (const c of comps.slice().reverse()) {
+    const pts = R.map(r => ({ t: Date.UTC(r.year, 0, 1), v: r[c.k], e: !!c.est(r) })).filter(p => p.v != null);
+    for (let i = 1; i < pts.length; i++) g += `<line x1="${X(pts[i - 1].t)}" y1="${Y(pts[i - 1].v)}" x2="${X(pts[i].t)}" y2="${Y(pts[i].v)}" stroke="var(${c.c})" stroke-width="${c.w}" ${pts[i].e ? 'stroke-dasharray="4 3"' : ''}/>`;
+    if (c.k === 'net' && M.extrap) { const l = pts[pts.length - 1]; g += `<line x1="${X(l.t)}" y1="${Y(l.v)}" x2="${X(M.t)}" y2="${Y(T)}" stroke="var(${c.c})" stroke-width="${c.w}" stroke-dasharray="1.5 3"/>`; }
+    for (const q of pts) g += `<circle cx="${X(q.t)}" cy="${Y(q.v)}" r="${c.k === 'net' ? 3.2 : 2.6}" fill="${q.e ? 'var(--card)' : `var(${c.c})`}" stroke="var(${c.c})" stroke-width="1.4"/>`;
+  }
+  g += `<circle cx="${X(M.t)}" cy="${Y(T)}" r="5.5" fill="var(--ink)" stroke="var(--card)" stroke-width="1.5"/>`;
+  return `<svg class="milsvg" viewBox="0 0 ${W} ${H}" role="img" aria-label="netto vermogen en onderdelen naar 1 miljoen">${g}</svg>
+    <div class="millegend">${comps.map(c => `<span><i style="background:var(${c.c});border-color:var(${c.c})"></i>${c.n}</span>`).join('')}</div>
+    <div class="millegend"><span><i class="s"></i>werkelijk</span><span><i class="o"></i>geschat (gestippeld)</span>${M.extrap ? '<span><i class="d"></i>groei doorgetrokken</span>' : ''}<span><i class="m"></i>€ 1 mln bereikt</span></div>`;
 }
 function renderKpis(onlyKpis) {
   const S = DATA.bn.S, E = DATA.bn.E;
@@ -3097,7 +3111,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 12:15';
+const APP_VERSION = '2026-11-21 12:30';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
