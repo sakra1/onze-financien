@@ -145,6 +145,7 @@ table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: upper
 .chgl { list-style: none; margin: 0 0 10px; padding: 0; font-size: 13px; }
 .chgl li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0 2px 10px; color: var(--ink-2); }
 .chgl li span:last-child { white-space: nowrap; }
+.chgt tr.tot td { font-weight: 600; }
 .chgt tr.grp td { text-align: left; font-weight: 600; color: var(--ink-2); padding-top: 10px; border-bottom: none; }
 .millegend i.b { background: var(--s1); opacity: .2; border: none; border-radius: 2px; width: 14px; }
 .millegend i.d { border: none; border-top: 2px dotted var(--ink-2); border-radius: 0; height: 0; vertical-align: 3px; }
@@ -450,6 +451,8 @@ section[data-view].active { display: grid; }
       </div>
 
       <div class="card" id="bnChanges" style="display:none"></div>
+
+      <details class="card bn-wa" id="ibCard" style="display:none"><summary><h3 id="ibTitle">Inkomstenbelasting</h3><span class="small" id="ibSum"></span></summary><div id="ibBody"></div></details>
 
       <details class="card bn-wa" id="bnWa"><summary><h3>Wat als…</h3><span class="tiny muted" id="bnWaHint">salaris, fte, toelage en reisdagen aanpassen</span></summary><div id="bnInputs"></div></details>
 
@@ -1694,6 +1697,7 @@ function renderBN() {
   $('#bnNote').textContent = note; $('#bnNote').style.display = note ? '' : 'none';
   const hint = $('#bnWaHint'); if (hint) { hint.textContent = changed ? 'aangepast' : 'salaris, fte, toelage en reisdagen'; hint.className = 'tiny ' + (changed ? 'pos' : 'muted'); }
   renderChanges();
+  renderIB();
 }
 function bnInputsHTML() {
   const x = UI.bn[UI.person], b = UI.bnBase[UI.person];
@@ -1776,6 +1780,81 @@ function paramChanges() {
   const hit = new Set(Object.values(eff).flatMap(e => e.per.filter(p => p.k).map(p => p.k)));
   const shown = rows.filter(r => hit.has(r.k) || TAX_KEYS.includes(r.k)), hidden = rows.filter(r => !shown.includes(r));
   return { y0, y1, rows: shown, hidden, eff, filled };
+}
+/* ===== Inkomstenbelasting per jaar: zoals het tabblad inkomstenbelasting, maar maand voor maand ===== */
+function ibCalc(Y) {
+  if (!DATA || !DATA.bn || !DATA.hist) return null;
+  const P = bnP(Y), Q = paramsFor(Y), nm = v => num(v) ?? looseNum(v);
+  const by = {}; (DATA.vermRaw || []).forEach(r => by[r.year] = r);
+  const vb = {}; (DATA.verm || []).forEach(r => vb[r.year] = r);
+  const raw = by[Y] || {};
+  // WOZ-beschikking van jaar Y (peildatum 1-1-(Y−1)) staat in Excelregel Y; anders de schatting per 1-1-(Y−1)
+  const wozOff = raw.woz != null, woz = wozOff ? raw.woz : vb[Y - 1] ? vb[Y - 1].woz : null;
+  const rente = raw.rente != null ? raw.rente : 0, renteEst = !!(raw.est && raw.est.rente);
+  const ewf = (woz || 0) * (nm(Q.ewf_pct) ?? 0.0035), hillen = nm(Q.hillen_pct) ?? 0;
+  let shS = nm(Q.eigen_woning_aandeel_sander); shS = shS == null ? 1 : shS > 1 ? shS / 100 : shS;
+  const tV = P.toelVu ?? 1, tE = P.toelEju ?? 0;
+  const out = { Y, woz, wozOff, rente, renteEst, renteHow: raw.hypHow || '', ewf, p: {} };
+  for (const w of ['S', 'E']) {
+    const k = w === 'S' ? { b: 'bs', f: 'fs', t: 'ts' } : { b: 'be', f: 'fe', t: 'te' };
+    const ms = DATA.hist.filter(h => new Date(h.d).getUTCFullYear() === Y && h[k.b] > 0 && h[k.f] > 0);
+    if (!ms.length || !DATA.bn[w]) continue;
+    const gF = xForYear(w, Y).grondFull;
+    let hl = 0, lh = 0, vuBase = 0, ejuBase = 0, fSum = 0, proj = 0;
+    for (const m of ms) {
+      const x = { ...DATA.bn[w], full: m[k.b] / m[k.f], f: m[k.f], toelage: m[k.t] || 0, grondFull: gF };
+      const r = calcNet(x, P);
+      hl += r.hlM; lh += r.lhM; vuBase += r.bruto + tV * r.toelage; ejuBase += r.bruto + tE * r.toelage; fSum += x.f; if (m.proj) proj++;
+    }
+    const sc = 12 / ms.length; hl *= sc; lh *= sc; vuBase *= sc; ejuBase *= sc;
+    const vuB = vuBase * P.vu, ejuB = ejuBase * P.eju, dcaB = (P.dca + P.dcaSport) * fSum / ms.length;
+    const werk = hl + vuB + ejuB + dcaB;
+    const marg = P.verr2 != null && P.verr3 != null ? (werk < P.b2 ? P.r2 + P.verr2 : P.r3 + P.verr3) : (heffing(werk + 100, P) - heffing(werk, P)) / 100;
+    const lhTot = lh + (vuB + ejuB + dcaB) * marg;
+    const sh = w === 'S' ? shS : 1 - shS, ewfW = ewf * sh, rW = rente * sh;
+    const hil = ewfW > rW ? hillen * (ewfW - rW) : 0;
+    const bel = werk + ewfW - rW - hil;
+    const b1 = box1(bel, P), ahkV = Math.min(b1, ahk(bel, P)), akV = Math.min(b1 - ahkV, ak(werk, P));
+    const ta = (P.r3 - P.r2) * Math.min(rW, Math.max(0, werk + ewfW - P.b2));
+    const due = b1 - ahkV - akV + ta;
+    out.p[w] = { months: ms.length, proj, werk, ewf: ewfW, rente: rW, hil, bel, b1, ahk: ahkV, ak: akV, ta, due, lh: lhTot, res: lhTot - due };
+  }
+  // box 3: spaargeld op 1 januari (banktegoeden), heffingvrij vermogen samen
+  const sp = raw.spaar, vrij = nm(Q.box3_vrijstelling), tar = nm(Q.box3_tarief), fr = nm(Q.box3_forfait_bank);
+  if (sp != null && vrij != null) { const g = Math.max(0, sp - vrij); out.box3 = { sp, spEst: !!(raw.est && raw.est.spaar), vrij, g, tax: fr != null && tar != null ? g * fr * tar : null }; }
+  return out;
+}
+function renderIB() {
+  const el = $('#ibCard'); if (!el) return;
+  let I = null; try { I = ibCalc(BN_YEAR); } catch (e) { console.error(e); }
+  if (!I || !I.p.S && !I.p.E) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  const W = ['S', 'E'].filter(w => I.p[w]), nm = { S: 'Sander', E: 'Ellen' };
+  const tot = W.reduce((s, w) => s + I.p[w].res, 0) - (I.box3 && I.box3.tax ? I.box3.tax : 0);
+  const res = v => `<span class="${v >= 0.5 ? 'pos' : v <= -0.5 ? 'neg' : 'muted'}">${v >= 0 ? 'terug' : 'bijbetalen'} ${eur(Math.abs(v))}</span>`;
+  const e0 = v => (v < -0.5 ? '−' : '') + eur(Math.abs(v));
+  const row = (lab, f, cls = '') => `<tr class="${cls}"><td>${lab}</td>${W.map(w => `<td>${f(I.p[w])}</td>`).join('')}</tr>`;
+  const anyHil = W.some(w => I.p[w].hil > 0.5), anyTa = W.some(w => I.p[w].ta > 0.5), anyAhk = W.some(w => I.p[w].ahk > 0.5);
+  const proj = W.some(w => I.p[w].proj);
+  $('#ibSum').innerHTML = res(tot);
+  $('#ibTitle').textContent = `Inkomstenbelasting ${I.Y}${BN_YEAR > THIS_YEAR ? ' (schatting)' : ''}`;
+  $('#ibBody').innerHTML = `<div class="tablewrap"><table class="chgt"><thead><tr><th></th>${W.map(w => `<th>${nm[w]}</th>`).join('')}</tr></thead><tbody>
+    ${row('Inkomen uit werk', p => eur(p.werk))}
+    ${row(`Eigenwoningforfait`, p => eur(p.ewf))}
+    ${row(`Hypotheekrente`, p => e0(-p.rente))}
+    ${anyHil ? row('Aftrek Wet Hillen', p => e0(-p.hil)) : ''}
+    ${row('Belastbaar inkomen', p => eur(p.bel), 'tot')}
+    ${row('Belasting box 1', p => eur(p.b1))}
+    ${anyAhk ? row('Algemene heffingskorting', p => e0(-p.ahk)) : ''}
+    ${row('Arbeidskorting', p => e0(-p.ak))}
+    ${anyTa ? row('Tariefsaanpassing', p => eur(p.ta)) : ''}
+    ${row('Verschuldigd', p => eur(p.due), 'tot')}
+    ${row('Ingehouden loonheffing', p => eur(p.lh))}
+    ${row('Resultaat', p => res(p.res), 'tot')}
+    </tbody></table></div>
+    ${I.box3 ? `<div class="rows" style="margin-top:8px"><div class="r"><span>Box 3 (samen)</span><span>${I.box3.g <= 0 ? '<span class="muted">geen</span>' : I.box3.tax != null ? `<span class="neg">${eur(I.box3.tax)}</span>` : '?'}</span></div></div>
+      <div class="tiny muted">Spaargeld 1 jan ${I.Y} ${eur(I.box3.sp)}${I.box3.spEst ? ' (geschat)' : ''}, heffingvrij ${eur(I.box3.vrij)}.</div>` : ''}
+    <div class="note">Salaris maand voor maand uit salaris geschiedenis${proj ? ' (rest van het jaar geschat)' : ''}; loonheffing volgens de tabellen, zoals in je Excel. WOZ ${I.woz ? eur(I.woz) : '–'}${I.wozOff ? ` (beschikking ${I.Y})` : ' (geschat)'}. Rente ${eur(I.rente)}${I.renteEst ? ` uit het aflossingsschema (${esc((I.renteHow.match(/extra aflossing [^,;]+/) || ['zonder extra aflossing'])[0])}); voor de aangifte geldt het jaaroverzicht` : ' uit je Excel'}. Eigen woning ${(() => { const s = I.p.S && I.p.S.ewf, t = I.ewf; return t && s != null && Math.abs(s - t) > 1 ? `voor ${PCT1.format(s / t)} bij Sander` : 'bij Sander'; })()} (parameter eigen_woning_aandeel_sander).</div>`;
 }
 function renderChanges() {
   const el = $('#bnChanges'); if (!el) return;
@@ -3312,7 +3391,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 16:55';
+const APP_VERSION = '2026-11-21 19:00';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
