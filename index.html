@@ -410,6 +410,7 @@ section[data-view].active { display: grid; }
             <button type="button" data-person="E" aria-pressed="false">Ellen</button>
           </div>
         </div>
+        <div class="controls"><div class="seg" role="group" aria-label="Jaar" id="bnYearSeg"></div></div>
         <div>
           <div class="small muted">Netto per maand</div>
           <div class="big" id="bnNet">–</div>
@@ -1465,18 +1466,36 @@ function renderKpis(onlyKpis) {
 }
 
 /* ================= bruto-netto view ================= */
+// bruto-netto voor dit jaar of (geschat) volgend jaar
+let BN_YEAR = THIS_YEAR;
+function xForYear(w, Y) {
+  const x = DATA.bn[w]; if (!x || Y <= THIS_YEAR) return { ...x };
+  const k = w === 'S' ? { b: 'bs', f: 'fs', t: 'ts' } : { b: 'be', f: 'fe', t: 'te' };
+  // situatie per januari van dat jaar uit de salarisprognose (cao_nu, fte); ABP-grondslag = salaris per 1 januari
+  const jan = (DATA.hist || []).find(r => new Date(r.d).getUTCFullYear() === Y && r[k.b] > 0 && r[k.f] > 0);
+  if (!jan) return { ...x };
+  const full = jan[k.b] / jan[k.f];
+  return { ...x, full, grondFull: full, f: jan[k.f], toelage: jan[k.t] || 0, excelNet: null };
+}
 function initBN() {
-  UI.bnBase = { S: { ...DATA.bn.S }, E: { ...DATA.bn.E } };
-  UI.bn = { S: { ...DATA.bn.S }, E: { ...DATA.bn.E } };
+  UI.bnBase = { S: xForYear('S', BN_YEAR), E: xForYear('E', BN_YEAR) };
+  UI.bn = { S: { ...UI.bnBase.S }, E: { ...UI.bnBase.E } };
 }
 function renderBN() {
-  const P = DATA.bn.P, who = UI.person, x = UI.bn[who], base = UI.bnBase[who];
+  const P = bnP(BN_YEAR), who = UI.person, x = UI.bn[who], base = UI.bnBase[who];
   const r = calcNet(x, P), r0 = calcNet(base, P);
+  const future = BN_YEAR > THIS_YEAR;
   $('#bnNet').textContent = eur2(r.netto);
   const d = r.netto - r0.netto;
   const dEl = $('#bnDelta');
   if (Math.abs(d) < 0.5) { dEl.textContent = 'Gelijk aan de huidige situatie'; dEl.className = 'delta muted'; }
   else { dEl.textContent = `${signed(d)} per maand t.o.v. nu`; dEl.className = 'delta ' + (d > 0 ? 'pos' : 'neg'); }
+  if (future) {
+    const rNow = calcNet(DATA.bn[who], bnP(THIS_YEAR)), dy = r.netto - rNow.netto;
+    const filled = Object.values(DATA.parY || {}).filter(o => o[BN_YEAR] != null).length, all = Object.keys(DATA.parY || {}).length;
+    dEl.innerHTML = `${Math.abs(d) >= 0.5 ? `${signed(d)} door je aanpassingen · ` : ''}${signed(dy)} per maand t.o.v. ${THIS_YEAR}<div class="tiny">Schatting per januari ${BN_YEAR}: salaris en fte uit de prognose (cao_nu), ${filled ? `${filled} van ${all} parameters uit de kolom ${BN_YEAR}, de rest` : 'alle parameters'} van ${THIS_YEAR}.</div>`;
+    dEl.className = 'delta ' + (dy >= 0 ? 'pos' : 'neg');
+  }
   const tot = r.bruto + r.toelage + r.verg;
   const parts = [['Netto', r.netto, '--s1'], ['Pensioen en AOV', r.premies, '--s2'], ['Loonheffing', r.lhM, '--s4']];
   $('#bnBar').innerHTML = parts.map(([, v, c]) => `<div style="--c:var(${c});flex:${Math.max(v, 0)}"></div>`).join('');
@@ -1501,7 +1520,7 @@ function renderBN() {
   ];
   $('#bnYear').innerHTML = yrows.map(([n, v, dd], i) => `<div class="r${i === 3 ? ' total' : ''}"><span>${n}</span><span>${eur(v)}${Math.abs(dd) >= 1 ? ` <span class="${dd > 0 ? 'pos' : 'neg'} small">(${signed(dd)})</span>` : ''}</span></div>`).join('') +
     `<div class="r"><span>Tarief op extra inkomen</span><span>${PCT1.format(r.marg)}</span></div>`;
-  const ex = base.excelNet;
+  const ex = future ? null : base.excelNet;
   const keep = Math.round(100 * (1 - r.marg));
   let note = `Krijg je € 100 bruto per maand extra, dan houd je daar ongeveer € ${keep} netto van over (de rest is belasting). Telt dat extra loon ook mee voor je pensioen, dan iets minder.`;
   if (ex != null) {
@@ -1529,7 +1548,15 @@ function bnInputsHTML() {
     ${f('in-thuis', 'Thuiswerkdagen per maand', 0, 23, 1, x.thuis, v => String(v))}
     <div class="note">De toelage telt mee voor pensioen en vakantiegeld, niet voor de eindejaarsuitkering. De ABP-premie gebruikt het salaris per 1 januari; schuif je het salaris, dan schuift die mee.</div>`;
 }
+function renderBNYearSeg() {
+  const el = $('#bnYearSeg'); if (!el) return;
+  el.innerHTML = [THIS_YEAR, THIS_YEAR + 1].map(y => `<button type="button" data-bnyear="${y}" aria-pressed="${y === BN_YEAR}">${y}${y > THIS_YEAR ? ' (schatting)' : ''}</button>`).join('');
+  for (const b of el.querySelectorAll('[data-bnyear]')) b.addEventListener('click', () => {
+    BN_YEAR = +b.dataset.bnyear; initBN(); renderBNYearSeg(); renderBNInputs(); renderBN(); if (typeof renderOpbouw === 'function') renderOpbouw();
+  });
+}
 function renderBNInputs() {
+  renderBNYearSeg();
   $('#bnInputs').innerHTML = bnInputsHTML();
   const x = UI.bn[UI.person], b = UI.bnBase[UI.person];
   const bind = (id, apply, fmt) => {
@@ -3019,7 +3046,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 11:05';
+const APP_VERSION = '2026-11-21 11:25';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
