@@ -1781,15 +1781,10 @@ function renderChanges() {
   const el = $('#bnChanges'); if (!el) return;
   let C = null; try { C = DATA && paramChanges(); } catch (e) { console.error(e); }
   const w = UI.person, e = C && C.eff[w];
-  if (!C || BN_YEAR > C.y1) { el.style.display = 'none'; return; }
+  if (!C || BN_YEAR !== C.y1) { el.style.display = 'none'; return; }
   el.style.display = '';
   const name = { S: 'Sander', E: 'Ellen' }[w], cls = v => v > 0.5 ? 'pos' : v < -0.5 ? 'neg' : 'muted';
   const lbl = m => esc(m.desc || m.k.replace(/_/g, ' '));
-  if (BN_YEAR < C.y1) {
-    el.innerHTML = `<button type="button" class="chg-tease" data-goyear="${C.y1}"><span><b>Wat verandert er in ${C.y1}</b><span class="tiny muted" style="display:block">${C.rows.length} parameters veranderen · tik voor de opbouw</span></span>${e ? `<span class="${cls(e.mnd)}" style="white-space:nowrap">${signed(e.mnd)} p/m ›</span>` : '›'}</button>`;
-    el.querySelector('[data-goyear]').addEventListener('click', () => { BN_YEAR = C.y1; initBN(); renderBNInputs(); renderBN(); if (typeof renderOpbouw === 'function') renderOpbouw(); el.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
-    return;
-  }
   const effHTML = e ? `<div class="r"><span><b>${name}</b>, netto per maand</span><span class="${cls(e.mnd)}"><b>${signed(e.mnd)}</b></span></div>
     <div class="tiny muted" style="margin:-2px 0 4px">${signed(e.jaar)} per jaar, met vakantiegeld en eindejaarsuitkering</div>
     ${e.per.length ? `<ul class="chgl">${e.per.map(p => `<li><span>${esc(p.label)}</span><span class="${cls(p.mnd)}">${signed(p.mnd)}</span></li>`).join('')}</ul>` : ''}` : '';
@@ -3317,7 +3312,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 16:45';
+const APP_VERSION = '2026-11-21 16:55';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
