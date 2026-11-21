@@ -1499,6 +1499,8 @@ function vermProj(A, k, toYear) {
 }
 function miljoen(T = MIL_T) {
   const V = (DATA.verm || []).filter(r => r.net != null && isFinite(r.net)).map(r => ({ t: Date.UTC(r.year, 0, 1), v: r.net, est: !!(r.wozEst || r.hypEst || r.spaarEst) }));
+  // de schatting van vandaag als extra punt tussen de jaarstanden
+  try { const n = vermNu(); if (n && isFinite(n.net)) { V.push({ t: n.t, v: n.net, est: true }); V.sort((a, b) => a.t - b.t); } } catch (e) {}
   if (V.length < 2) return null;
   if (V[0].v >= T) return { T, t: null, past: true, before: V[0].t };
   for (let i = 1; i < V.length; i++) if (V[i].v >= T) {
@@ -1626,8 +1628,12 @@ function vermNu() {
     spaar = v0.spaar + sv * frac - (extraDone ? raw.extra : 0) - (raw.invest || 0) * frac + (raw.giften || 0) * frac;
     spHow = `1 januari plus ${PCT1.format(frac)} van het verwachte spaarvermogen ${eur(sv)}`;
   }
-  const h = huisSchatting(), woz = h ? h.est : v0.woz;
-  return { t: now, woz, hyp, spaar, net: woz - hyp + spaar, v0, wozHow: h ? `WOZ ${eur(h.woz)} (1 jan ${h.year}) ${h.pct >= 0 ? '+' : '−'}${PCT1.format(Math.abs(h.pct))} via CBS-index` : 'WOZ per 1 januari', hypHow, spHow };
+  // huis: CBS-index tot de laatste maand, daarna tot vandaag doorgetrokken met de stijging van het afgelopen jaar (zoals de prognose per 1 januari)
+  const h = huisSchatting(), H = h ? huisIdx() : null;
+  let woz = h ? h.est : v0.woz, ext = 0;
+  if (h && H && H.g != null && H.lastDate && now > H.lastDate) { ext = Math.pow(1 + H.g, (now - H.lastDate) / 31557600000) - 1; woz *= 1 + ext; }
+  const pct = h ? woz / h.woz - 1 : 0;
+  return { t: now, woz, hyp, spaar, net: woz - hyp + spaar, v0, wozHow: h ? `WOZ ${eur(h.woz)} (1 jan ${h.year}) ${pct >= 0 ? '+' : '−'}${PCT1.format(Math.abs(pct))} via CBS-index${ext ? ', doorgetrokken tot vandaag' : ''}` : 'WOZ per 1 januari', hypHow, spHow };
 }
 function renderKpis(onlyKpis) {
   const S = DATA.bn.S, E = DATA.bn.E;
@@ -3470,7 +3476,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 21:55';
+const APP_VERSION = '2026-11-21 22:10';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
