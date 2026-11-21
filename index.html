@@ -1835,20 +1835,28 @@ function ibCalc(Y, shOverride) {
   if (sp != null && vrij != null) { const g = Math.max(0, sp - vrij); out.box3 = { sp, spEst: !!(raw.est && raw.est.spaar), vrij, g, tax: fr != null && tar != null ? g * fr * tar : null }; }
   return out;
 }
+// gunstigste verdeling eigen woning (na aanslag- en teruggaafgrens, met marge); de parameter eigen_woning_aandeel_sander gaat voor
+function ibBest(Y) {
+  const sum = J => J ? Object.values(J.p).reduce((a, p) => a + p.opt, 0) : -Infinity, raw = J => J ? Object.values(J.p).reduce((a, p) => a + p.res, 0) : -Infinity;
+  let best = null;
+  for (let i = 100; i >= 0; i--) {
+    const J = ibCalc(Y, i / 100); if (!J) break;
+    const k = [Math.round(sum(J)), Math.round(raw(J))];
+    if (!best || k[0] > best.k[0] || (k[0] === best.k[0] && k[1] > best.k[1])) best = { J, k };
+  }
+  let I = ibCalc(Y);
+  if (I && I.shPar == null && best) I = best.J;
+  return { I, best };
+}
+// netto resultaat van de aangifte voor het hele huishouden (+ = terug), na aanslag- en teruggaafgrens, inclusief box 3
+function ibNet(Y) {
+  const { I } = ibBest(Y); if (!I || !Object.keys(I.p).length) return null;
+  return Object.values(I.p).reduce((a, p) => a + p.eff, 0) - (I.box3 && I.box3.tax ? I.box3.tax : 0);
+}
 function renderIB() {
   const el = $('#ibCard'); if (!el) return;
   let I = null, best = null;
-  try {
-    const sum = J => J ? Object.values(J.p).reduce((a, p) => a + p.opt, 0) : -Infinity, raw = J => J ? Object.values(J.p).reduce((a, p) => a + p.res, 0) : -Infinity;
-    // verdeling eigen woning: de verdeling waarbij jullie samen het meeste terugkrijgen (na aanslag- en teruggaafgrens); bij gelijke uitkomst zoveel mogelijk bij Sander
-    for (let i = 100; i >= 0; i--) {
-      const J = ibCalc(BN_YEAR, i / 100); if (!J) break;
-      const k = [Math.round(sum(J)), Math.round(raw(J))];
-      if (!best || k[0] > best.k[0] || (k[0] === best.k[0] && k[1] > best.k[1])) best = { J, k };
-    }
-    I = ibCalc(BN_YEAR);
-    if (I && I.shPar == null && best) I = best.J;
-  } catch (e) { console.error(e); }
+  try { ({ I, best } = ibBest(BN_YEAR)); } catch (e) { console.error(e); }
   if (!I || !I.p.S && !I.p.E) { el.style.display = 'none'; return; }
   el.style.display = '';
   const W = ['S', 'E'].filter(w => I.p[w]), nm = { S: 'Sander', E: 'Ellen' };
@@ -1926,11 +1934,36 @@ function renderBNInputs() {
 }
 
 /* ================= maand view ================= */
+// posten die de app zelf (preciezer) uitrekent: die gaan voor op de waarde uit het tabblad in_uit
+function appInUit(item, kind) {
+  const l = item.label.toLowerCase(), who = /sander/.test(l) ? 'S' : /ellen/.test(l) ? 'E' : null;
+  try {
+    if (kind === 'inn') {
+      if (/belasting\s*terug|teruggaa?f|teruggave/.test(l)) { const v = ibNet(THIS_YEAR); return v == null ? null : { amount: v, per: 'jaar', how: `aangifte ${THIS_YEAR} volgens Loon en belasting` }; }
+      if (!who || !DATA.bn || !DATA.bn[who]) return null;
+      const r = calcNet(DATA.bn[who], bnP(THIS_YEAR));
+      if (/netto\s*salaris/.test(l)) return { amount: r.netto, per: 'maand', how: 'netto per maand volgens Loon en belasting' };
+      if (/vakantie/.test(l)) return { amount: r.vuN, per: 'jaar', how: 'netto vakantiegeld volgens Loon en belasting' };
+      if (/eindejaar/.test(l)) return { amount: r.ejuN, per: 'jaar', how: 'netto eindejaarsuitkering volgens Loon en belasting' };
+      if (/dca/.test(l)) return { amount: r.dcaN, per: 'jaar', how: 'netto DCA volgens Loon en belasting' };
+    } else if (/^hypotheek/.test(l)) {
+      const raw = DATA.vermRaw || [], by = {}; raw.forEach(r => by[r.year] = r);
+      const row = by[THIS_YEAR], prev = by[THIS_YEAR - 1], rente = DATA.hyp && DATA.hyp.rente, einde = DATA.hyp && DATA.hyp.einde;
+      if (!row || !prev || prev.hyp == null || rente == null || !einde) return null;
+      const r = rente / 12, n = Math.max(1, (new Date(einde).getUTCFullYear() - THIS_YEAR) * 12 + new Date(einde).getUTCMonth());
+      const A0 = prev.hyp * r / (1 - Math.pow(1 + r, -n));
+      const em = row.extraMaand >= 1 && row.extraMaand <= 12 ? Math.round(row.extraMaand) : Math.min(12, Math.max(1, Math.round(num(paramsFor(THIS_YEAR)['maand extra aflossing']) || 12)));
+      const after = row.extra > 0 && row.maandlast != null;
+      const nowM = TODAY.getUTCMonth() + 1;
+      if (after && nowM >= em) return { amount: row.maandlast, per: 'maand', how: `na de extra aflossing van ${eur(row.extra)}` };
+      return { amount: A0, per: 'maand', how: `annuïteit ${PCT1.format(rente)} vanaf ${eur(prev.hyp)}${after ? `; vanaf ${MONTHS[em - 1]} ${eur(row.maandlast)} na de extra aflossing van ${eur(row.extra)}` : ''}` };
+    }
+  } catch (e) { console.error(e); }
+  return null;
+}
 function initInUit() {
-  UI.inuitEdits = {
-    uit: DATA.inuit.uit.map(i => ({ ...i, orig: i.amount })),
-    inn: DATA.inuit.inn.map(i => ({ ...i, orig: i.amount }))
-  };
+  const mk = kind => i => { const a = appInUit(i, kind); return a && isFinite(a.amount) ? { ...i, amount: a.amount, per: a.per, orig: a.amount, app: a.how, xls: i.amount, xlsPer: i.per } : { ...i, orig: i.amount }; };
+  UI.inuitEdits = { uit: DATA.inuit.uit.map(mk('uit')), inn: DATA.inuit.inn.map(mk('inn')) };
 }
 function inuitTotals() {
   const E = UI.inuitEdits || { uit: [], inn: [] };
@@ -1947,7 +1980,7 @@ function renderMaandSummary() {
   };
   const dS = t.spaar - (orig.in - orig.uit);
   $('#mTiles').innerHTML = `
-    <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-det="in" aria-controls="mDetIn"><span>Inkomsten per maand</span><i class="chev" aria-hidden="true">▾ details</i><b>${eur(t.in)}</b><em>gemiddeld, incl. vakantiegeld e.d.${(() => { const n = (DATA.bn.S.excelNet || 0) + (DATA.bn.E.excelNet || 0); return n ? `; waarvan netto salaris ${eur(n)}` : ''; })()}</em></div>
+    <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-det="in" aria-controls="mDetIn"><span>Inkomsten per maand</span><i class="chev" aria-hidden="true">▾ details</i><b>${eur(t.in)}</b><em>gemiddeld, incl. vakantiegeld e.d.${(() => { const n = UI.inuitEdits.inn.filter(i => /netto\s*salaris/i.test(i.label)).reduce((a, i) => a + i.amount * PER[i.per], 0); return n ? `; waarvan netto salaris ${eur(n)}` : ''; })()}</em></div>
     <div class="tile tap" role="button" tabindex="0" data-det="uit" aria-controls="mDetUit"><span>Uitgaven</span><i class="chev" aria-hidden="true">▾ details</i><b>${eur(t.uit)}</b><em>${PCT1.format(t.in ? t.uit / t.in : 0)} van de inkomsten</em></div>
     <div class="tile"><span>Sparen (begroting)</span><b>${eur(t.spaar)}</b><em>${PCT1.format(t.in ? t.spaar / t.in : 0)} van de inkomsten, ${eur(t.spaar * 12)} per jaar${(r => r && r.svEst != null ? `<br><span class="exp">verwacht ${eur(r.svEst / 12)} per maand</span> (${r.year}, op basis van de uitgaven in ${DATA.proj && DATA.proj.anchor})` : '')((DATA.vermRaw || []).find(r => r.year === THIS_YEAR))}</em></div>`;
   applyDet();
@@ -2103,8 +2136,10 @@ $('#mTiles').addEventListener('click', e => toggleDet(e.target.closest('[data-de
 $('#mTiles').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-det]')) { e.preventDefault(); toggleDet(e.target.closest('[data-det]')); } });
 function itemRow(item, idx, kind) {
   const pm = item.amount * PER[item.per];
-  return `<div class="item"><span>${esc(item.label)}</span>
-    <span class="amt num">${eur2(item.amount)}</span><span class="per">per ${item.per}</span>
+  const xd = item.app && Math.abs(item.xls * PER[item.xlsPer] - pm) >= 0.5 ? ` (Excel ${eur(item.xls)})` : '';
+  const xm = item.app && item.app.match(/vanaf \w+ €\s?[\d.]+/), extra = xm ? ' · ' + xm[0] : '';
+  return `<div class="item"><span title="${item.app ? esc(item.app) : ''}">${esc(item.label)}${item.app ? `<span class="tiny muted" style="display:block">berekend${xd}${extra}</span>` : ''}</span>
+    <span class="amt num">${item.amount < 0 ? '−' : ''}${eur2(Math.abs(item.amount))}</span><span class="per">per ${item.per}</span>
     ${item.per !== 'maand' ? `<span class="pm" id="pm-${kind}-${idx}">${eur2(pm)} per maand</span>` : ''}</div>`;
 }
 function renderMaand() {
@@ -3416,7 +3451,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 20:10';
+const APP_VERSION = '2026-11-21 20:40';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
