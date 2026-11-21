@@ -123,6 +123,7 @@ table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: upper
 .millegend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--ink-2); margin-top: 2px; }
 .millegend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; border: 1.5px solid var(--s1); }
 .millegend i.s { background: var(--ink-2); border-color: var(--ink-2); } .millegend i.o { background: var(--card); border-color: var(--ink-2); }
+.millegend i.b { background: var(--s1); opacity: .2; border: none; border-radius: 2px; width: 14px; }
 .millegend i.d { border: none; border-top: 2px dotted var(--ink-2); border-radius: 0; height: 0; vertical-align: 3px; }
 .millegend .star { color: #E0A100; font-size: 13px; margin-right: 3px; }
 .tiles3.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -638,6 +639,7 @@ const PCT1 = new Intl.NumberFormat('nl-NL', { style: 'percent', minimumFractionD
 const FTE = new Intl.NumberFormat('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 const PCT0 = new Intl.NumberFormat('nl-NL', { style: 'percent', maximumFractionDigits: 0 });
 const NUM2 = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 2 });
+const NUM1 = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 1 });
 const NUM0 = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 0 });
 const eur = v => (v == null || !isFinite(v)) ? '–' : EUR0.format(Math.round(v));
 const eur2 = v => (v == null || !isFinite(v)) ? '–' : EUR2.format(v);
@@ -1428,26 +1430,85 @@ function chips(host, defs, onMap, rerender) {
 }
 // wanneer passeert het netto vermogen € 1 miljoen? Lineair tussen de standen per 1 januari (incl. de schattingen van de app),
 // voorbij de laatste stand doorgetrokken met de stijging van het laatste jaar
-function miljoen(T = 1e6) {
+// ---- vermogen doorrekenen na het laatste jaar: per onderdeel, met een voorzichtige, midden- en gunstige variant ----
+// parameters (tabblad parameters, leeg = app schat): woz_groei, spaarrendement, uitgaven_per_jaar, stop_sparen_jaar, inflatie_prognose
+let MIL_T = (() => { try { return +localStorage.getItem('milT') || 1e6; } catch (e) { return 1e6; } })();
+function pctPar(v) { let x = typeof v === 'number' ? v : looseNum(v) ?? num(v); if (x == null || !isFinite(x)) return null; if (typeof v === 'string' && /%/.test(v)) return x / 100; return Math.abs(x) >= 0.5 ? x / 100 : x; }
+function vermAssump() {
+  const P = (EXT && EXT.params) || {}, A = { how: {} };
+  // huizenprijzen: langjarige groei van de CBS-index (Nederland), anders 3,5%
+  let g = pctPar(P.woz_groei);
+  if (g != null) A.how.woz = 'uit parameters';
+  else {
+    const nl = typeof LIVE !== 'undefined' && LIVE && LIVE.huis && LIVE.huis.nl;
+    const ms = nl ? Object.keys(nl).sort() : [];
+    if (ms.length > 120) {
+      const b = ms[ms.length - 1], a = ms.find(x => x >= `${+b.slice(0, 4) - 20}${b.slice(4)}`) || ms[0], yrs = (+b.slice(0, 4) + +b.slice(5) / 12) - (+a.slice(0, 4) + +a.slice(5) / 12);
+      g = Math.pow(nl[b] / nl[a], 1 / yrs) - 1; A.how.woz = `gemiddelde CBS-huizenprijsindex ${a.slice(0, 4)}–${b.slice(0, 4)}`;
+      g = Math.min(0.05, Math.max(0.01, g)); // een uitschieter niet decennia doortrekken
+    } else { g = 0.035; A.how.woz = 'aanname (CBS-index niet geladen)'; }
+  }
+  A.woz = [Math.max(0, g - 0.02), g, g + 0.02];
+  let r = pctPar(P.spaarrendement); A.how.rend = r != null ? 'uit parameters' : 'aanname, na belasting';
+  if (r == null) r = 0.015;
+  A.rend = [Math.max(0, r - 0.01), r, r + 0.02];
+  A.infl = pctPar(P.inflatie_prognose) ?? 0.02;
+  const raw = DATA.vermRaw || [];
+  const real = raw.filter(x => x._xls && x._xls.rente != null && x._xls.hyp != null).slice(-4);
+  let u = num(P.uitgaven_per_jaar) ?? looseNum(P.uitgaven_per_jaar);
+  if (u != null) A.how.uit = 'uit parameters';
+  else { u = real.length ? real.reduce((s, x) => s + (num(x.invest) || 0) - (num(x.giften) || 0), 0) / real.length : 0; A.how.uit = real.length ? `gemiddelde investeringen min giften ${real[0].year}–${real[real.length - 1].year}` : ''; }
+  A.uit = Math.max(0, u);
+  const svR = raw.filter(x => (x.svEst || x.sv) > 0).pop();
+  A.sv = svR ? (svR.svEst || svR.sv) : 0; A.svYear = svR ? svR.year : null;
+  A.stop = num(P.stop_sparen_jaar) || null;
+  return A;
+}
+function vermProj(A, k, toYear) {
+  const L = (DATA.verm || []).filter(r => r.net != null && isFinite(r.net)).pop(); if (!L) return [];
+  let woz = L.woz || 0, hyp = L.hyp || 0, sp = L.spaar || 0, y = L.year;
+  const rente = DATA.hyp && DATA.hyp.rente, einde = DATA.hyp && DATA.hyp.einde;
+  let n = einde ? Math.round((einde - Date.UTC(y, 0, 1)) / (30.44 * 864e5)) : 0;
+  const m = hyp > 0 && n > 0 && rente != null ? (rente ? hyp * (rente / 12) / (1 - Math.pow(1 + rente / 12, -n)) : hyp / n) : 0;
+  if (hyp > 0 && !m) { n = 0; }
+  let sv = A.sv * Math.pow(1 + A.infl, Math.max(0, y - (A.svYear || y))), uit = A.uit;
+  const out = [];
+  while (y < toYear) {
+    const stopped = A.stop && y >= A.stop;
+    let freed = 0;
+    for (let i = 0; i < 12; i++) {
+      if (hyp > 0 && m) { const int = hyp * (rente || 0) / 12, a = Math.min(hyp, m - int); hyp -= a; if (hyp < 1) hyp = 0; }
+      else if (m) freed += m; // hypotheek afgelost: de maandlast gaat naar sparen
+    }
+    sp += sp * A.rend[k] + (stopped ? 0 : sv - uit + freed);
+    woz *= 1 + A.woz[k]; sv *= 1 + A.infl; uit *= 1 + A.infl; y++;
+    out.push({ year: y, woz, hyp, spaar: sp, net: woz - hyp + sp });
+  }
+  return out;
+}
+function miljoen(T = MIL_T) {
   const V = (DATA.verm || []).filter(r => r.net != null && isFinite(r.net)).map(r => ({ t: Date.UTC(r.year, 0, 1), v: r.net, est: !!(r.wozEst || r.hypEst || r.spaarEst) }));
   if (V.length < 2) return null;
-  if (V[0].v >= T) return { t: null, past: true, before: V[0].t };
+  if (V[0].v >= T) return { T, t: null, past: true, before: V[0].t };
   for (let i = 1; i < V.length; i++) if (V[i].v >= T) {
     const a = V[i - 1], b = V[i], t = a.t + (T - a.v) / (b.v - a.v) * (b.t - a.t);
-    return { t, past: t <= Date.now(), est: a.est || b.est, extrap: false };
+    return { T, t, past: t <= Date.now(), est: a.est || b.est, extrap: false };
   }
-  const a = V[V.length - 2], b = V[V.length - 1], slope = (b.v - a.v) / (b.t - a.t);
-  if (slope <= 0) return null;
-  const t = b.t + (T - b.v) / slope;
-  return { t, past: false, est: true, extrap: true };
+  const A = vermAssump(), last = V[V.length - 1], lastY = new Date(last.t).getUTCFullYear(), maxY = lastY + 45;
+  const cross = pts => { let p = last; for (const q of pts) { const qt = Date.UTC(q.year, 0, 1); if (q.net >= T) return p.t + (T - p.v) / (q.net - p.v) * (qt - p.t); p = { t: qt, v: q.net }; } return null; };
+  const P3 = [0, 1, 2].map(k => vermProj(A, k, maxY));
+  const ts = P3.map(cross);
+  if (ts[1] == null) return { T, t: null, never: true, A, P3, lastY };
+  return { T, t: ts[1], lo: ts[0], hi: ts[2], past: false, est: true, extrap: true, A, P3, lastY };
 }
-// kleine grafiek bij de miljoen-tegel: netto vermogen en de onderdelen WOZ, spaargeld en hypotheek;
-// dichte stip = werkelijk (Excel), open stip = geschat door de app; fijn gestippeld = doorgetrokken groei
+// kleine grafiek bij de vermogenstegel: netto vermogen en de onderdelen WOZ, spaargeld en hypotheek;
+// dichte stip = werkelijk (Excel), open stip = geschat door de app; fijn gestippeld = doorgerekend, band = voorzichtig tot gunstig
 function milChart(M) {
   const R = (DATA.verm || []).filter(r => r.net != null && isFinite(r.net)).slice(-7);
-  if (R.length < 2 || !M || M.t == null) return '';
-  const T = 1e6, t0 = Date.UTC(R[0].year, 0, 1), tLast = Date.UTC(R[R.length - 1].year, 0, 1);
-  const yEnd = Math.max(R[R.length - 1].year, new Date(M.t).getUTCFullYear() + (new Date(M.t).getUTCMonth() > 0 ? 1 : 0));
+  if (R.length < 2 || !M || (M.t == null && !M.never)) return '';
+  const T = M.T, t0 = Date.UTC(R[0].year, 0, 1), tLast = Date.UTC(R[R.length - 1].year, 0, 1);
+  const endT = M.never ? Date.UTC(R[R.length - 1].year + 15, 0, 1) : Math.max(M.t, M.lo || 0);
+  const yEnd = Math.max(R[R.length - 1].year, new Date(endT).getUTCFullYear() + (new Date(endT).getUTCMonth() > 0 ? 1 : 0));
   const tEnd = Date.UTC(yEnd, 0, 1);
   const comps = [
     { k: 'net', n: 'Netto vermogen', c: '--s1', est: r => r.wozEst || r.hypEst || r.spaarEst, w: 2.4 },
@@ -1455,26 +1516,56 @@ function milChart(M) {
     { k: 'spaar', n: 'Spaargeld', c: '--s2', est: r => r.spaarEst, w: 1.5 },
     { k: 'hyp', n: 'Hypotheek', c: '--s4', est: r => r.hypEst, w: 1.5 }
   ];
-  const vMax = Math.max(T, ...R.flatMap(r => comps.map(c => r[c.k] || 0))) * 1.06;
+  const projY = p => (p || []).filter(q => q.year <= yEnd);
+  const band = M.P3 ? [projY(M.P3[0]), projY(M.P3[1]), projY(M.P3[2])] : null;
+  const vTop = Math.max(T, ...R.flatMap(r => comps.map(c => r[c.k] || 0)), ...(band ? band[1].map(q => Math.max(q.net, q.woz, q.spaar)) : []));
+  const vMax = Math.min(vTop, T * 1.35) * 1.06;
   const W = 330, H = 170, ml = 30, mr = 8, mt = 8, mb = 18;
-  const X = t => ml + (t - t0) / (tEnd - t0) * (W - ml - mr), Y = v => mt + (1 - v / vMax) * (H - mt - mb);
-  let g = '';
-  for (const v of [0, 250e3, 500e3, 750e3]) if (v < vMax) g += `<line x1="${ml}" x2="${W - mr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-width="0.7"/><text x="${ml - 4}" y="${Y(v) + 3}" font-size="9" fill="var(--ink-3)" text-anchor="end">${v ? v / 1000 + 'k' : '0'}</text>`;
-  g += `<line x1="${ml}" x2="${W - mr}" y1="${Y(T)}" y2="${Y(T)}" stroke="var(--ink-2)" stroke-width="1" stroke-dasharray="3 3"/><text x="${ml - 4}" y="${Y(T) + 3}" font-size="9" fill="var(--ink-2)" text-anchor="end">1 mln</text>`;
-  for (let y = R[0].year; y <= yEnd; y++) g += `<text x="${X(Date.UTC(y, 0, 1))}" y="${H - 4}" font-size="9" fill="var(--ink-3)" text-anchor="middle">'${String(y).slice(2)}</text>`;
+  const X = t => ml + (t - t0) / (tEnd - t0) * (W - ml - mr), Y = v => mt + (1 - Math.min(v, vMax) / vMax) * (H - mt - mb);
+  const step = vMax > 2.6e6 ? 1e6 : vMax > 1.3e6 ? 500e3 : 250e3;
+  const kTxt = v => v >= 1e6 ? (v / 1e6).toString().replace('.', ',') + ' mln' : v / 1000 + 'k';
+  let g = `<defs><clipPath id="milclip"><rect x="${ml}" y="${mt}" width="${W - ml - mr}" height="${H - mt - mb}"/></clipPath></defs>`;
+  for (let v = 0; v < vMax; v += step) if (Math.abs(v - T) > step / 3) g += `<line x1="${ml}" x2="${W - mr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-width="0.7"/><text x="${ml - 4}" y="${Y(v) + 3}" font-size="9" fill="var(--ink-3)" text-anchor="end">${v ? kTxt(v) : '0'}</text>`;
+  g += `<line x1="${ml}" x2="${W - mr}" y1="${Y(T)}" y2="${Y(T)}" stroke="var(--ink-2)" stroke-width="1" stroke-dasharray="3 3"/><text x="${ml - 4}" y="${Y(T) + 3}" font-size="9" fill="var(--ink-2)" text-anchor="end">${T / 1e6} mln</text>`;
+  const span = yEnd - R[0].year, ys = span > 18 ? 4 : span > 9 ? 2 : 1;
+  for (let y = R[0].year; y <= yEnd; y++) if ((y - R[0].year) % ys === 0) g += `<text x="${X(Date.UTC(y, 0, 1))}" y="${H - 4}" font-size="9" fill="var(--ink-3)" text-anchor="middle">'${String(y).slice(2)}</text>`;
   if (tLast < tEnd) g += `<rect x="${X(tLast)}" y="${mt}" width="${X(tEnd) - X(tLast)}" height="${H - mt - mb}" fill="var(--ink-3)" opacity="0.07"/>`;
+  const L = R[R.length - 1], st = { year: L.year, woz: L.woz, hyp: L.hyp, spaar: L.spaar, net: L.net };
+  let gp = '';
+  if (band && band[1].length) {
+    const lo = [st, ...band[0]], hi = [st, ...band[2]], P = q => `${X(Date.UTC(q.year, 0, 1)).toFixed(1)},${Y(q.net).toFixed(1)}`;
+    gp += `<polygon points="${hi.map(P).join(' ')} ${lo.slice().reverse().map(P).join(' ')}" fill="var(--s1)" opacity="0.13"/>`;
+    for (const c of comps.slice(1)) gp += `<polyline points="${[st, ...band[1]].map(q => `${X(Date.UTC(q.year, 0, 1)).toFixed(1)},${Y(q[c.k]).toFixed(1)}`).join(' ')}" fill="none" stroke="var(${c.c})" stroke-width="1.2" stroke-dasharray="1.5 3"/>`;
+    gp += `<polyline points="${[st, ...band[1]].map(P).join(' ')}" fill="none" stroke="var(--s1)" stroke-width="2.2" stroke-dasharray="1.5 3"/>`;
+  }
+  g += `<g clip-path="url(#milclip)">${gp}`;
   for (const c of comps.slice().reverse()) {
     const pts = R.map(r => ({ t: Date.UTC(r.year, 0, 1), v: r[c.k], e: !!c.est(r) })).filter(p => p.v != null);
     for (let i = 1; i < pts.length; i++) g += `<line x1="${X(pts[i - 1].t)}" y1="${Y(pts[i - 1].v)}" x2="${X(pts[i].t)}" y2="${Y(pts[i].v)}" stroke="var(${c.c})" stroke-width="${c.w}" ${pts[i].e ? 'stroke-dasharray="4 3"' : ''}/>`;
-    if (c.k === 'net' && M.extrap) { const l = pts[pts.length - 1]; g += `<line x1="${X(l.t)}" y1="${Y(l.v)}" x2="${X(M.t)}" y2="${Y(T)}" stroke="var(${c.c})" stroke-width="${c.w}" stroke-dasharray="1.5 3"/>`; }
     for (const q of pts) g += `<circle cx="${X(q.t)}" cy="${Y(q.v)}" r="${c.k === 'net' ? 3.2 : 2.6}" fill="${q.e ? 'var(--card)' : `var(${c.c})`}" stroke="var(${c.c})" stroke-width="1.4"/>`;
   }
-  { const cx = X(M.t), cy = Y(T), pts = [];
+  g += '</g>';
+  if (M.t != null) { const cx = X(M.t), cy = Y(T), pts = [];
+    if (M.lo && M.hi) g += `<line x1="${X(M.hi)}" x2="${X(M.lo)}" y1="${cy}" y2="${cy}" stroke="#E0A100" stroke-width="3" stroke-linecap="round" opacity="0.55"/>`;
     for (let i = 0; i < 10; i++) { const rr = i % 2 ? 3.4 : 8, a = -Math.PI / 2 + i * Math.PI / 5; pts.push(`${(cx + rr * Math.cos(a)).toFixed(1)},${(cy + rr * Math.sin(a)).toFixed(1)}`); }
     g += `<polygon points="${pts.join(' ')}" fill="#E0A100" stroke="var(--card)" stroke-width="1.2"/>`; }
-  return `<svg class="milsvg" viewBox="0 0 ${W} ${H}" role="img" aria-label="netto vermogen en onderdelen naar 1 miljoen">${g}</svg>
+  return `<svg class="milsvg" viewBox="0 0 ${W} ${H}" role="img" aria-label="netto vermogen en onderdelen naar ${T / 1e6} miljoen">${g}</svg>
     <div class="millegend">${comps.map(c => `<span><i style="background:var(${c.c});border-color:var(${c.c})"></i>${c.n}</span>`).join('')}</div>
-    <div class="millegend"><span><i class="s"></i>werkelijk</span><span><i class="o"></i>geschat (gestippeld)</span>${M.extrap ? '<span><i class="d"></i>groei doorgetrokken</span>' : ''}<span><b class="star">★</b>€ 1 mln bereikt</span></div>`;
+    <div class="millegend"><span><i class="s"></i>werkelijk</span><span><i class="o"></i>geschat (gestippeld)</span>${M.extrap || M.never ? '<span><i class="d"></i>doorgerekend</span><span><i class="b"></i>voorzichtig – gunstig</span>' : ''}${M.t != null ? `<span><b class="star">★</b>€ ${T / 1e6} mln bereikt</span>` : ''}</div>`;
+}
+function milTile(M) {
+  if (!M) return '';
+  const T = M.T, yr = t => new Date(t).getUTCFullYear();
+  const head = M.never ? `niet vóór ${M.lastY + 45}` : M.t == null ? 'al vóór ' + new Date(M.before).getUTCFullYear() : (M.past ? 'sinds ' : '') + fmtMonth(M.t);
+  let em = '';
+  if (M.extrap || M.never) {
+    const A = M.A, p = x => NUM1.format(x * 100) + '%';
+    const rng = M.lo && M.hi ? (yr(M.hi) === yr(M.lo) ? `Voorzichtig en gunstig: ook ${yr(M.lo)}. ` : `Voorzichtig ${M.lo ? yr(M.lo) : 'later'}, gunstig ${yr(M.hi)}. `) : M.hi ? `Gunstig ${yr(M.hi)}. ` : '';
+    em = `${rng}Doorgerekend vanaf 1 januari ${M.lastY}: huizen +${p(A.woz[1])} per jaar (${A.how.woz}; band ${p(A.woz[0])}–${p(A.woz[2])}), rendement spaargeld ${p(A.rend[1])} (${A.how.rend}; band ${p(A.rend[0])}–${p(A.rend[2])}), spaarvermogen ${eur(A.sv)} per jaar plus ${p(A.infl)} inflatie, min ${eur(A.uit)} per jaar ${A.how.uit ? `(${A.how.uit})` : ''}. Hypotheek volgens schema; na het einde gaat de maandlast naar sparen.${A.stop ? ` Vanaf ${A.stop} wordt er niet meer gespaard.` : ' Pensioen is niet meegenomen: zet stop_sparen_jaar in parameters.'} Aan te passen met woz_groei, spaarrendement, uitgaven_per_jaar en stop_sparen_jaar.`;
+  } else em = M.t == null ? '' : M.past ? 'naar schatting gepasseerd' : 'schatting, lineair tussen de standen per 1 januari';
+  const seg = `<div class="seg" role="group" aria-label="Doel" style="margin:4px 0 2px">${[1e6, 2e6, 3e6].map(v => `<button type="button" data-milt="${v}" aria-pressed="${T === v}">€ ${v / 1e6} mln</button>`).join('')}</div>`;
+  return `
+    <div class="tile mil" style="grid-column:1/-1"><span>Netto vermogen € ${T / 1e6} miljoen</span>${seg}<b>${head}</b>${milChart(M)}<em>${em}</em></div>`;
 }
 function renderKpis(onlyKpis) {
   const S = DATA.bn.S, E = DATA.bn.E;
@@ -1517,8 +1608,7 @@ function renderKpis(onlyKpis) {
     <h2 style="grid-column:1/-1;padding:10px 2px 0">${cur ? `Vermogen op 1 januari ${cur.year}` : 'Vermogen'}</h2>
     <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-vdet aria-controls="vDet" aria-expanded="${V_DET}"><span>Netto vermogen</span><i class="chev" aria-hidden="true">▾ ontwikkeling</i><b>${cur ? eur(cur.net) : '–'}</b><em>overwaarde + spaargeld</em></div>
     <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
-    <div class="tile"><span>Spaargeld</span><b>${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven (vuistregel: 3 à 6)` : ''}</em></div>${(M => !M ? '' : `
-    <div class="tile mil" style="grid-column:1/-1"><span>Netto vermogen € 1 miljoen</span><b>${M.t == null ? 'al vóór ' + new Date(M.before).getUTCFullYear() : (M.past ? 'sinds ' : '') + fmtMonth(M.t)}</b>${milChart(M)}<em>${M.t == null ? '' : M.past ? 'naar schatting gepasseerd' : M.extrap ? 'schatting: de groei van het laatste jaar doorgetrokken' : 'schatting, lineair tussen de standen per 1 januari'}</em></div>`)(miljoen())}`;
+    <div class="tile"><span>Spaargeld</span><b>${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven (vuistregel: 3 à 6)` : ''}</em></div>${(() => { try { return milTile(miljoen()); } catch (e) { console.error(e); return ''; } })()}`;
   if (onlyKpis) return;
   renderVDet();
   renderFlow();
@@ -1779,7 +1869,7 @@ function renderFlow() {
 $$('[data-flow]').forEach(b => b.addEventListener('click', () => { FLOW_PER = b.dataset.flow; setPressed('[data-flow]', 'data-flow', FLOW_PER); renderFlow(); }));
 // keuze netto / bruto / cao voor het uurloon
 let UUR_MODE = 'net';
-$('#kpis').addEventListener('click', e => { const b = e.target.closest('[data-uur]'); if (b) { UUR_MODE = b.dataset.uur; renderKpis(true); } });
+$('#kpis').addEventListener('click', e => { const b = e.target.closest('[data-uur]'); if (b) { UUR_MODE = b.dataset.uur; renderKpis(true); } const m = e.target.closest('[data-milt]'); if (m) { MIL_T = +m.dataset.milt; try { localStorage.setItem('milT', MIL_T); } catch (x) {} renderKpis(true); } });
 // ontwikkeling van het vermogen onder de vermogenstegels (tik op Netto vermogen)
 let V_DET = false;
 function renderVDet() {
@@ -3113,7 +3203,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 12:40';
+const APP_VERSION = '2026-11-21 13:00';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
