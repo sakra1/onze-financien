@@ -249,7 +249,7 @@ section[data-view].active { display: grid; }
       <label class="btn primary" for="fileMain">Kiezen</label>
     </div>
     <div class="filerow">
-      <div><b>2. Externe data</b><div class="tiny">externe_data.xlsx: cao-afspraken en parameters, en de openbare cijfers als reserve</div><div class="small" id="stExt"></div></div>
+      <div><b>2. Externe data (optioneel)</b><div class="tiny">externe_data.xlsx is niet meer nodig: de cao-afspraken (tabblad cao_NU) mogen in het financieel overzicht. Alleen nog als reserve voor de openbare cijfers.</div><div class="small" id="stExt"></div></div>
       <label class="btn primary" for="fileExt">Kiezen</label>
     </div>
     <div class="filerow">
@@ -467,7 +467,7 @@ section[data-view].active { display: grid; }
     <div class="tiny" style="padding:0 2px">Tik op een grafiek of schuif er met je vinger over om per jaar de bedragen te zien. Tik ernaast om ze weer te verbergen.</div>
     <div class="banner" id="caoBanner" style="display:none">
       <strong>Cao-gegevens ontbreken</strong>
-      <div class="small muted">Het tabblad <b>cao_NU</b> in externe_data.xlsx is leeg of het bestand is nog niet gekozen. Zonder cao-afspraken zijn alleen de inflatiegrafieken te zien.</div>
+      <div class="small muted">Er is geen tabblad <b>cao_NU</b> met cao-afspraken gevonden. Zet het in financieel_overzicht.xlsx. Zonder cao-afspraken zijn alleen de inflatiegrafieken te zien.</div>
       <div><label class="btn primary" for="fileExt">Externe data kiezen</label></div>
     </div>
 
@@ -1992,7 +1992,7 @@ function renderWInputs() {
 }
 function renderW() {
   const w = UI.w;
-  if (!TAX) { $('#wTiles').innerHTML = ''; $('#wChart').innerHTML = ''; $('#wTable').innerHTML = ''; $('#wNote').textContent = 'Voor deze berekening zijn de belastingparameters uit externe_data.xlsx nodig (eigenwoningforfait, Wet Hillen en box 3).'; return; }
+  if (!TAX) { $('#wTiles').innerHTML = ''; $('#wChart').innerHTML = ''; $('#wTable').innerHTML = ''; $('#wNote').textContent = 'Voor deze berekening zijn de belastingparameters uit het tabblad parameters nodig (eigenwoningforfait, Wet Hillen en box 3).'; return; }
   const base = simulate(w, 0), sc = simulate(w, w.extra, base.ew0);
   // netto rendement per extra euro, in het eerste jaar
   const P = DATA.bn.P, F0 = (w.wozF0 ?? w.woz0) * TAX.ewf, R0 = w.hyp0 * w.rente, h0 = hillenPct(w.year);
@@ -2398,7 +2398,7 @@ function renderNederland() {
   chips($('#nl3Chips'), [['C', 'Cao NU', '--s1'], ['M', 'Modaal', '--s3']].concat(wmlIdx.length ? [['W', 'Minimumloon', '--s2']] : []).concat(Object.keys(KK).length ? [['K', 'Koopkracht (CBS)', '--s4', true]] : []), NUI.n3, renderNederland);
   // 4. verdeling
   const ys = Object.keys(PCT).map(Number).sort((a, b) => a - b);
-  if (!ys.length) { $('#nl4Chart').innerHTML = '<div class="note">Nog geen percentielen in externe_data.xlsx.</div>'; $('#nl4Chips').innerHTML = ''; }
+  if (!ys.length) { $('#nl4Chart').innerHTML = '<div class="note">De percentielen zijn nog niet opgehaald bij CBS.</div>'; $('#nl4Chips').innerHTML = ''; }
   else {
     const bands = [[10, 90], [20, 80], [30, 70], [40, 60]].map(([lo, hi]) => ({ lo: new Map(ys.map(y => [y, PCT[y]['p' + lo]])), hi: new Map(ys.map(y => [y, PCT[y]['p' + hi]])), opacity: 0.12 }));
     lineChart($('#nl4Chart'), [
@@ -2673,7 +2673,7 @@ function renderInflatie() {
   const rows = DATA.verm.filter(v => decOf(v.year) != null && v.spaar);
   const loss = {}, gain = {};
   rows.forEach(v => { loss[v.year] = -v.spaar * decOf(v.year) / 100; gain[v.year] = v.spaar * r; });
-  $('#infDecNote').textContent = Object.keys(CPI_DEC).length ? 'Inflatie gemeten van december tot december (CBS), omdat het spaargeld een stand op één moment is.' : 'Let op: externe_data.xlsx bevat nog geen december-inflatie (kolom inflatie_dec); de jaarinflatie wordt als benadering gebruikt. Draai het notebook opnieuw.';
+  $('#infDecNote').textContent = Object.keys(CPI_DEC).length ? 'Inflatie gemeten van december tot december (CBS), omdat het spaargeld een stand op één moment is.' : 'Let op: de december-inflatie is nog niet opgehaald; de jaarinflatie wordt als benadering gebruikt.';
   const cats = rows.map(v => v.year);
   $('#infLegend').innerHTML = [['Verlies door inflatie', '--s2'], ['Opbrengst spaarrente', '--s3']].map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
   barChart($('#infChart'), cats, [
@@ -2700,7 +2700,7 @@ GUI.pctv = 'eur'; GUI.pctOn = { S: true, E: true, T: true, M: true };
 function renderPercentiel() {
   const A = yearAgg();
   const ys = Object.keys(PCT).map(Number).filter(y => A[y] && A[y].n >= 12).sort((a, b) => a - b);
-  if (!ys.length) { $('#pctChart').innerHTML = '<div class="note">Nog geen percentielen in externe_data.xlsx. Draai het notebook (de cel die externe_data wegschrijft) en kies het bestand opnieuw.</div>'; $('#pctChips').innerHTML = ''; return; }
+  if (!ys.length) { $('#pctChart').innerHTML = '<div class="note">De percentielen zijn nog niet opgehaald bij CBS.</div>'; $('#pctChips').innerHTML = ''; return; }
   const pos = GUI.pctv === 'pos';
   const v = (y, k) => k === 'M' ? MODAAL[y] : A[y][{ S: 'sb', E: 'eb', T: 'tb' }[k]];
   const mk = k => ys.filter(y => v(y, k)).map(y => ({ x: y, y: pos ? pctPos(v(y, k), PCT[y]) : v(y, k), prog: A[y].prog }));
@@ -2748,7 +2748,8 @@ function buildFromWorkbook(wb, fileName) {
     inuit: parseInUit(aoaOf(wb, 'in_uit')),
     bn: parseBN(aoaOf(wb, 'bruto-netto'), hist),
     parY: parseParamsSheet(aoaOf(wb, 'parameters')),
-    hyp: parseHyp(aoaOf(wb, 'hypotheek'))
+    hyp: parseHyp(aoaOf(wb, 'hypotheek')),
+    cao: aoaOf(wb, 'cao_nu') ? (parseCao(aoaOf(wb, 'cao_nu')) || []) : []
   };
   d.verm = alignVerm(d.vermRaw);
   if (!d.hist.length) throw new Error('Geen salarisregels gevonden in "salaris geschiedenis".');
@@ -2935,7 +2936,7 @@ function applyExt(ext) {
   CPI_DEC = overlay(ext?.cpiDec, LIVE?.cpiDec);
   KK = overlay(ext?.kk, LIVE?.kk);
   PCT = overlay(ext?.pct, LIVE?.pct);
-  CAO_FILE = ext && ext.cao.length ? { events: ext.cao, fileName: ext.fileName } : null;
+  CAO_FILE = DATA && DATA.cao && DATA.cao.length ? { events: DATA.cao, fileName: DATA.fileName } : ext && ext.cao && ext.cao.length ? { events: ext.cao, fileName: ext.fileName } : null;
   if (ext && !ext.paramsXls) ext.paramsXls = { ...ext.params };
   if (ext) ext.params = mergedParams(THIS_YEAR);
   applyParamDerived();
@@ -3026,29 +3027,28 @@ function updateStatus() {
   document.body.classList.toggle('nodata', !has);
   $('#demoBanner').style.display = has ? 'none' : '';
   const miss = [];
-  if (has && !EXT) miss.push('Kies ook <b>externe_data.xlsx</b>. Zonder dat bestand ontbreken de cao-afspraken en de parameters (vakantiegeld, eindejaarsuitkering, belastingregels voor eigen woning en box 3).');
-  else if (has) {
+  if (has) {
     const mp = missingParams();
-    if (mp.length) miss.push('In externe_data.xlsx (tabblad parameters) ontbreken: ' + mp.join(', ') + '.');
-    if (!CPI_LAST) miss.push('De inflatie ontbreekt: niet opgehaald bij CBS en niet in externe_data.xlsx.');
-    if (!Object.keys(MODAAL).length) miss.push('Het modale inkomen ontbreekt: niet opgehaald en niet in externe_data.xlsx.');
-    if (!Object.keys(PCT).length) miss.push('De inkomenspercentielen ontbreken: niet opgehaald bij CBS en niet in externe_data.xlsx.');
-    if (!CAO_FILE) miss.push('In externe_data.xlsx (tabblad cao_NU) staan geen cao-afspraken.');
+    if (mp.length) miss.push('In het tabblad parameters ontbreken: ' + mp.join(', ') + '.');
+    if (!CPI_LAST) miss.push('De inflatie ontbreekt: nog niet opgehaald bij CBS.');
+    if (!Object.keys(MODAAL).length) miss.push('Het modale inkomen ontbreekt: nog niet opgehaald bij Wikipedia.');
+    if (!Object.keys(PCT).length) miss.push('De inkomenspercentielen ontbreken: nog niet opgehaald bij CBS.');
+    if (!CAO_FILE) miss.push('Er zijn geen cao-afspraken gevonden: zet het tabblad cao_NU in financieel_overzicht.xlsx.');
   }
   $('#extBanner').style.display = miss.length ? '' : 'none';
   $('#extMsg').innerHTML = miss.map(m => `<div>${m}</div>`).join('');
   const dd = t => new Date(t).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
   const parts = [];
   parts.push(DATA ? `Overzicht ${dd(DATA.loadedAt)}` : 'Overzicht ontbreekt');
-  parts.push(EXT ? `Extern ${dd(EXT.loadedAt)}` : 'Extern ontbreekt');
+  if (EXT && !EXT.virtual) parts.push(`Extern ${dd(EXT.loadedAt)}`);
   if (LIVE && LIVE.fetchedAt) parts.push(`CBS ${dd(LIVE.fetchedAt)}`);
-  $('#srcLabel').textContent = !DATA && !EXT ? 'Nog geen gegevens geladen' : parts.join(' · ');
+  $('#srcLabel').textContent = !DATA && (!EXT || EXT.virtual) ? 'Nog geen gegevens geladen' : parts.join(' · ');
   const d8 = t => new Date(t).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
   $('#stMain').innerHTML = DATA ? `<span class="pos">✓</span> ${esc(DATA.fileName || 'geladen')}, ${d8(DATA.loadedAt)}` : '<span class="neg">Nog niet gekozen</span>';
-  $('#stExt').innerHTML = EXT ? `<span class="pos">✓</span> ${esc(EXT.fileName || 'geladen')}, ${d8(EXT.loadedAt)}` : '<span class="neg">Nog niet gekozen</span>';
+  $('#stExt').innerHTML = EXT && !EXT.virtual ? `<span class="pos">✓</span> ${esc(EXT.fileName || 'geladen')}, ${d8(EXT.loadedAt)}${DATA && DATA.cao && DATA.cao.length && EXT.cao && EXT.cao.length ? ' (cao-afspraken komen uit het financieel overzicht)' : ''}` : 'Niet gekozen, niet nodig';
   const st = LIVE && LIVE.status ? LIVE.status : {};
   const liveTxt = Object.keys(LIVE_SOURCES).map(k => `${LIVE_NAMES[k]}: ${st[k] === 'live' ? '<span class="pos">✓ live</span>' : st[k] === 'cache' ? 'bewaarde versie' : '<span class="neg">niet bereikbaar</span>'}`).join(', ');
-  $('#stLive').innerHTML = LIVE ? `${liveTxt}${LIVE.fetchedAt ? `. Laatst opgehaald ${d8(LIVE.fetchedAt)}.` : ''}` : (LIVE_FAIL ? '<span class="neg">Niet bereikbaar.</span> De app gebruikt de cijfers uit externe_data.xlsx.' : 'Nog niet opgehaald.');
+  $('#stLive').innerHTML = LIVE ? `${liveTxt}${LIVE.fetchedAt ? `. Laatst opgehaald ${d8(LIVE.fetchedAt)}.` : ''}` : (LIVE_FAIL ? (EXT && !EXT.virtual ? '<span class="neg">Niet bereikbaar.</span> De app gebruikt de cijfers uit externe_data.xlsx.' : '<span class="neg">Niet bereikbaar.</span> Probeer het later opnieuw.') : 'Nog niet opgehaald.');
   const src = [];
   if (CPI_LAST) src.push(`Inflatie: CBS (jaarmutatie CPI) t/m ${CPI_LAST}`);
   const my = Object.keys(MODAAL).map(Number); if (my.length) src.push(`modaal t/m ${Math.max(...my)}`);
@@ -3057,9 +3057,11 @@ function updateStatus() {
   const hn = $('#halfNote'); if (hn) hn.textContent = HALFJAAR ? `In ${HALFJAAR} telt de helft van het jaarinkomen, omdat de hypotheek toen een half jaar liep.` : '';
   const ku = $('#k5Unit'); if (ku) ku.textContent = REF_SAMEN ? `index, samen ${REF_SAMEN} = 100` : 'index';
 }
+// zonder externe_data.xlsx: een lege stand-in, zodat parameters en cao uit het financieel overzicht komen
+const virtualExt = () => ({ virtual: true, fileName: null, loadedAt: Date.now(), cpi: {}, cpiDec: {}, kk: {}, modaal: {}, pct: {}, params: {}, cao: [] });
 function applyData(d) {
   DATA = d;
-  syncParams();
+  applyExt(EXT && !EXT.virtual ? EXT : virtualExt());
   recomputeVerm();
   initBN(); initInUit(); initW();
   updateStatus();
@@ -3069,7 +3071,7 @@ function save() {
   try {
     const keep = $('#rememberChk').checked;
     if (keep && DATA) localStorage.setItem(STORE_KEY, JSON.stringify(DATA)); else localStorage.removeItem(STORE_KEY);
-    if (keep && EXT) localStorage.setItem(STORE_KEY + '-ext', JSON.stringify(EXT)); else localStorage.removeItem(STORE_KEY + '-ext');
+    if (keep && EXT && !EXT.virtual) localStorage.setItem(STORE_KEY + '-ext', JSON.stringify(EXT)); else localStorage.removeItem(STORE_KEY + '-ext');
     localStorage.setItem(STORE_KEY + '-remember', keep ? '1' : '0');
   } catch (e) { /* opslag niet beschikbaar */ }
 }
@@ -3112,7 +3114,7 @@ async function handleFiles(e, slot) {
       if (!isMain && slot === 'main') notes.push(`Let op: ${file.name} is niet het financieel overzicht. Ik probeer het als externe data in te laden.`);
       if (isMain) {
         applyData(buildFromWorkbook(wb, file.name));
-        notes.push(`${file.name}: ${DATA.hist.length} salarisregels, ${DATA.verm.length} jaren vermogen, ${DATA.inuit.uit.length} uitgavenposten.`);
+        notes.push(`${file.name}: ${DATA.hist.length} salarisregels, ${DATA.verm.length} jaren vermogen, ${DATA.inuit.uit.length} uitgavenposten${DATA.cao.length ? `, ${DATA.cao.length} cao-afspraken` : ''}.`);
       } else {
         const ext = parseExt(wb, file.name);
         applyExt(ext);
@@ -3203,7 +3205,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 13:00';
+const APP_VERSION = '2026-11-21 13:20';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
