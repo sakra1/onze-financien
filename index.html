@@ -1074,12 +1074,15 @@ function renderIncome() {
 // Zelfde maandloon, toelagen en vaste vergoedingen als de laatste gewone maand; cao-verhogingen uit cao_nu op hun datum;
 // vakantiegeld in mei en eindejaarsuitkering in november (zoals op de loonstroken); netto met de bruto-nettoberekening van de app
 // (belastingregels uit het tabblad bruto-netto). Wat je zelf invult, telt als werkelijk.
+// een maand is werkelijk als er voor Sander of Ellen zowel een netto bedrag als een bruto maandloon staat;
+// formules over lege cellen (0) of een netto-formule zonder salaris tellen niet mee
+const isRealMonth = r => ((r.sn || 0) > 0 && (r.bs || 0) > 0) || ((r.en || 0) > 0 && (r.be || 0) > 0);
 function projectHist() {
   if (!DATA || !DATA.hist) return;
   if (!DATA.histXls) DATA.histXls = DATA.hist.filter(r => !r.proj);
   // een maand telt als werkelijk zodra er een netto bedrag staat; rijen met alleen datum, fte of formules
   // zijn lege plekken voor de prognose (een ingevulde fte daar wordt wel gebruikt)
-  const real = r => (r.sn || 0) > 0 || (r.en || 0) > 0;
+  const real = isRealMonth;
   const lastReal = DATA.histXls.filter(real).pop();
   const H = DATA.histXls.filter(r => real(r) || !lastReal || r.d <= lastReal.d);
   const slots = {}; for (const r of DATA.histXls) if (lastReal && r.d > lastReal.d && !real(r)) { const t = new Date(r.d); slots[`${t.getUTCFullYear()}-${t.getUTCMonth() + 1}`] = r; }
@@ -1146,7 +1149,7 @@ function renderWerkelijk() {
   if (!DATA || DATA.demo) { host.innerHTML = ''; return; }
   const yr = a => a.length ? (a[0] === a[a.length - 1] ? `${a[0]}` : `${a[0]}–${a[a.length - 1]}`) : '–';
   const rows = [];
-  const real = (DATA.histXls || DATA.hist || []).filter(r => (r.sn || 0) > 0 || (r.en || 0) > 0).pop();
+  const real = (DATA.histXls || DATA.hist || []).filter(isRealMonth).pop();
   if (real) rows.push(['Salarissen', fmtMonth(real.d), DATA.histProj ? `${fmtMonth(DATA.histProj.from)} – ${fmtMonth(DATA.histProj.to)}` : '–',
     'laatste loonstrook doorgetrokken, met cao_nu; VU mei, EJU november; netto met je belastingregels']);
   const PE = DATA.pensEst || {}, pe = Object.keys(PE).map(Number).sort((a, b) => a - b);
@@ -2911,7 +2914,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 08:45';
+const APP_VERSION = '2026-11-21 09:05';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
