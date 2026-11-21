@@ -367,10 +367,10 @@ section[data-view].active { display: grid; }
   <!-- ============ INKOMEN ============ -->
   <section data-view="inkomen" aria-label="Inkomen">
     <div class="seg subseg" role="group" aria-label="Weergave">
-      <button type="button" data-sub="ov-ink" aria-pressed="true">Over de jaren</button>
-      <button type="button" data-sub="bn" aria-pressed="false">Loon en belasting</button>
+      <button type="button" data-sub="bn" aria-pressed="true">Loon en belasting</button>
+      <button type="button" data-sub="ov-ink" aria-pressed="false">Over de jaren</button>
     </div>
-    <div class="sub active" data-subview="ov-ink">
+    <div class="sub" data-subview="ov-ink">
     <div class="controls jump" aria-label="Spring naar">
       <button type="button" class="chip" data-jump="sec-inkomen">Inkomen</button>
       <button type="button" class="chip" data-jump="sec-opbouw">Bruto-netto</button>
@@ -443,7 +443,7 @@ section[data-view].active { display: grid; }
 
     <div class="note src-note" style="padding:0 2px"></div>
     </div>
-    <div class="sub" data-subview="bn">
+    <div class="sub active" data-subview="bn">
       <div class="bnbar">
         <div class="seg" role="group" aria-label="Persoon">
           <button type="button" data-person="S" aria-pressed="true">Sander</button>
@@ -3371,8 +3371,8 @@ setHdr(); window.addEventListener('resize', setHdr);
 
 const VIEWS = ['nu', 'nederland', 'inkomen', 'carriere', 'vermogen'];
 // oude bladwijzers blijven werken
-const ALIAS = { grafieken: ['inkomen'], rekenen: ['inkomen', 'bn'], 'bruto-netto': ['inkomen', 'bn'], maand: ['nu'], koopkracht: ['carriere'], 'wat-als': ['vermogen', 'wa'] };
-const SUBS = { inkomen: 'ov-ink', vermogen: 'ov-verm' };
+const ALIAS = { grafieken: ['inkomen', 'ov-ink'], rekenen: ['inkomen', 'bn'], 'bruto-netto': ['inkomen', 'bn'], maand: ['nu'], koopkracht: ['carriere'], 'wat-als': ['vermogen', 'wa'] };
+const SUBS = { inkomen: 'bn', vermogen: 'ov-verm' };
 function setSub(v) {
   const d = $(`[data-subview="${v}"]`); if (!d) return;
   const sec = d.closest('section[data-view]');
@@ -3416,7 +3416,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 20:00';
+const APP_VERSION = '2026-11-21 20:10';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
