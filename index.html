@@ -1419,6 +1419,21 @@ function chips(host, defs, onMap, rerender) {
     host.appendChild(b);
   }
 }
+// wanneer passeert het netto vermogen € 1 miljoen? Lineair tussen de standen per 1 januari (incl. de schattingen van de app),
+// voorbij de laatste stand doorgetrokken met de stijging van het laatste jaar
+function miljoen(T = 1e6) {
+  const V = (DATA.verm || []).filter(r => r.net != null && isFinite(r.net)).map(r => ({ t: Date.UTC(r.year, 0, 1), v: r.net, est: !!(r.wozEst || r.hypEst || r.spaarEst) }));
+  if (V.length < 2) return null;
+  if (V[0].v >= T) return { t: null, past: true, before: V[0].t };
+  for (let i = 1; i < V.length; i++) if (V[i].v >= T) {
+    const a = V[i - 1], b = V[i], t = a.t + (T - a.v) / (b.v - a.v) * (b.t - a.t);
+    return { t, past: t <= Date.now(), est: a.est || b.est, extrap: false };
+  }
+  const a = V[V.length - 2], b = V[V.length - 1], slope = (b.v - a.v) / (b.t - a.t);
+  if (slope <= 0) return null;
+  const t = b.t + (T - b.v) / slope;
+  return { t, past: false, est: true, extrap: true };
+}
 function renderKpis(onlyKpis) {
   const S = DATA.bn.S, E = DATA.bn.E;
   const m = inuitTotals();
@@ -1460,7 +1475,8 @@ function renderKpis(onlyKpis) {
     <h2 style="grid-column:1/-1;padding:10px 2px 0">${cur ? `Vermogen op 1 januari ${cur.year}` : 'Vermogen'}</h2>
     <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-vdet aria-controls="vDet" aria-expanded="${V_DET}"><span>Netto vermogen</span><i class="chev" aria-hidden="true">▾ ontwikkeling</i><b>${cur ? eur(cur.net) : '–'}</b><em>overwaarde + spaargeld</em></div>
     <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
-    <div class="tile"><span>Spaargeld</span><b>${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven (vuistregel: 3 à 6)` : ''}</em></div>`;
+    <div class="tile"><span>Spaargeld</span><b>${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven (vuistregel: 3 à 6)` : ''}</em></div>${(M => !M ? '' : `
+    <div class="tile mil" style="grid-column:1/-1"><span>Netto vermogen € 1 miljoen</span><b>${M.t == null ? 'al vóór ' + new Date(M.before).getUTCFullYear() : (M.past ? 'sinds ' : '') + fmtMonth(M.t)}</b><em>${M.t == null ? '' : M.past ? 'naar schatting gepasseerd' : M.extrap ? 'schatting: de groei van het laatste jaar doorgetrokken' : 'schatting, lineair tussen de standen per 1 januari'}${M.est ? ' · met de schattingen van de app (WOZ via CBS-index, spaargeld en hypotheek)' : ''}</em></div>`)(miljoen())}`;
   if (onlyKpis) return;
   renderVDet();
   renderFlow();
@@ -3055,7 +3071,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 11:40';
+const APP_VERSION = '2026-11-21 11:55';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
