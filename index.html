@@ -95,6 +95,8 @@ main { max-width: 720px; margin: 0 auto; padding: 14px 16px calc(120px + env(saf
 .btn.sm { padding: 6px 14px; font-size: 14px; min-height: 0; }
 .dp-chk { display: flex; align-items: center; gap: 8px; padding: 6px 0 2px; border-top: 1px solid var(--line); }
 .dp-more { border-top: 1px solid var(--line); padding: 7px 0 0; }
+.toel { border-top: 0; padding-top: 2px; }
+.toel > summary { font-weight: 400 !important; font-size: 12px !important; color: var(--ink-3); padding: 0 0 2px !important; }
 .dp-more > summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 2px 0 6px; }
 .dp-more[open] > summary { margin-bottom: 2px; }
 .filerow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
@@ -306,12 +308,12 @@ section[data-view].active { display: grid; }
     <div class="card" id="mDetIn" hidden>
       <div class="card-head"><h2>Alle inkomsten</h2><span class="num" id="inTotal"></span></div>
       <div id="mIncome"></div>
-      <div class="note">Per maand gemiddeld. Bedragen met "berekend" rekent de app zelf uit (Loon en belasting); de rest komt uit het tabblad in_uit.</div>
+      <details class="dp-more toel"><summary>Toelichting</summary><div class="tiny muted">Per maand gemiddeld. Bedragen met "berekend" rekent de app zelf uit (Loon en belasting); de rest komt uit het tabblad in_uit.</div></details>
     </div>
     <div class="card" id="mDetUit" hidden>
       <div class="card-head"><h2>Waar gaat het geld heen?</h2><span class="tiny">tik voor de posten</span></div>
       <div class="bars" id="mBars"></div>
-      <div class="note">Per maand, als deel van de totale inkomsten, volgens het tabblad in_uit van de Excel. Jaar-, kwartaal- en weekbedragen zijn omgerekend naar een maand.</div>
+      <details class="dp-more toel"><summary>Toelichting</summary><div class="tiny muted">Per maand, als deel van de totale inkomsten, volgens het tabblad in_uit van de Excel. Jaar-, kwartaal- en weekbedragen zijn omgerekend naar een maand.</div></details>
     </div>
     <div class="card" id="flowCard">
       <div class="card-head"><h2>Waar blijft elke euro?</h2>
@@ -319,7 +321,7 @@ section[data-view].active { display: grid; }
       </div>
       <div class="chart" id="flowChart" style="overflow:visible"></div>
       <div class="small" id="flowInfo" style="min-height:2.6em"></div>
-      <div class="note">Van bruto (Sander, Ellen en overige inkomsten) via loonheffing en pensioenpremie naar netto, en van netto naar de uitgavengroepen en sparen. Lonen zoals in Inkomen → Loon en belasting, inclusief vakantiegeld, eindejaarsuitkering, toelage, DCA en vergoedingen; uitgaven en overige inkomsten uit het tabblad in_uit. Sparen is wat er overblijft, en kan daardoor iets afwijken van het maandbudget. Tik op een stroom of blok voor de bedragen.</div>
+      <details class="dp-more toel"><summary>Toelichting</summary><div class="tiny muted">Van bruto (Sander, Ellen en overige inkomsten) via loonheffing en pensioenpremie naar netto, en van netto naar de uitgavengroepen en sparen. Lonen zoals in Inkomen → Loon en belasting, inclusief vakantiegeld, eindejaarsuitkering, toelage, DCA en vergoedingen; uitgaven en overige inkomsten uit het tabblad in_uit. Sparen is wat er overblijft, en kan daardoor iets afwijken van het maandbudget. Tik op een stroom of blok voor de bedragen.</div></details>
     </div>
     <div class="tiles" id="kpis"></div>
   </section>
@@ -1647,6 +1649,7 @@ function vermNu() {
   const pct = h ? woz / h.woz - 1 : 0;
   return { t: now, woz, hyp, spaar, net: woz - hyp + spaar, v0, wozHow: h ? `WOZ ${eur(h.woz)} (1 jan ${h.year}) ${pct >= 0 ? '+' : '−'}${PCT1.format(Math.abs(pct))} via CBS-index${ext ? ', doorgetrokken tot vandaag' : ''}` : 'WOZ per 1 januari', hypHow, spHow };
 }
+const toel = (html, sum = 'Toelichting', style = '') => `<details class="dp-more toel"${style ? ` style="${style}"` : ''}><summary>${sum}</summary><div class="tiny muted">${html}</div></details>`;
 function renderKpis(onlyKpis) {
   const S = DATA.bn.S, E = DATA.bn.E;
   const m = inuitTotals();
@@ -1686,11 +1689,11 @@ function renderKpis(onlyKpis) {
       <h2 style="margin:0">Uurloon</h2>
       <div class="seg" role="group" aria-label="Soort uurloon">${[['net', 'Netto'], ['bruto', 'Bruto'], ['cao', 'Cao']].map(([k, l]) => `<button type="button" data-uur="${k}" aria-pressed="${UUR_MODE === k}">${l}</button>`).join('')}</div>
     </div><div class="tiles3${wmlTile ? ' four' : ''}">${uurTiles}</div>
-    <div class="note" style="grid-column:1/-1;margin-top:-4px">${uurNote} Per uur: gedeeld door 165 uur per maand × deeltijdfactor (38 uur per week is voltijd). Reiskosten en andere vergoedingen tellen niet mee.${modUur ? ` Modaal: ${eur(MODAAL[modY])} bruto per jaar (CPB), voltijd${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : UUR_MODE === 'cao' ? ', maandloon zonder vakantiegeld ÷ 165' : ''}.` : ''}${wmlUur ? ` Minimumloon: € ${NUM2.format(LIVE.wml[wmlD])} bruto per uur voor 21 jaar en ouder (Wikipedia)${UUR_MODE === 'cao' ? '' : ', plus 8% vakantiegeld'}${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : ''}.` : ''}</div>` : '') + `
+    ${toel(`${uurNote} Per uur: gedeeld door 165 uur per maand × deeltijdfactor (38 uur per week is voltijd). Reiskosten en andere vergoedingen tellen niet mee.${modUur ? ` Modaal: ${eur(MODAAL[modY])} bruto per jaar (CPB), voltijd${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : UUR_MODE === 'cao' ? ', maandloon zonder vakantiegeld ÷ 165' : ''}.` : ''}${wmlUur ? ` Minimumloon: € ${NUM2.format(LIVE.wml[wmlD])} bruto per uur voor 21 jaar en ouder (Wikipedia)${UUR_MODE === 'cao' ? '' : ', plus 8% vakantiegeld'}${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : ''}.` : ''}`, 'Toelichting', 'grid-column:1/-1;margin-top:-6px')}` : '') + `
     <h2 style="grid-column:1/-1;padding:10px 2px 0">${NU ? 'Vermogen vandaag <span class="tiny muted" style="font-weight:400">schatting</span>' : cur ? `Vermogen op 1 januari ${cur.year}` : 'Vermogen'}</h2>
     <div class="tile" style="grid-column:1/-1"><span>Netto vermogen</span><b>${cur ? eur(cur.net) : '–'}</b><em>overwaarde + spaargeld${NU && NU.v0 && NU.v0.net != null ? ` · op 1 januari ${NU.v0.year}: ${eur(NU.v0.net)}` : ''}</em></div>
-    <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}${NU ? `<br>${esc(NU.wozHow)}; hypotheek volgens ${esc(NU.hypHow)}` : ''}</em></div>
-    <div class="tile"><span>Spaargeld</span><b>${cur ? eur(cur.spaar) : '–'}</b><em>${NU ? `${esc(NU.spHow)}. ` : ''}${buf != null ? `Buffer van ${NUM2.format(buf)} maanden uitgaven (vuistregel: 3 à 6)` : ''}</em></div>${(() => { try { return milTile(miljoen()); } catch (e) { console.error(e); return ''; } })()}`;
+    <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
+    <div class="tile"><span>Spaargeld</span><b>${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven` : ''}</em></div>${NU ? toel(`Huis: ${esc(NU.wozHow)}. Hypotheek: ${esc(NU.hypHow)}. Spaargeld: ${esc(NU.spHow)}. Buffer: spaargeld gedeeld door de maanduitgaven (vuistregel: 3 à 6 maanden).`, 'Hoe geschat', 'grid-column:1/-1;margin-top:-6px') : ''}${(() => { try { return milTile(miljoen()); } catch (e) { console.error(e); return ''; } })()}`;
   if (onlyKpis) return;
   renderFlow();
 }
@@ -2042,7 +2045,7 @@ function renderMaandSummary() {
   $('#mTiles').innerHTML = `
     <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-det="in" aria-controls="mDetIn"><span>Inkomsten per maand</span><i class="chev" aria-hidden="true">▾ details</i><b>${eur(t.in)}</b><em>gemiddeld, incl. vakantiegeld e.d.${(() => { const n = UI.inuitEdits.inn.filter(i => /netto\s*salaris/i.test(i.label)).reduce((a, i) => a + i.amount * PER[i.per], 0); return n ? `; waarvan netto salaris ${eur(n)}` : ''; })()}</em></div>
     <div class="tile tap" role="button" tabindex="0" data-det="uit" aria-controls="mDetUit"><span>Uitgaven</span><i class="chev" aria-hidden="true">▾ details</i><b>${eur(t.uit)}</b><em>${PCT1.format(t.in ? t.uit / t.in : 0)} van de inkomsten</em></div>
-    <div class="tile"><span>Sparen (begroting)</span><b>${eur(t.spaar)}</b><em>${PCT1.format(t.in ? t.spaar / t.in : 0)} van de inkomsten, ${eur(t.spaar * 12)} per jaar${(r => r && r.svEst != null ? `<br><span class="exp">verwacht ${eur(r.svEst / 12)} per maand</span> (${r.year}, op basis van de uitgaven in ${DATA.proj && DATA.proj.anchor})` : '')((DATA.vermRaw || []).find(r => r.year === THIS_YEAR))}</em></div>`;
+    <div class="tile"><span>Sparen (begroting)</span><b>${eur(t.spaar)}</b><em>${PCT1.format(t.in ? t.spaar / t.in : 0)} van de inkomsten${(r => r && r.svEst != null ? `<br><span class="exp" title="${r.year}, op basis van de werkelijke uitgaven in ${DATA.proj && DATA.proj.anchor}">verwacht ${eur(r.svEst / 12)}</span>` : '')((DATA.vermRaw || []).find(r => r.year === THIS_YEAR))}</em></div>`;
   applyDet();
   // één overzicht: per groep een balk; tik op een groep om de losse posten te zien
   const groups = {};
@@ -3488,7 +3491,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 22:20';
+const APP_VERSION = '2026-11-21 22:35';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
