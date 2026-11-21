@@ -105,6 +105,14 @@ body.nodata main > section { display: none !important; }
 table.schat { font-size: 12px; font-variant-numeric: tabular-nums; width: 100%; }
 table.schat th, table.schat td { padding: 5px 3px; }
 table.schat th:first-child { text-align: left; font-weight: 400; white-space: nowrap; }
+#stEst table.schat th:first-child { white-space: normal; }
+#stEst table.schat th:first-child .tiny { font-weight: 400; }
+#stEst { margin-top: 6px; }
+.wg { display: grid; gap: 6px; margin: 6px 0; }
+.wg-r { border-top: 1px solid var(--line); padding-top: 6px; }
+.wg-h { display: flex; justify-content: space-between; gap: 8px; }
+.wg-h span { color: var(--ink-2); white-space: nowrap; }
+.wg-e { font-size: 12px; color: var(--ink-2); }
 table.schat td { text-align: right; white-space: nowrap; }
 table.schat td.est { font-weight: 600; }
 table.schat tr.sum th, table.schat tr.sum td { font-weight: 700; border-top: 1px solid var(--line); }
@@ -241,6 +249,7 @@ section[data-view].active { display: grid; }
     </div>
     <input type="file" id="fileMain" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <input type="file" id="fileExt" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+    <div class="small" id="stEst"></div>
     <div class="controls"><button class="btn" type="button" id="forgetBtn">Vergeet gegevens</button></div>
     <div class="filerow"><div class="tiny">App-versie <span id="appVer"></span><br><span id="updMsg"></span></div><button class="btn" type="button" id="updBtn">Zoek nieuwe versie</button></div>
     <label class="small"><input type="checkbox" id="rememberChk"> Onthoud de gegevens op dit toestel, zodat ik de bestanden niet elke keer hoef te kiezen</label>
@@ -1130,6 +1139,32 @@ function estPens() {
       (est[y] = est[y] || {})[w] = true;
     }
   }
+}
+// samenvatting in het gegevenspaneel: per onderdeel tot wanneer het werkelijk is en wat de app schat
+function renderWerkelijk() {
+  const host = $('#stEst'); if (!host) return;
+  if (!DATA || DATA.demo) { host.innerHTML = ''; return; }
+  const yr = a => a.length ? (a[0] === a[a.length - 1] ? `${a[0]}` : `${a[0]}–${a[a.length - 1]}`) : '–';
+  const rows = [];
+  const real = (DATA.histXls || DATA.hist || []).filter(r => (r.sn || 0) > 0 || (r.en || 0) > 0).pop();
+  if (real) rows.push(['Salarissen', fmtMonth(real.d), DATA.histProj ? `${fmtMonth(DATA.histProj.from)} – ${fmtMonth(DATA.histProj.to)}` : '–',
+    'laatste loonstrook doorgetrokken, met cao_nu; VU mei, EJU november; netto met je belastingregels']);
+  const PE = DATA.pensEst || {}, pe = Object.keys(PE).map(Number).sort((a, b) => a - b);
+  const pReal = Object.keys(DATA.pensXls || {}).map(Number).filter(y => (DATA.pensXls[y].S || 0) > 0 || (DATA.pensXls[y].E || 0) > 0);
+  if (pReal.length || pe.length) rows.push(['Pensioenpremie (OP)', pReal.length ? `${Math.max(...pReal)}` : '–', yr(pe), 'ABP-regels uit bruto-netto']);
+  const raw = (DATA.vermRaw || []).slice().sort((a, b) => a.year - b.year);
+  const hE = raw.filter(r => r.est && r.est.hyp).map(r => r.year), hR = raw.filter(r => r.hyp != null && !(r.est && r.est.hyp)).map(r => r.year);
+  if (hR.length || hE.length) rows.push(['Hypotheek, rente, aflossing', hR.length ? `31-12-${Math.max(...hR)}` : '–', yr(hE), 'annuïteit uit tabblad hypotheek, extra aflossing in december']);
+  const sE = raw.filter(r => r.est && r.est.spaar).map(r => r.year), sR = raw.filter(r => r.spaar != null && !(r.est && r.est.spaar)).map(r => r.year);
+  if (sR.length || sE.length) rows.push(['Spaargeld', sR.length ? `1-1-${Math.max(...sR)}` : '–', sE.length ? (sE.length > 1 ? `1-1-${sE[0]} – 1-1-${sE[sE.length - 1]}` : `1-1-${sE[0]}`) : '–', 'netto inkomen − uitgaven (+ inflatie) − woonlasten − extra aflossing']);
+  const svE = raw.filter(r => r.svEst != null).map(r => r.year);
+  if (svE.length) rows.push(['Spaarvermogen', `${DATA.proj && DATA.proj.anchor || '–'}`, yr(svE), 'zie spaargeld']);
+  const V = DATA.verm || [], wE = V.filter(v => v.wozEst).map(v => v.year), wR = V.filter(v => !v.wozEst && v.woz != null).map(v => v.year);
+  if (wR.length || wE.length) rows.push(['WOZ (peildatum 1-1)', wR.length ? `${Math.max(...wR)}` : '–', yr(wE), (V.find(v => v.wozEst) || {}).wozHow ? 'CBS-prijsindex vanaf de laatste officiële WOZ' : '–']);
+  if (typeof huisSchatting === 'function' && huisSchatting()) rows.push(['Waarde huis vandaag', '–', 'vandaag', 'CBS-prijsindex']);
+  host.innerHTML = rows.length ? `<b>Werkelijk en geschat</b>
+    <div class="wg">${rows.map(r => `<div class="wg-r"><div class="wg-h"><b>${r[0]}</b><span>werkelijk t/m ${r[1]}</span></div><div class="wg-e">geschat: <b>${r[2]}</b> · ${r[3]}</div></div>`).join('')}</div>
+    <div class="tiny">"Werkelijk" is wat je in je Excel hebt ingevuld. Alle geschatte bedragen per jaar staan onder Vermogen → Wat de app heeft geschat.</div>` : '';
 }
 // ===== Doorrekenen van wat nog niet in de Excel staat =====
 // Lege cellen in "vermogen IB" (hypotheek 31-12, rente, aflossing, spaargeld 1-1) rekent de app uit;
@@ -2864,6 +2899,7 @@ function renderCharts() {
 function renderAll() {
   if (!DATA) return;
   recomputeVerm();
+  renderWerkelijk();
   renderKpis(); renderBNInputs(); renderBN(); renderMaand(); renderWInputs();
   renderCharts();
 }
@@ -2875,7 +2911,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 08:30';
+const APP_VERSION = '2026-11-21 08:45';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
