@@ -179,6 +179,8 @@ details.gbar .items { margin: 6px 0 4px; padding: 6px 0 2px 10px; border-left: 2
 .chip i { width: 14px; height: 3px; border-radius: 2px; background: var(--c); display: inline-block; }
 .chip i.dash { width: 16px; border-radius: 0; background: repeating-linear-gradient(90deg, var(--c) 0 5px, transparent 5px 8px); }
 .chip[aria-pressed="false"] { color: var(--ink-3); }
+.controls.jump { flex-wrap: nowrap; gap: 6px; }
+.controls.jump .chip { flex: 1 1 auto; justify-content: center; white-space: nowrap; padding: 5px 8px; }
 .chip[aria-pressed="false"] i { background: var(--line); }
 
 .chart { position: relative; width: 100%; touch-action: pan-y; }
@@ -369,10 +371,10 @@ section[data-view].active { display: grid; }
       <button type="button" data-sub="bn" aria-pressed="false">Loon en belasting</button>
     </div>
     <div class="sub active" data-subview="ov-ink">
-    <div class="controls" aria-label="Spring naar">
+    <div class="controls jump" aria-label="Spring naar">
       <button type="button" class="chip" data-jump="sec-inkomen">Inkomen</button>
-      <button type="button" class="chip" data-jump="sec-opbouw">Bruto naar netto</button>
-      <button type="button" class="chip" data-jump="sec-modaal">Modaal en percentielen</button>
+      <button type="button" class="chip" data-jump="sec-opbouw">Bruto-netto</button>
+      <button type="button" class="chip" data-jump="sec-modaal">Modaal</button>
       <button type="button" class="chip" data-jump="sec-koopkracht">Koopkracht</button>
     </div>
     <div class="tiny" style="padding:0 2px">Tik op een grafiek of schuif er met je vinger over om per jaar de bedragen te zien. Tik ernaast om ze weer te verbergen.</div>
@@ -475,7 +477,7 @@ section[data-view].active { display: grid; }
 
   <!-- ============ CARRIÈRE ============ -->
   <section data-view="carriere" aria-label="Carrière, cao en inflatie">
-    <div class="controls" aria-label="Spring naar">
+    <div class="controls jump" aria-label="Spring naar">
       <button type="button" class="chip" data-jump="sec-cao">Cao en inflatie</button>
       <button type="button" class="chip" data-jump="sec-reeel">Reëel</button>
       <button type="button" class="chip" data-jump="sec-fte">Aanstelling</button>
@@ -547,7 +549,7 @@ section[data-view].active { display: grid; }
       <button type="button" data-sub="wa" aria-pressed="false">Doorrekenen</button>
     </div>
     <div class="sub active" data-subview="ov-verm">
-    <div class="controls" aria-label="Spring naar">
+    <div class="controls jump" aria-label="Spring naar">
       <button type="button" class="chip" data-jump="sec-wonen">Wonen</button>
       <button type="button" class="chip" data-jump="sec-sparen">Sparen</button>
       <button type="button" class="chip" data-jump="sec-inflatie">Inflatie</button>
@@ -3414,7 +3416,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 19:40';
+const APP_VERSION = '2026-11-21 19:50';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
