@@ -1607,14 +1607,15 @@ function milTile(M) {
     </div>`;
 }
 // netto vermogen vandaag (schatting): huis via CBS-index, hypotheek via het aflossingsschema, spaargeld via het spaarvermogen van dit jaar
-function vermNu() {
+function vermNu(at) {
   if (!DATA || !DATA.verm) return null;
-  const Y = THIS_YEAR, by = {}; (DATA.vermRaw || []).forEach(r => by[r.year] = r);
+  const AT = at ? new Date(at) : TODAY;
+  const Y = AT.getUTCFullYear(), by = {}; (DATA.vermRaw || []).forEach(r => by[r.year] = r);
   const v0 = DATA.verm.find(r => r.year === Y); if (!v0) return null;
-  const raw = by[Y] || {}, prev = by[Y - 1] || {}, now = TODAY.getTime(), y0 = Date.UTC(Y, 0, 1), frac = Math.min(1, Math.max(0, (now - y0) / (Date.UTC(Y + 1, 0, 1) - y0)));
+  const raw = by[Y] || {}, prev = by[Y - 1] || {}, now = AT.getTime(), y0 = Date.UTC(Y, 0, 1), frac = Math.min(1, Math.max(0, (now - y0) / (Date.UTC(Y + 1, 0, 1) - y0)));
   const P = paramsFor(Y), nm = v => num(v) ?? looseNum(v);
   const em = raw.extraMaand >= 1 && raw.extraMaand <= 12 ? Math.round(raw.extraMaand) : Math.min(12, Math.max(1, Math.round(nm(P['maand extra aflossing']) || 12)));
-  const mNow = TODAY.getUTCMonth() + 1, extraDone = (raw.extra || 0) > 0 && mNow >= em;
+  const mNow = AT.getUTCMonth() + 1, extraDone = (raw.extra || 0) > 0 && mNow >= em;
   // hypotheek: maand voor maand vanaf 31-12 vorig jaar; betaalde termijnen = afgelopen maanden
   let hyp = v0.hyp, hypHow = 'stand 1 januari';
   const rente = DATA.hyp && DATA.hyp.rente, einde = DATA.hyp && DATA.hyp.einde;
@@ -1691,7 +1692,12 @@ function renderKpis(onlyKpis) {
     </div><div class="tiles3${wmlTile ? ' four' : ''}">${uurTiles}</div>
     ${toel(`${uurNote} Per uur: gedeeld door 165 uur per maand × deeltijdfactor (38 uur per week is voltijd). Reiskosten en andere vergoedingen tellen niet mee.${modUur ? ` Modaal: ${eur(MODAAL[modY])} bruto per jaar (CPB), voltijd${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : UUR_MODE === 'cao' ? ', maandloon zonder vakantiegeld ÷ 165' : ''}.` : ''}${wmlUur ? ` Minimumloon: € ${NUM2.format(LIVE.wml[wmlD])} bruto per uur voor 21 jaar en ouder (Wikipedia)${UUR_MODE === 'cao' ? '' : ', plus 8% vakantiegeld'}${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : ''}.` : ''}`, 'Toelichting', 'grid-column:1/-1;margin-top:-6px')}` : '') + `
     <h2 style="grid-column:1/-1;padding:10px 2px 0">${NU ? 'Vermogen vandaag <span class="tiny muted" style="font-weight:400">schatting</span>' : cur ? `Vermogen op 1 januari ${cur.year}` : 'Vermogen'}</h2>
-    <div class="tile" style="grid-column:1/-1"><span>Netto vermogen</span><b>${cur ? eur(cur.net) : '–'}</b><em>overwaarde + spaargeld${NU && NU.v0 && NU.v0.net != null ? ` · op 1 januari ${NU.v0.year}: ${eur(NU.v0.net)}` : ''}</em></div>
+    <div class="tile" style="grid-column:1/-1"><span>Netto vermogen</span><b>${cur ? eur(cur.net) : '–'}</b><em>${(() => {
+      if (!NU || !NU.v0 || NU.v0.net == null) return 'overwaarde + spaargeld';
+      const d = NU.net - NU.v0.net; let pd = null;
+      try { const p30 = vermNu(NU.t - 30 * 864e5); if (p30 && p30.v0 && p30.v0.year === NU.v0.year) pd = (NU.net - p30.net) / 30; } catch (e) {}
+      return `<span class="${d >= 0 ? 'pos' : 'neg'}">${d >= 0 ? '+' : '−'} ${eur(Math.abs(Math.round(d / 1000) * 1000))}</span> sinds 1 januari (${eur(NU.v0.net)})${pd != null ? ` · groeit nu ± ${eur(Math.round(pd / 10) * 10)} per dag` : ''}`;
+    })()}</em></div>
     <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
     <div class="tile"><span>Spaargeld</span><b>${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven` : ''}</em></div>${NU ? toel(`Huis: ${esc(NU.wozHow)}. Hypotheek: ${esc(NU.hypHow)}. Spaargeld: ${esc(NU.spHow)}. Buffer: spaargeld gedeeld door de maanduitgaven (vuistregel: 3 à 6 maanden).`, 'Hoe geschat', 'grid-column:1/-1;margin-top:-6px') : ''}${(() => { try { return milTile(miljoen()); } catch (e) { console.error(e); return ''; } })()}`;
   if (onlyKpis) return;
@@ -3491,7 +3497,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 22:35';
+const APP_VERSION = '2026-11-21 22:45';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
