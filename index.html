@@ -1185,6 +1185,12 @@ function renderWerkelijk() {
 // Lege cellen in "vermogen IB" (hypotheek 31-12, rente, aflossing, spaargeld 1-1) rekent de app uit;
 // wat je invult is werkelijk. Extra aflossing, investeringen en giften zijn plannen en komen uit de Excel.
 function fillProjections() {
+  // ontbrekende toekomstige jaren (t/m volgend jaar + 1) aanvullen als lege rijen, zodat de app ze kan doorrekenen
+  if (DATA.vermRaw && DATA.vermRaw.length) {
+    const ys = DATA.vermRaw.map(r => r.year);
+    for (let y = Math.max(...ys) + 1; y <= THIS_YEAR + 2; y++)
+      DATA.vermRaw.push({ year: y, woz: null, hyp: null, spaar: null, giften: null, extra: null, aflossing: null, premie: null, rente: null, invest: null, extraMaand: null, auto: true });
+  }
   const raw = (DATA.vermRaw || []).slice().sort((a, b) => a.year - b.year);
   const F = ['hyp', 'rente', 'aflossing', 'spaar'];
   for (const r of raw) { if (!r._xls) { r._xls = {}; for (const k of F) r._xls[k] = r[k]; } for (const k of F) r[k] = r._xls[k]; r.est = {}; }
@@ -3013,7 +3019,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 10:50';
+const APP_VERSION = '2026-11-21 11:05';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
