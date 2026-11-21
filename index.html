@@ -118,6 +118,13 @@ table.schat td.est { font-weight: 600; }
 table.schat tr.sum th, table.schat tr.sum td { font-weight: 700; border-top: 1px solid var(--line); }
 table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); padding-top: 10px; }
 .legend .dotline::before, #spLegend .dotline::before { border-radius: 50%; }
+.tile em .exp { font-weight: 600; color: var(--ink); }
+.milsvg { width: 100%; height: auto; display: block; margin: 6px 0 2px; }
+.millegend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--ink-2); }
+.millegend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; border: 1.5px solid var(--s1); }
+.millegend i.s { background: var(--s1); } .millegend i.o { background: var(--card); }
+.millegend i.d { border: none; border-top: 2px dotted var(--s1); border-radius: 0; height: 0; vertical-align: 3px; }
+.millegend i.m { background: var(--s3); border-color: var(--s3); }
 .tiles3.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px; min-width: 0; align-content: start; }
 .tile span { font-size: 12px; color: var(--ink-2); }
@@ -1434,6 +1441,25 @@ function miljoen(T = 1e6) {
   const t = b.t + (T - b.v) / slope;
   return { t, past: false, est: true, extrap: true };
 }
+// kleine grafiek bij de miljoen-tegel: werkelijk (doorgetrokken), geschat door de app (gestippeld), doorgetrokken groei (gestreept)
+function milChart(M) {
+  const V = (DATA.verm || []).filter(r => r.net != null && isFinite(r.net)).slice(-7)
+    .map(r => ({ t: Date.UTC(r.year, 0, 1), v: r.net, est: !!(r.wozEst || r.hypEst || r.spaarEst), y: r.year }));
+  if (V.length < 2 || !M || M.t == null) return '';
+  const T = 1e6, tEnd = Math.max(V[V.length - 1].t, M.t), t0 = V[0].t;
+  const vMin = Math.min(...V.map(p => p.v)), vMax = Math.max(T, ...V.map(p => p.v));
+  const W = 320, H = 110, ml = 4, mr = 4, mt = 14, mb = 18;
+  const X = t => ml + (t - t0) / (tEnd - t0) * (W - ml - mr), Y = v => mt + (1 - (v - vMin * 0.95) / (vMax * 1.03 - vMin * 0.95)) * (H - mt - mb);
+  const seg = (a, b, dash, col) => `<line x1="${X(a.t)}" y1="${Y(a.v)}" x2="${X(b.t)}" y2="${Y(b.v)}" stroke="var(${col})" stroke-width="2" ${dash ? `stroke-dasharray="${dash}"` : ''}/>`;
+  let g = `<line x1="${ml}" x2="${W - mr}" y1="${Y(T)}" y2="${Y(T)}" stroke="var(--ink-3)" stroke-width="1" stroke-dasharray="2 3"/><text x="${ml}" y="${Y(T) - 4}" font-size="10" fill="var(--ink-3)">€ 1 mln</text>`;
+  for (let i = 1; i < V.length; i++) g += seg(V[i - 1], V[i], V[i].est ? '4 3' : '', '--s1');
+  if (M.extrap) g += seg(V[V.length - 1], { t: M.t, v: T }, '1.5 3', '--s1');
+  for (const p of V) g += `<circle cx="${X(p.t)}" cy="${Y(p.v)}" r="3" fill="${p.est ? 'var(--card)' : 'var(--s1)'}" stroke="var(--s1)" stroke-width="1.5"/>`;
+  g += `<circle cx="${X(M.t)}" cy="${Y(T)}" r="4.5" fill="var(--s3)" stroke="var(--card)" stroke-width="1.5"/>`;
+  const yrs = [V[0], V[V.length - 1]].map(p => `<text x="${X(p.t)}" y="${H - 4}" font-size="10" fill="var(--ink-3)" text-anchor="${p === V[0] ? 'start' : 'middle'}">${p.y}</text>`).join('');
+  return `<svg class="milsvg" viewBox="0 0 ${W} ${H}" role="img" aria-label="netto vermogen naar 1 miljoen">${g}${yrs}</svg>
+    <div class="millegend"><span><i class="s"></i>werkelijk</span><span><i class="o"></i>geschat door de app</span>${M.extrap ? '<span><i class="d"></i>groei doorgetrokken</span>' : ''}<span><i class="m"></i>€ 1 mln</span></div>`;
+}
 function renderKpis(onlyKpis) {
   const S = DATA.bn.S, E = DATA.bn.E;
   const m = inuitTotals();
@@ -1476,7 +1502,7 @@ function renderKpis(onlyKpis) {
     <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-vdet aria-controls="vDet" aria-expanded="${V_DET}"><span>Netto vermogen</span><i class="chev" aria-hidden="true">▾ ontwikkeling</i><b>${cur ? eur(cur.net) : '–'}</b><em>overwaarde + spaargeld</em></div>
     <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
     <div class="tile"><span>Spaargeld</span><b>${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven (vuistregel: 3 à 6)` : ''}</em></div>${(M => !M ? '' : `
-    <div class="tile mil" style="grid-column:1/-1"><span>Netto vermogen € 1 miljoen</span><b>${M.t == null ? 'al vóór ' + new Date(M.before).getUTCFullYear() : (M.past ? 'sinds ' : '') + fmtMonth(M.t)}</b><em>${M.t == null ? '' : M.past ? 'naar schatting gepasseerd' : M.extrap ? 'schatting: de groei van het laatste jaar doorgetrokken' : 'schatting, lineair tussen de standen per 1 januari'}${M.est ? ' · met de schattingen van de app (WOZ via CBS-index, spaargeld en hypotheek)' : ''}</em></div>`)(miljoen())}`;
+    <div class="tile mil" style="grid-column:1/-1"><span>Netto vermogen € 1 miljoen</span><b>${M.t == null ? 'al vóór ' + new Date(M.before).getUTCFullYear() : (M.past ? 'sinds ' : '') + fmtMonth(M.t)}</b>${milChart(M)}<em>${M.t == null ? '' : M.past ? 'naar schatting gepasseerd' : M.extrap ? 'schatting: de groei van het laatste jaar doorgetrokken' : 'schatting, lineair tussen de standen per 1 januari'}</em></div>`)(miljoen())}`;
   if (onlyKpis) return;
   renderVDet();
   renderFlow();
@@ -1612,7 +1638,7 @@ function renderMaandSummary() {
   $('#mTiles').innerHTML = `
     <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-det="in" aria-controls="mDetIn"><span>Inkomsten per maand</span><i class="chev" aria-hidden="true">▾ details</i><b>${eur(t.in)}</b><em>gemiddeld, incl. vakantiegeld e.d.${(() => { const n = (DATA.bn.S.excelNet || 0) + (DATA.bn.E.excelNet || 0); return n ? `; waarvan netto salaris ${eur(n)}` : ''; })()}</em></div>
     <div class="tile tap" role="button" tabindex="0" data-det="uit" aria-controls="mDetUit"><span>Uitgaven</span><i class="chev" aria-hidden="true">▾ details</i><b>${eur(t.uit)}</b><em>${PCT1.format(t.in ? t.uit / t.in : 0)} van de inkomsten</em></div>
-    <div class="tile"><span>Sparen</span><b>${eur(t.spaar)}</b><em>${PCT1.format(t.in ? t.spaar / t.in : 0)} van de inkomsten, ${eur(t.spaar * 12)} per jaar</em></div>`;
+    <div class="tile"><span>Sparen (begroting)</span><b>${eur(t.spaar)}</b><em>${PCT1.format(t.in ? t.spaar / t.in : 0)} van de inkomsten, ${eur(t.spaar * 12)} per jaar${(r => r && r.svEst != null ? `<br><span class="exp">verwacht ${eur(r.svEst / 12)} per maand</span> (${r.year}, op basis van de uitgaven in ${DATA.proj && DATA.proj.anchor})` : '')((DATA.vermRaw || []).find(r => r.year === THIS_YEAR))}</em></div>`;
   applyDet();
   // één overzicht: per groep een balk; tik op een groep om de losse posten te zien
   const groups = {};
@@ -3071,7 +3097,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 11:55';
+const APP_VERSION = '2026-11-21 12:15';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
