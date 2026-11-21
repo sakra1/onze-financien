@@ -1782,7 +1782,7 @@ function paramChanges() {
   return { y0, y1, rows: shown, hidden, eff, filled };
 }
 /* ===== Inkomstenbelasting per jaar: zoals het tabblad inkomstenbelasting, maar maand voor maand ===== */
-function ibCalc(Y) {
+function ibCalc(Y, shOverride) {
   if (!DATA || !DATA.bn || !DATA.hist) return null;
   const P = bnP(Y), Q = paramsFor(Y), nm = v => num(v) ?? looseNum(v);
   const by = {}; (DATA.vermRaw || []).forEach(r => by[r.year] = r);
@@ -1792,9 +1792,16 @@ function ibCalc(Y) {
   const wozOff = raw.woz != null, woz = wozOff ? raw.woz : vb[Y - 1] ? vb[Y - 1].woz : null;
   const rente = raw.rente != null ? raw.rente : 0, renteEst = !!(raw.est && raw.est.rente);
   const ewf = (woz || 0) * (nm(Q.ewf_pct) ?? 0.0035), hillen = nm(Q.hillen_pct) ?? 0;
-  let shS = nm(Q.eigen_woning_aandeel_sander); shS = shS == null ? 1 : shS > 1 ? shS / 100 : shS;
+  let shPar = nm(Q.eigen_woning_aandeel_sander); shPar = shPar == null ? null : shPar > 1 ? shPar / 100 : shPar;
+  const shS = shOverride != null ? shOverride : shPar != null ? shPar : 1;
   const tV = P.toelVu ?? 1, tE = P.toelEju ?? 0;
-  const out = { Y, woz, wozOff, rente, renteEst, renteHow: raw.hypHow || '', ewf, p: {} };
+  const out = { Y, woz, wozOff, rente, renteEst, renteHow: raw.hypHow || '', ewf, shS, shPar, p: {} };
+  // aanslaggrens en teruggaafgrens per persoon: kleine bedragen worden niet geïnd of uitbetaald
+  const ag = nm(Q.aanslaggrens) ?? 57, tg = nm(Q.teruggaafgrens) ?? 18;
+  out.ag = ag; out.tg = tg;
+  const effR = v => v < 0 && -v <= ag ? 0 : v > 0 && v <= tg ? 0 : v;
+  // voor het kiezen van de verdeling: € 20 marge onder de aanslaggrens, omdat dit een schatting is
+  const effO = v => v < 0 && -v <= ag - 20 ? 0 : v > 0 && v <= tg ? 0 : v;
   for (const w of ['S', 'E']) {
     const k = w === 'S' ? { b: 'bs', f: 'fs', t: 'ts' } : { b: 'be', f: 'fe', t: 'te' };
     const ms = DATA.hist.filter(h => new Date(h.d).getUTCFullYear() === Y && h[k.b] > 0 && h[k.f] > 0);
@@ -1817,7 +1824,7 @@ function ibCalc(Y) {
     const b1 = box1(bel, P), ahkV = Math.min(b1, ahk(bel, P)), akV = Math.min(b1 - ahkV, ak(werk, P));
     const ta = (P.r3 - P.r2) * Math.min(rW, Math.max(0, werk + ewfW - P.b2));
     const due = b1 - ahkV - akV + ta;
-    out.p[w] = { months: ms.length, proj, werk, ewf: ewfW, rente: rW, hil, bel, b1, ahk: ahkV, ak: akV, ta, due, lh: lhTot, res: lhTot - due };
+    out.p[w] = { months: ms.length, proj, werk, ewf: ewfW, rente: rW, hil, bel, b1, ahk: ahkV, ak: akV, ta, due, lh: lhTot, res: lhTot - due, eff: effR(lhTot - due), opt: effO(lhTot - due) };
   }
   // box 3: spaargeld op 1 januari (banktegoeden), heffingvrij vermogen samen
   const sp = raw.spaar, vrij = nm(Q.box3_vrijstelling), tar = nm(Q.box3_tarief), fr = nm(Q.box3_forfait_bank);
@@ -1826,11 +1833,23 @@ function ibCalc(Y) {
 }
 function renderIB() {
   const el = $('#ibCard'); if (!el) return;
-  let I = null; try { I = ibCalc(BN_YEAR); } catch (e) { console.error(e); }
+  let I = null, best = null;
+  try {
+    const sum = J => J ? Object.values(J.p).reduce((a, p) => a + p.opt, 0) : -Infinity, raw = J => J ? Object.values(J.p).reduce((a, p) => a + p.res, 0) : -Infinity;
+    // verdeling eigen woning: de verdeling waarbij jullie samen het meeste terugkrijgen (na aanslag- en teruggaafgrens); bij gelijke uitkomst zoveel mogelijk bij Sander
+    for (let i = 100; i >= 0; i--) {
+      const J = ibCalc(BN_YEAR, i / 100); if (!J) break;
+      const k = [Math.round(sum(J)), Math.round(raw(J))];
+      if (!best || k[0] > best.k[0] || (k[0] === best.k[0] && k[1] > best.k[1])) best = { J, k };
+    }
+    I = ibCalc(BN_YEAR);
+    if (I && I.shPar == null && best) I = best.J;
+  } catch (e) { console.error(e); }
   if (!I || !I.p.S && !I.p.E) { el.style.display = 'none'; return; }
   el.style.display = '';
   const W = ['S', 'E'].filter(w => I.p[w]), nm = { S: 'Sander', E: 'Ellen' };
-  const tot = W.reduce((s, w) => s + I.p[w].res, 0) - (I.box3 && I.box3.tax ? I.box3.tax : 0);
+  const tot = W.reduce((s, w) => s + I.p[w].eff, 0) - (I.box3 && I.box3.tax ? I.box3.tax : 0);
+  const anyGrens = W.some(w => Math.abs(I.p[w].eff - I.p[w].res) > 0.5);
   const res = v => `<span class="${v >= 0.5 ? 'pos' : v <= -0.5 ? 'neg' : 'muted'}">${v >= 0 ? 'terug' : 'bijbetalen'} ${eur(Math.abs(v))}</span>`;
   const e0 = v => (v < -0.5 ? '−' : '') + eur(Math.abs(v));
   const row = (lab, f, cls = '') => `<tr class="${cls}"><td>${lab}</td>${W.map(w => `<td>${f(I.p[w])}</td>`).join('')}</tr>`;
@@ -1850,11 +1869,14 @@ function renderIB() {
     ${anyTa ? row('Tariefsaanpassing', p => eur(p.ta)) : ''}
     ${row('Verschuldigd', p => eur(p.due), 'tot')}
     ${row('Ingehouden loonheffing', p => eur(p.lh))}
-    ${row('Resultaat', p => res(p.res), 'tot')}
+    ${row('Resultaat', p => res(p.res), anyGrens ? '' : 'tot')}
+    ${anyGrens ? row('Na aanslag- en teruggaafgrens', p => Math.abs(p.eff) < 0.5 ? '<span class="muted">niets</span>' : res(p.eff), 'tot') : ''}
     </tbody></table></div>
+    <div class="rows" style="margin-top:8px"><div class="r"><span>Verdeling eigen woning</span><span>Sander ${Math.round(I.shS * 100)}% · Ellen ${Math.round((1 - I.shS) * 100)}%</span></div></div>
+    <div class="tiny muted">${I.shPar == null ? 'Gekozen zodat jullie samen het meeste terugkrijgen, met € 20 marge onder de aanslaggrens omdat dit een schatting is. Bij de aangifte kun je de verdeling zelf kiezen en zie je meteen de uitkomst' : `Uit de parameter eigen_woning_aandeel_sander${best && Math.abs(best.J.shS - I.shS) > 0.005 ? `; het meeste terug bij Sander ${Math.round(best.J.shS * 100)}%` : ''}`}${anyGrens || I.shPar == null ? `. Bijbetalen tot € ${I.ag} en terugkrijgen tot € ${I.tg} per persoon gebeurt niet (aanslag- en teruggaafgrens; geldt niet als je een voorlopige aanslag hebt waarop je moet betalen).` : '.'}</div>
     ${I.box3 ? `<div class="rows" style="margin-top:8px"><div class="r"><span>Box 3 (samen)</span><span>${I.box3.g <= 0 ? '<span class="muted">geen</span>' : I.box3.tax != null ? `<span class="neg">${eur(I.box3.tax)}</span>` : '?'}</span></div></div>
       <div class="tiny muted">Spaargeld 1 jan ${I.Y} ${eur(I.box3.sp)}${I.box3.spEst ? ' (geschat)' : ''}, heffingvrij ${eur(I.box3.vrij)}.</div>` : ''}
-    <div class="note">Salaris maand voor maand uit salaris geschiedenis${proj ? ' (rest van het jaar geschat)' : ''}; loonheffing volgens de tabellen, zoals in je Excel. WOZ ${I.woz ? eur(I.woz) : '–'}${I.wozOff ? ` (beschikking ${I.Y})` : ' (geschat)'}. Rente ${eur(I.rente)}${I.renteEst ? ` uit het aflossingsschema (${esc((I.renteHow.match(/extra aflossing [^,;]+/) || ['zonder extra aflossing'])[0])}); voor de aangifte geldt het jaaroverzicht` : ' uit je Excel'}. Eigen woning ${(() => { const s = I.p.S && I.p.S.ewf, t = I.ewf; return t && s != null && Math.abs(s - t) > 1 ? `voor ${PCT1.format(s / t)} bij Sander` : 'bij Sander'; })()} (parameter eigen_woning_aandeel_sander).</div>`;
+    <div class="note">Salaris maand voor maand uit salaris geschiedenis${proj ? ' (rest van het jaar geschat)' : ''}; loonheffing volgens de tabellen, zoals in je Excel. WOZ ${I.woz ? eur(I.woz) : '–'}${I.wozOff ? ` (beschikking ${I.Y})` : ' (geschat)'}. Rente ${eur(I.rente)}${I.renteEst ? ` uit het aflossingsschema (${esc((I.renteHow.match(/extra aflossing [^,;]+/) || ['zonder extra aflossing'])[0])}); voor de aangifte geldt het jaaroverzicht` : ' uit je Excel'}.</div>`;
 }
 function renderChanges() {
   const el = $('#bnChanges'); if (!el) return;
@@ -3391,7 +3413,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 19:00';
+const APP_VERSION = '2026-11-21 19:20';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
