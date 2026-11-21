@@ -1746,20 +1746,28 @@ function paramChanges() {
   const rows = meta.filter(m => p0[m.k] != null && p1[m.k] != null && String(p0[m.k]) !== String(p1[m.k]) && !(typeof p0[m.k] === 'number' && typeof p1[m.k] === 'number' && Math.abs(p0[m.k] - p1[m.k]) < 1e-9))
     .map(m => ({ ...m, a: p0[m.k], b: p1[m.k] }));
   const filled = Object.values(P).filter(o => o[y1] != null).length;
-  // effect op het netto: zelfde salaris (januari van het nieuwe jaar), alleen de regels anders
+  // effect op het netto per maand: van de situatie in y0 (nu) naar januari y1, opgesplitst in stappen die samen het totaal vormen
   const eff = {};
   const B0 = bnP(y0), B1 = bnP(y1);
   for (const w of ['S', 'E']) {
     if (!DATA.bn || !DATA.bn[w]) continue;
-    const x = xForYear(w, y1), r0 = calcNet(x, B0), r1 = calcNet(x, B1);
+    const x0 = y0 >= THIS_YEAR ? { ...DATA.bn[w] } : xForYear(w, y0), x1 = xForYear(w, y1);
+    const n = (x, P) => calcNet(x, P), N = (x, P) => n(x, P).netto, J = (x, P) => n(x, P).jaarNet;
     const per = [];
+    const add = (label, xa, Pa, xb, Pb) => per.push({ label, mnd: N(xb, Pb) - N(xa, Pa), jaar: J(xb, Pb) - J(xa, Pa) });
+    const xg = { ...x0, grondFull: x1.grondFull };
+    if (Math.abs((x1.grondFull || 0) - (x0.grondFull || 0)) > 0.5) add(`Pensioenpremie: salaris per 1 januari ${eur(x0.grondFull)} → ${eur(x1.grondFull)} (voltijd)`, x0, B0, xg, B0);
+    if (Math.abs(x1.full - x0.full) > 0.5 || Math.abs(x1.f - x0.f) > 1e-6 || Math.abs((x1.toelage || 0) - (x0.toelage || 0)) > 0.5) add('Salaris, fte of toelage', xg, B0, x1, B0);
+    let sumP = 0, sumJ = 0;
     for (const m of rows) {
       const key = PARAM_MAP[m.k]; if (!key || typeof m.b !== 'number') continue;
-      const r = calcNet(x, { ...B0, [key]: B1[key] });
-      per.push({ m, mnd: r.netto - r0.netto, jaar: r.jaarNet - r0.jaarNet });
+      const P = { ...B0, [key]: B1[key] };
+      const it = { label: m.desc || m.k.replace(/_/g, ' '), mnd: N(x1, P) - N(x1, B0), jaar: J(x1, P) - J(x1, B0) };
+      sumP += it.mnd; sumJ += it.jaar; per.push(it);
     }
-    per.sort((a, b) => Math.abs(b.jaar) - Math.abs(a.jaar));
-    eff[w] = { mnd: r1.netto - r0.netto, jaar: r1.jaarNet - r0.jaarNet, per: per.filter(p => Math.abs(p.jaar) >= 6) };
+    const restM = (N(x1, B1) - N(x1, B0)) - sumP, restJ = (J(x1, B1) - J(x1, B0)) - sumJ;
+    if (Math.abs(restM) >= 0.5 || Math.abs(restJ) >= 6) per.push({ label: 'Samenloop van de regels', mnd: restM, jaar: restJ });
+    eff[w] = { mnd: N(x1, B1) - N(x0, B0), jaar: J(x1, B1) - J(x0, B0), per: per.filter(p => Math.abs(p.mnd) >= 0.5 || Math.abs(p.jaar) >= 6) };
   }
   return { y0, y1, rows, eff, filled };
 }
@@ -1771,13 +1779,13 @@ function renderChanges() {
   const name = { S: 'Sander', E: 'Ellen' }, cls = v => v > 0.5 ? 'pos' : v < -0.5 ? 'neg' : 'muted';
   const lbl = m => esc(m.desc || m.k.replace(/_/g, ' '));
   const effHTML = Object.entries(C.eff).map(([w, e]) => `<div class="r"><span><b>${name[w]}</b></span><span class="${cls(e.mnd)}">${signed(e.mnd)} per maand</span></div>
-    <div class="tiny muted" style="margin:-2px 0 4px">${signed(e.jaar)} per jaar, met vakantiegeld en eindejaarsuitkering</div>${e.per.length ? `<ul class="chgl">${e.per.slice(0, 3).map(p => `<li><span>${lbl(p.m)}</span><span class="${cls(p.jaar / 12)}">${signed(p.jaar / 12)}</span></li>`).join('')}</ul>` : ''}`).join('');
+    <div class="tiny muted" style="margin:-2px 0 4px">${signed(e.jaar)} per jaar, met vakantiegeld en eindejaarsuitkering</div>${e.per.length ? `<ul class="chgl">${e.per.map(p => `<li><span>${esc(p.label)}</span><span class="${cls(p.mnd)}">${signed(p.mnd)}</span></li>`).join('')}</ul>` : ''}`).join('');
   const groups = []; for (const r of C.rows) { let g = groups.find(x => x.g === r.group); if (!g) groups.push(g = { g: r.group, rows: [] }); g.rows.push(r); }
   const table = C.rows.length ? `<div class="tablewrap"><table class="chgt"><thead><tr><th></th><th>${C.y0}</th><th>${C.y1}</th></tr></thead><tbody>${groups.map(g =>
       `${g.g ? `<tr class="grp"><td colspan="3">${esc(g.g)}</td></tr>` : ''}${g.rows.map(r => `<tr><td>${lbl(r)}<div class="tiny muted">${chgDiff(r.k, r.a, r.b)}</div></td><td>${chgFmt(r.k, r.a)}</td><td>${chgFmt(r.k, r.b)}</td></tr>`).join('')}`).join('')}</tbody></table></div>`
     : `<div class="note">In de kolom ${C.y1} staan nog geen waarden die afwijken van ${C.y0}.</div>`;
   el.innerHTML = `<h3>Wat verandert er in ${C.y1}</h3>
-    ${C.rows.length && Object.keys(C.eff).length ? `<div class="small muted" style="margin-bottom:6px">Effect op het netto per maand, bij hetzelfde salaris (januari ${C.y1}): alleen de regels verschillen. Daaronder de grootste posten.</div><div class="rows">${effHTML}</div>` : ''}
+    ${C.rows.length && Object.keys(C.eff).length ? `<div class="small muted" style="margin-bottom:6px">Netto per maand in januari ${C.y1} vergeleken met ${C.y0 >= THIS_YEAR ? 'nu' : C.y0}, en waar het verschil vandaan komt.</div><div class="rows">${effHTML}</div>` : ''}
     ${table}
     <div class="note">Uit het tabblad parameters: de kolom ${C.y1} vergeleken met ${C.y0} (${C.filled} parameters ingevuld voor ${C.y1}; lege velden tellen als ongewijzigd). Maatregelen zonder parameter staan er niet in.</div>`;
 }
@@ -3290,7 +3298,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 15:30';
+const APP_VERSION = '2026-11-21 15:45';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
