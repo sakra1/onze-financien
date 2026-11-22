@@ -149,12 +149,13 @@ table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: upper
 .chgl li span:last-child { white-space: nowrap; }
 .chgt tr.tot td { font-weight: 600; }
 .chgt tr.grp td { text-align: left; font-weight: 600; color: var(--ink-2); padding-top: 10px; border-bottom: none; }
-#netLive { font-variant-numeric: tabular-nums; display: inline-flex; line-height: 1.15; }
-#netLive span { font: inherit; color: inherit; margin: 0; padding: 0; letter-spacing: inherit; }
-#netLive .odo-d { display: inline-block; height: 1.15em; overflow: hidden; }
-#netLive .odo-c { display: inline-block; height: 1.15em; }
-#netLive .odo-s { display: flex; flex-direction: column; will-change: transform; }
-#netLive .odo-s > span { display: block; height: 1.15em; }
+b.ctr { font-variant-numeric: tabular-nums; display: inline-flex; line-height: 1.15; }
+#owLive, #spLive { font-size: 18px; }
+b.ctr span { font: inherit; color: inherit; margin: 0; padding: 0; letter-spacing: inherit; }
+b.ctr .odo-d { display: inline-block; height: 1.15em; overflow: hidden; }
+b.ctr .odo-c { display: inline-block; height: 1.15em; }
+b.ctr .odo-s { display: flex; flex-direction: column; will-change: transform; }
+b.ctr .odo-s > span { display: block; height: 1.15em; }
 .milhead { margin: 10px 0 0; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .milhead b { font-family: var(--font-display); font-size: 22px; font-weight: 700; }
 .milsvg { touch-action: pan-y; cursor: crosshair; }
@@ -1623,7 +1624,7 @@ function vermNu(at) {
   const em = raw.extraMaand >= 1 && raw.extraMaand <= 12 ? Math.round(raw.extraMaand) : Math.min(12, Math.max(1, Math.round(nm(P['maand extra aflossing']) || 12)));
   const mNow = AT.getUTCMonth() + 1, extraDone = (raw.extra || 0) > 0 && mNow >= em;
   // hypotheek: maand voor maand vanaf 31-12 vorig jaar; betaalde termijnen = afgelopen maanden
-  let hyp = v0.hyp, hypHow = 'stand 1 januari';
+  let hyp = v0.hyp, hypHow = 'stand 1 januari', pdHyp = 0;
   const rente = DATA.hyp && DATA.hyp.rente, einde = DATA.hyp && DATA.hyp.einde;
   if (prev.hyp != null && rente != null && einde) {
     const r = rente / 12, keep = /gelijk/i.test(String(P['maandlast na extra aflossing'] || ''));
@@ -1634,6 +1635,7 @@ function vermNu(at) {
       if (m === em && (raw.extra || 0) > 0) { H = Math.max(0, H - raw.extra); if (!keep) A = ann(H); }
       if (m < mNow) { const a = Math.min(H, A - H * r); H -= a; n = Math.max(1, n - 1); }
     }
+    pdHyp = H > 0 ? Math.max(0, A - H * r) * 12 / 365.25 : 0;
     hyp = H; hypHow = `aflossingsschema, ${mNow - 1} termijnen betaald${extraDone ? `, extra aflossing ${eur(raw.extra)} gedaan` : ''}`;
   }
   // spaargeld: vanaf 1 januari (of een actuele stand uit parameters) plus het verwachte spaarvermogen naar rato
@@ -1654,11 +1656,15 @@ function vermNu(at) {
   let woz = h ? h.est : v0.woz, ext = 0;
   if (h && H && H.g != null && H.lastDate && now > H.lastDate) { ext = Math.pow(1 + H.g, (now - H.lastDate) / 31557600000) - 1; woz *= 1 + ext; }
   const pct = h ? woz / h.woz - 1 : 0;
-  return { t: now, woz, hyp, spaar, net: woz - hyp + spaar, v0, wozHow: h ? `WOZ ${eur(h.woz)} (1 jan ${h.year}) ${pct >= 0 ? '+' : '−'}${PCT1.format(Math.abs(pct))} via CBS-index${ext ? ', doorgetrokken tot vandaag' : ''}` : 'WOZ per 1 januari', hypHow, spHow };
+  // groei per dag van elk onderdeel (voor de tellers): huis met de jaarstijging, hypotheek met de aflossing, spaargeld met het spaarvermogen
+  const pdWoz = h && H && H.g != null ? woz * Math.log(1 + H.g) / 365.25 : 0;
+  const pdSp = sv != null ? (sv - (raw.invest || 0) + (raw.giften || 0)) / 365.25 : 0;
+  const pd = { woz: pdWoz, hyp: -pdHyp, ow: pdWoz + pdHyp, sp: pdSp, net: pdWoz + pdHyp + pdSp };
+  return { t: now, pd, woz, hyp, spaar, net: woz - hyp + spaar, v0, wozHow: h ? `WOZ ${eur(h.woz)} (1 jan ${h.year}) ${pct >= 0 ? '+' : '−'}${PCT1.format(Math.abs(pct))} via CBS-index${ext ? ', doorgetrokken tot vandaag' : ''}` : 'WOZ per 1 januari', hypHow, spHow };
 }
 const toel = (html, sum = 'Toelichting', style = '') => `<details class="dp-more toel"${style ? ` style="${style}"` : ''}><summary>${sum}</summary><div class="tiny muted">${html}</div></details>`;
 // live teller: het geschatte vermogen loopt door met de groei per dag
-let NET_LIVE = null;
+let LIVE_CTRS = {}; // id → { base, t0, pd }
 // rollende cijfers als een kilometerteller: de centen rollen continu mee met de groei per dag,
 // een hoger cijfer rolt mee terwijl het cijfer rechts ervan van 9 naar 0 gaat
 function odoBuild(el, str) {
@@ -1686,10 +1692,12 @@ function odoSet(el, value) {
 let odoLast = 0;
 function odoTick(ts) {
   requestAnimationFrame(odoTick);
-  if (!NET_LIVE || document.hidden || ts - odoLast < 33) return;
+  if (document.hidden || ts - odoLast < 33) return;
   odoLast = ts;
-  const el = document.getElementById('netLive'); if (!el) return;
-  odoSet(el, NET_LIVE.base + NET_LIVE.pd * (Date.now() - NET_LIVE.t0) / 864e5);
+  for (const [id, c] of Object.entries(LIVE_CTRS)) {
+    const el = document.getElementById(id); if (!el || !c) continue;
+    odoSet(el, c.base + c.pd * (Date.now() - c.t0) / 864e5);
+  }
 }
 requestAnimationFrame(odoTick);
 function renderKpis(onlyKpis) {
@@ -1733,15 +1741,14 @@ function renderKpis(onlyKpis) {
     </div><div class="tiles3${wmlTile ? ' four' : ''}">${uurTiles}</div>
     ${toel(`${uurNote} Per uur: gedeeld door 165 uur per maand × deeltijdfactor (38 uur per week is voltijd). Reiskosten en andere vergoedingen tellen niet mee.${modUur ? ` Modaal: ${eur(MODAAL[modY])} bruto per jaar (CPB), voltijd${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : UUR_MODE === 'cao' ? ', maandloon zonder vakantiegeld ÷ 165' : ''}.` : ''}${wmlUur ? ` Minimumloon: € ${NUM2.format(LIVE.wml[wmlD])} bruto per uur voor 21 jaar en ouder (Wikipedia)${UUR_MODE === 'cao' ? '' : ', plus 8% vakantiegeld'}${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : ''}.` : ''}`, 'Toelichting', 'grid-column:1/-1;margin-top:-6px')}` : '') + `
     <h2 style="grid-column:1/-1;padding:10px 2px 0">${NU ? 'Vermogen vandaag <span class="tiny muted" style="font-weight:400">schatting</span>' : cur ? `Vermogen op 1 januari ${cur.year}` : 'Vermogen'}</h2>
-    <div class="tile" style="grid-column:1/-1"><span>Netto vermogen</span><b id="netLive">${cur ? (NU ? eur2(cur.net) : eur(cur.net)) : '–'}</b><em>${(() => {
+    <div class="tile" style="grid-column:1/-1"><span>Netto vermogen</span><b class="ctr" id="netLive">${cur ? (NU ? eur2(cur.net) : eur(cur.net)) : '–'}</b><em>${(() => {
       if (!NU || !NU.v0 || NU.v0.net == null) return 'overwaarde + spaargeld';
-      const d = NU.net - NU.v0.net; let pd = null;
-      try { const p30 = vermNu(NU.t - 30 * 864e5); if (p30 && p30.v0 && p30.v0.year === NU.v0.year) pd = (NU.net - p30.net) / 30; } catch (e) {}
-      NET_LIVE = pd != null ? { base: NU.net, t0: NU.t, pd } : null;
+      const d = NU.net - NU.v0.net, pd = NU.pd.net;
+      LIVE_CTRS = { netLive: { base: NU.net, t0: NU.t, pd }, owLive: { base: NU.woz - NU.hyp, t0: NU.t, pd: NU.pd.ow }, spLive: { base: NU.spaar, t0: NU.t, pd: NU.pd.sp } };
       return `<span class="${d >= 0 ? 'pos' : 'neg'}">${d >= 0 ? '+' : '−'} ${eur(Math.abs(Math.round(d / 1000) * 1000))}</span> sinds 1 januari (${eur(NU.v0.net)})${pd != null ? ` · groeit nu ± ${eur(Math.round(pd / 10) * 10)} per dag` : ''}`;
     })()}</em></div>
-    <div class="tile"><span>Overwaarde huis</span><b>${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
-    <div class="tile"><span>Spaargeld</span><b>${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven` : ''}</em></div>${NU ? toel(`Huis: ${esc(NU.wozHow)}. Hypotheek: ${esc(NU.hypHow)}. Spaargeld: ${esc(NU.spHow)}. Buffer: spaargeld gedeeld door de maanduitgaven (vuistregel: 3 à 6 maanden).`, 'Hoe geschat', 'grid-column:1/-1;margin-top:-6px') : ''}${(() => { try { return milTile(miljoen()); } catch (e) { console.error(e); return ''; } })()}`;
+    <div class="tile"><span>Overwaarde huis</span><b class="ctr" id="owLive">${cur ? (NU ? eur2(cur.woz - cur.hyp) : eur(cur.woz - cur.hyp)) : '–'}</b><em>${wozTxt}${NU && NU.pd.ow ? `<br>± ${eur(Math.round(NU.pd.ow / 10) * 10)} per dag` : ''}</em></div>
+    <div class="tile"><span>Spaargeld</span><b class="ctr" id="spLive">${cur ? (NU ? eur2(cur.spaar) : eur(cur.spaar)) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven` : ''}${NU && NU.pd.sp ? `<br>± ${eur(Math.round(NU.pd.sp / 10) * 10)} per dag` : ''}</em></div>${NU ? toel(`Huis: ${esc(NU.wozHow)}. Hypotheek: ${esc(NU.hypHow)}. Spaargeld: ${esc(NU.spHow)}. Buffer: spaargeld gedeeld door de maanduitgaven (vuistregel: 3 à 6 maanden).`, 'Hoe geschat', 'grid-column:1/-1;margin-top:-6px') : ''}${(() => { try { return milTile(miljoen()); } catch (e) { console.error(e); return ''; } })()}`;
   if (onlyKpis) return;
   renderFlow();
 }
@@ -3539,7 +3546,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-21 23:20';
+const APP_VERSION = '2026-11-22 14:20';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
