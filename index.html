@@ -830,6 +830,37 @@ function parseBN(aoa, hist) {
   };
 }
 
+// ===== gegevens per persoon: uit salaris geschiedenis en parameters (het tabblad bruto-netto alleen nog als reserve) =====
+function deriveBN() {
+  if (!DATA || !DATA.bn) return;
+  const sheet = DATA.bnSheet || (DATA.bnSheet = { S: { ...DATA.bn.S }, E: { ...DATA.bn.E } });
+  const Q = paramsFor(THIS_YEAR), nm = v => num(v) ?? looseNum(v), fb = new Set();
+  const H = (DATA.hist || []).filter(r => !r.proj);
+  const name = { S: 'sander', E: 'ellen' }, K = { S: { b: 'bs', f: 'fs', t: 'ts', n: 'sn', tot: 'sb' }, E: { b: 'be', f: 'fe', t: 'te', n: 'en', tot: 'eb' } };
+  for (const w of ['S', 'E']) {
+    const k = K[w], sh = sheet[w] || {}, rows = H.filter(r => r[k.b] > 0 && r[k.f] > 0);
+    const last = rows[rows.length - 1];
+    const x = { ...(DATA.bn[w] || {}) };
+    if (last) {
+      x.f = last[k.f]; x.full = last[k.b] / last[k.f]; x.toelage = last[k.t] || 0;
+      // ABP-grondslag: salaris per fte in januari van dit jaar
+      const jan = rows.find(r => { const d = new Date(r.d); return d.getUTCFullYear() === THIS_YEAR && d.getUTCMonth() === 0; });
+      x.grondFull = jan ? jan[k.b] / jan[k.f] : x.full;
+      // controle: de laatste gewone maand (zonder vakantiegeld of eindejaarsuitkering) van de salarisstrook
+      const norm = rows.slice().reverse().find(r => r[k.n] > 0 && r[k.tot] != null && r[k.tot] - r[k.b] - (r[k.t] || 0) < 0.15 * r[k.b]);
+      x.check = norm ? { d: norm.d, net: norm[k.n], full: norm[k.b] / norm[k.f], f: norm[k.f], toelage: norm[k.t] || 0 } : null;
+    } else { for (const f of ['f', 'full', 'grondFull', 'toelage']) if (sh[f] != null) { x[f] = sh[f]; fb.add('salaris en fte'); } }
+    const par = (key, lab, field) => { const v = nm(Q[`${key}_${name[w]}`]); if (v != null) x[field] = v; else if (sh[field] != null && sh[field] !== 0) { x[field] = sh[field]; fb.add(`${lab} (${key}_${name[w]})`); } else x[field] = x[field] ?? 0; };
+    par('extra_looncomponent', 'extra looncomponent', 'extra');
+    par('internetvergoeding', 'internetvergoeding', 'internet');
+    par('reisdagen', 'reisdagen per maand', 'reis');
+    par('thuiswerkdagen', 'thuiswerkdagen per maand', 'thuis');
+    x.excelNet = null;
+    DATA.bn[w] = x;
+  }
+  if (nm(Q.km_woonwerk_retour) == null && DATA.bn.P && DATA.bn.P.km != null && (DATA.bn.S.reis || DATA.bn.E.reis)) fb.add('kilometers woon-werk (km_woonwerk_retour)');
+  DATA.bnFallback = [...fb];
+}
 function parseHyp(aoa) {
   const out = {};
   for (const r0 of aoa) {
@@ -1227,7 +1258,7 @@ function renderWerkelijk() {
     'laatste loonstrook doorgetrokken (salaris en toelage van de laatste maand, netto van de laatste gewone maand), met cao_nu en de fte uit je Excel; VU mei, EJU november']);
   const PE = DATA.pensEst || {}, pe = Object.keys(PE).map(Number).sort((a, b) => a - b);
   const pReal = Object.keys(DATA.pensXls || {}).map(Number).filter(y => (DATA.pensXls[y].S || 0) > 0 || (DATA.pensXls[y].E || 0) > 0);
-  if (pReal.length || pe.length) rows.push(['Pensioenpremie (OP)', pReal.length ? `${Math.max(...pReal)}` : '–', yr(pe), 'ABP-regels uit bruto-netto']);
+  if (pReal.length || pe.length) rows.push(['Pensioenpremie (OP)', pReal.length ? `${Math.max(...pReal)}` : '–', yr(pe), 'ABP-regels uit parameters']);
   const raw = (DATA.vermRaw || []).slice().sort((a, b) => a.year - b.year);
   const hE = raw.filter(r => r.est && r.est.hyp).map(r => r.year), hR = raw.filter(r => r.hyp != null && !(r.est && r.est.hyp)).map(r => r.year);
   if (hR.length || hE.length) rows.push(['Hypotheek, rente, aflossing', hR.length ? `31-12-${Math.max(...hR)}` : '–', yr(hE), 'annuïteit uit tabblad hypotheek, extra aflossing in december']);
@@ -1239,7 +1270,8 @@ function renderWerkelijk() {
   if (wR.length || wE.length) rows.push(['WOZ (peildatum 1-1)', wR.length ? `${Math.max(...wR)}` : '–', yr(wE), (V.find(v => v.wozEst) || {}).wozHow ? 'CBS-prijsindex vanaf de laatste officiële WOZ' : '–']);
   if (typeof huisSchatting === 'function' && huisSchatting()) rows.push(['Waarde huis vandaag', '–', 'vandaag', 'CBS-prijsindex']);
   const bad = Object.keys(BAD_PARAMS);
-  const warn = (CALC_ERR.length || bad.length) ? `<div class="neg">${bad.length ? `Deze parameters zijn geen getal: ${bad.map(k => `${k} ("${esc(String(BAD_PARAMS[k]))}")`).join(', ')}. ` : ''}${CALC_ERR.map(esc).join('; ')}</div>` : '';
+  let warn = (CALC_ERR.length || bad.length) ? `<div class="neg">${bad.length ? `Deze parameters zijn geen getal: ${bad.map(k => `${k} ("${esc(String(BAD_PARAMS[k]))}")`).join(', ')}. ` : ''}${CALC_ERR.map(esc).join('; ')}</div>` : '';
+  if (DATA && DATA.bnFallback && DATA.bnFallback.length) warn += `<div class="note">Nog uit het tabblad bruto-netto: ${DATA.bnFallback.map(esc).join(', ')}. Zet deze in het tabblad parameters (de namen tussen haakjes); daarna is bruto-netto niet meer nodig.</div>`;
   if ($('#stWarn')) $('#stWarn').innerHTML = warn;
   if ($('#dpEst')) $('#dpEst').style.display = rows.length ? '' : 'none';
   host.innerHTML = (rows.length ? `
@@ -1328,9 +1360,9 @@ function recomputeVerm() {
     if (miss.length) CALC_ERR.push(`voor de nettoberekening ontbreekt in het tabblad parameters: ${miss.join(', ')}`);
     for (const [w, n] of [['S', 'Sander'], ['E', 'Ellen']]) {
       const x = DATA.bn[w]; if (!x) continue;
-      const xm = { full: 'actueel bruto loon', f: 'deeltijdfactor', grondFull: 'bruto maandloon ABP grondslag', extra: 'extra looncomponent' };
+      const xm = { full: 'salaris (salaris geschiedenis)', f: 'fte (salaris geschiedenis)', grondFull: 'salaris januari (salaris geschiedenis)', extra: 'extra_looncomponent (parameters)' };
       const mx = Object.keys(xm).filter(k => typeof x[k] !== 'number' || !isFinite(x[k])).map(k => xm[k]);
-      if (mx.length) CALC_ERR.push(`in het tabblad bruto-netto vind ik voor ${n} niet: ${mx.join(', ')}`);
+      if (mx.length) CALC_ERR.push(`voor ${n} ontbreekt: ${mx.join(', ')}`);
     }
     if ((DATA.hist || []).some(r => r.proj && (!isFinite(r.sn ?? 0) || !isFinite(r.en ?? 0)))) CALC_ERR.push('de netto salarisprognose kon niet worden berekend');
   });
@@ -1436,7 +1468,7 @@ function renderSchattingen() {
       <div class="tiny">† = geschat door de app; zonder † staat het zo in je Excel.<br>${DATA.histProj ? `<b>Netto inkomen</b>: salarissen na ${fmtMonth(DATA.histProj.from - 864e5 * 28)} doorgetrokken vanuit je laatste loonstrook (salaris en toelage van de laatste maand), met de cao-verhogingen uit cao_nu, vakantiegeld in mei en eindejaarsuitkering in november; netto met de belastingregels uit je tabblad bruto-netto. ` : ''}
       <b>Uitgaven</b>: wat jullie in ${P.anchor || 'het laatste afgeronde jaar'} uitgaven naast de hypotheek${P.base0 ? ` (${eur(P.base0)})` : ''}, verhoogd met de inflatie.
       <b>Rente en aflossing</b>: annuïteit met ${DATA.hyp && DATA.hyp.rente != null ? PCT1.format(DATA.hyp.rente) : 'de rente'} uit het tabblad hypotheek${P.em ? `, extra aflossing in de maand onder het bedrag (kolom "maand extra aflossing" in vermogen IB, anders ${MONTHS[P.em - 1]})${P.keep ? ', maandlast blijft gelijk' : ', daarna lagere maandlast'}` : ''}.
-      ${Object.keys(PE).length ? '<b>Pensioenpremie</b>: ABP-regels uit je tabblad bruto-netto, over het salaris per fte van januari en de fte per maand. ' : ''}<b>WOZ</b>: ${(ys.map(y => vb[y]).find(v => v && v.wozHow) || {}).wozHow || '–'}.</div>`;
+      ${Object.keys(PE).length ? '<b>Pensioenpremie</b>: ABP-regels uit het tabblad parameters, over het salaris per fte van januari en de fte per maand. ' : ''}<b>WOZ</b>: ${(ys.map(y => vb[y]).find(v => v && v.wozHow) || {}).wozHow || '–'}.</div>`;
   }
   $('#schatHuis').innerHTML = '';
 }
@@ -1843,17 +1875,14 @@ function renderBN() {
       row('DCA + DCA sport netto', eur(r.dcaN), '', dd(r.dcaN, r0.dcaN)) + row('Netto jaarinkomen', eur(r.jaarNet), ' total', dd(r.jaarNet, r0.jaarNet)) +
       row('Tarief op extra inkomen', PCT1.format(r.marg));
   }
-  const ex = future ? null : base.excelNet;
   const keep = Math.round(100 * (1 - r.marg));
   let note = J ? `Krijg je € 100 bruto per maand extra, dan houd je daar ongeveer € ${keep} netto van over. Telt dat extra loon ook mee voor je pensioen, dan iets minder.` : '';
-  if (!J && ex != null) {
-    const diff = r0.netto - ex;
-    if (Math.abs(diff) < 1) note = `Klopt met de Excel (${eur2(ex)}).`;
-    else {
-      note = `Let op: de Excel geeft ${eur2(ex)} netto, de app ${eur2(r0.netto)}.`;
-      const tEff = r0.netto - calcNet({ ...base, toelage: 0 }, P).netto;
-      if (base.toelage && Math.abs(diff - tEff) < 1) note += ` Dat verschil is precies de toelage van ${eur(base.toelage)}: de app rekent die al mee, de Excel nog niet.`;
-    }
+  // controle tegen de salarisstrook: de laatste gewone maand uit salaris geschiedenis
+  const c = !future && !J && DATA.bn[who] && DATA.bn[who].check;
+  if (c) {
+    const cy = new Date(c.d).getUTCFullYear(), mon = `${MONTHS[new Date(c.d).getUTCMonth()]} ${cy}`;
+    const appN = calcNet({ ...DATA.bn[who], full: c.full, f: c.f, toelage: c.toelage }, bnP(cy)).netto, diff = appN - c.net;
+    note = Math.abs(diff) < 1 ? `Klopt met de salarisstrook van ${mon} (${eur2(c.net)}).` : `Salarisstrook ${mon}: ${eur2(c.net)} netto, de app rekent ${eur2(appN)} (${signed(diff)}). Kleine verschillen komen door vergoedingen of inhoudingen die per maand wisselen.`;
   }
   $('#bnNote').textContent = note; $('#bnNote').style.display = note ? '' : 'none';
   const hint = $('#bnWaHint'); if (hint) { hint.textContent = changed ? 'aangepast' : 'salaris, fte, toelage en reisdagen'; hint.className = 'tiny ' + (changed ? 'pos' : 'muted'); }
@@ -3112,7 +3141,7 @@ function aoaOf(wb, name) {
   return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: true, range: rg });
 }
 function buildFromWorkbook(wb, fileName) {
-  const need = ['salaris geschiedenis', 'bruto-netto', 'in_uit', 'vermogen ib', 'hypotheek'];
+  const need = ['salaris geschiedenis', 'in_uit', 'vermogen ib', 'hypotheek'];
   const missing = need.filter(n => !aoaOf(wb, n));
   if (missing.length) throw new Error('Deze tabbladen ontbreken: ' + missing.join(', ') + '.');
   const hist = parseHist(aoaOf(wb, 'salaris geschiedenis'));
@@ -3121,7 +3150,7 @@ function buildFromWorkbook(wb, fileName) {
     vermRaw: vermByYear(aoaOf(wb, 'vermogen ib')),
     pens: aoaOf(wb, 'pensioen') ? parsePensioen(aoaOf(wb, 'pensioen')) : {},
     inuit: parseInUit(aoaOf(wb, 'in_uit')),
-    bn: parseBN(aoaOf(wb, 'bruto-netto'), hist),
+    bn: parseBN(aoaOf(wb, 'bruto-netto') || [], hist),
     parY: parseParamsSheet(aoaOf(wb, 'parameters')),
     parMeta: parseParamsMeta(aoaOf(wb, 'parameters')),
     hyp: parseHyp(aoaOf(wb, 'hypotheek')),
@@ -3338,7 +3367,7 @@ const PARAM_MAP = {
   ak_grens1: 'akG1', ak_pct1: 'akP1', ak_grens2: 'akG2', ak_basis2: 'akB2', ak_pct2: 'akP2', ak_basis3: 'akB3', ak_pct3: 'akP3',
   abp_franchise_op: 'frOP', abp_premie_op: 'pOP', abp_franchise_aop: 'frAOP', abp_premie_aop: 'pAOP', aov_premie: 'pAOV',
   vakantiegeld_pct: 'vu', eju_pct: 'eju', toelage_pensioengevend: 'toelPens', toelage_in_vakantiegeld: 'toelVu', toelage_in_eju: 'toelEju',
-  dca: 'dca', dca_sport: 'dcaSport', km_vergoeding: 'kmRate', thuiswerk_vergoeding: 'thuisRate',
+  dca: 'dca', dca_sport: 'dcaSport', km_vergoeding: 'kmRate', thuiswerk_vergoeding: 'thuisRate', km_woonwerk_retour: 'km',
   lhk_verrekening_schijf2: 'verr2', lhk_verrekening_schijf3: 'verr3'
 };
 // getal dat als tekst is ingevoerd, zoals "€ 29.736", "29,736" of "35,75%"
@@ -3440,6 +3469,7 @@ function updateStatus() {
 const virtualExt = () => ({ virtual: true, fileName: null, loadedAt: Date.now(), cpi: {}, cpiDec: {}, kk: {}, modaal: {}, pct: {}, params: {}, cao: [] });
 function applyData(d) {
   DATA = d;
+  try { deriveBN(); } catch (e) { console.error(e); }
   applyExt(EXT && !EXT.virtual ? EXT : virtualExt());
   recomputeVerm();
   initBN(); initInUit(); initW();
@@ -3587,7 +3617,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-22 17:40';
+const APP_VERSION = '2026-11-22 18:00';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
