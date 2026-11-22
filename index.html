@@ -1111,6 +1111,8 @@ function renderIncome() {
 // een maand is werkelijk als er voor Sander of Ellen zowel een netto bedrag als een bruto maandloon staat;
 // formules over lege cellen (0) of een netto-formule zonder salaris tellen niet mee
 const isRealMonth = r => ((r.sn || 0) > 0 && (r.bs || 0) > 0) || ((r.en || 0) > 0 && (r.be || 0) > 0);
+// kinderbijslag per jaar uit het tabblad parameters (null als die rij er niet is)
+function kbYear(y) { const v = paramsFor(y).kinderbijslag; const n = num(v) ?? looseNum(v); return n == null ? null : n; }
 // ===== grondslag vakantiegeld en eindejaarsuitkering, maand voor maand =====
 // vakantiegeld (mei) over juni vorig jaar t/m mei, eindejaarsuitkering over januari t/m december;
 // uit salaris geschiedenis (werkelijk) en de prognose voor maanden die nog niet bekend zijn
@@ -1302,9 +1304,11 @@ function fillProjections() {
     const r0 = by[y], r1 = by[y + 1];
     if (!r0 || !r1 || r0.spaar == null || r1.spaar != null || !A[y] || !A[y].tn || r0.rente == null) break;
     base *= 1 + (CPI[y] ?? CPI[CPI_LAST] ?? 2) / 100;
-    const sv = A[y].tn - base - r0.rente - (r0.aflossing || 0);
+    // de uitgaven zijn afgeleid uit het ankerjaar, inclusief de kinderbijslag van toen; neem het verschil met dat jaar mee
+    const kb0 = kbYear(anc.year), kbY = kbYear(y), kbD = kb0 != null && kbY != null ? kbY - kb0 : 0;
+    const sv = A[y].tn - base - r0.rente - (r0.aflossing || 0) + kbD;
     r1.spaar = r0.spaar + sv - (r0.extra || 0) - (r0.invest || 0) + (r0.giften || 0);
-    r1.est.spaar = true; r0.svEst = sv; r0.svTn = A[y].tn; r0.svBase = base;
+    r1.est.spaar = true; r0.svEst = sv; r0.svTn = A[y].tn; r0.svBase = base; r0.svKb = kbD;
   }
 }
 const CALC_ERR = [];
@@ -1525,6 +1529,7 @@ function vermProj(A, k, toYear) {
   const m = hyp > 0 && n > 0 && rente != null ? (rente ? hyp * (rente / 12) / (1 - Math.pow(1 + rente / 12, -n)) : hyp / n) : 0;
   if (hyp > 0 && !m) { n = 0; }
   let sv = A.sv * Math.pow(1 + A.infl, Math.max(0, y - (A.svYear || y))), uit = A.uit;
+  const kbS = A.svYear != null ? kbYear(A.svYear) : null;
   const out = [];
   while (y < toYear) {
     const stopped = A.stop && y >= A.stop;
@@ -1533,7 +1538,8 @@ function vermProj(A, k, toYear) {
       if (hyp > 0 && m) { const int = hyp * (rente || 0) / 12, a = Math.min(hyp, m - int); hyp -= a; if (hyp < 1) hyp = 0; }
       else if (m) freed += m; // hypotheek afgelost: de maandlast gaat naar sparen
     }
-    sp += sp * A.rend[k] + (stopped ? 0 : sv - uit + freed);
+    const kbY = kbYear(y), kbD = kbS != null && kbY != null ? kbY - kbS : 0;
+    sp += sp * A.rend[k] + (stopped ? 0 : sv - uit + freed + kbD);
     woz *= 1 + A.woz[k]; sv *= 1 + A.infl; uit *= 1 + A.infl; y++;
     out.push({ year: y, woz, hyp, spaar: sp, net: woz - hyp + sp });
   }
@@ -2091,6 +2097,7 @@ function appInUit(item, kind) {
   const l = item.label.toLowerCase(), who = /sander/.test(l) ? 'S' : /ellen/.test(l) ? 'E' : null;
   try {
     if (kind === 'inn') {
+      if (/kinderbijslag/.test(l)) { const v = kbYear(THIS_YEAR); return v == null ? null : { amount: v / 4, per: 'kwartaal', how: `parameter kinderbijslag ${THIS_YEAR}: ${eur(v)} per jaar` }; }
       if (/belasting\s*terug|teruggaa?f|teruggave/.test(l)) { const v = ibNet(THIS_YEAR); return v == null ? null : { amount: v, per: 'jaar', how: `aangifte ${THIS_YEAR} volgens Loon en belasting` }; }
       if (!who || !DATA.bn || !DATA.bn[who]) return null;
       const r = calcNet(withUitk(DATA.bn[who], who, THIS_YEAR), bnP(THIS_YEAR));
@@ -3580,7 +3587,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-22 16:00';
+const APP_VERSION = '2026-11-22 17:40';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
