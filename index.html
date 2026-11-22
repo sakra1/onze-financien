@@ -478,8 +478,6 @@ section[data-view].active { display: grid; }
 
       <div class="card" id="bnChanges" style="display:none"></div>
 
-      <details class="card bn-wa" id="jiCard" style="display:none"><summary><h3 id="jiTitle">Jaarinkomens</h3><span class="tiny muted">bruto, ABP, fiscaal, verzamelinkomen</span></summary><div id="jiBody"></div></details>
-
       <details class="card bn-wa" id="ibCard" style="display:none"><summary><h3 id="ibTitle">Inkomstenbelasting</h3><span class="small" id="ibSum"></span></summary><div id="ibBody"></div></details>
 
       <details class="card bn-wa" id="bnWa"><summary><h3>Wat als…</h3><span class="tiny muted" id="bnWaHint">salaris, fte, toelage en reisdagen aanpassen</span></summary><div id="bnInputs"></div></details>
@@ -1852,6 +1850,22 @@ function initBN() {
   UI.bnBase = { S: xForYear('S', BN_YEAR), E: xForYear('E', BN_YEAR) };
   UI.bn = { S: { ...UI.bnBase.S }, E: { ...UI.bnBase.E } };
 }
+// jaarinkomens voor de gekozen persoon en het gekozen jaar. Zonder Wat als: maand voor maand (salaris geschiedenis + prognose),
+// gelijk aan de inkomstenbelasting. Met Wat als: het aangepaste salaris voor het hele jaar, met het verschil tegenover de basis.
+function yearFigures(who, r, r0, changed) {
+  let I = null; try { I = ibBest(BN_YEAR).I; } catch (e) {}
+  const p = I && I.p[who], ewr = p ? p.bel - p.werk : 0;
+  const b3 = I && I.box3 && I.box3.g > 0 && who === 'S' ? I.box3.g * (paramsFor(BN_YEAR).box3_forfait_bank || 0) : 0;
+  const k = who === 'S' ? 'sn' : 'en', rs = (DATA.hist || []).filter(q => new Date(q.d).getUTCFullYear() === BN_YEAR && q[k] > 0);
+  const histNet = rs.length === 12 ? rs.reduce((a, q) => a + q[k], 0) : null;
+  const fromCalc = c => { const werk = c.hlM * 12 + c.vuB + c.ejuB + c.dcaB; return { bruto: (c.bruto + c.toelage) * 12 + c.vuB + c.ejuB + c.dcaB, abp: c.jaarABP, werk, bel: werk + ewr, verz: werk + ewr + b3, net: c.jaarNet }; };
+  const M = p ? { bruto: p.bruto, abp: p.abp, werk: p.werk, bel: p.bel, verz: p.bel + b3, net: histNet ?? r0.jaarNet } : fromCalc(r0);
+  if (!changed) return { ...M, d: null };
+  // Wat als: de basis maand voor maand, plus wat de aanpassing over een heel jaar verandert
+  const A = fromCalc(r), B = fromCalc(r0), out = { d: M };
+  for (const f of Object.keys(M)) out[f] = M[f] + (A[f] - B[f]);
+  return out;
+}
 let BN_PER = 'm';
 const eurS = v => (v < -0.005 ? '−' : '') + eur2(Math.abs(v));
 function renderBN() {
@@ -1882,10 +1896,20 @@ function renderBN() {
       ['AOV (Loyalis)', -r.ipap], ['Loonheffing', -r.lhM], ['Onbelaste vergoedingen', r.verg]
     ].filter(([n, v]) => n !== 'Toelage' || Math.abs(v) >= 0.005).map(([n, v]) => row(n === 'Pensioen (OP/NP)' ? `${n}<span class="tiny muted" style="display:block">over jaarinkomen ABP ${eur2(r.jaarABP)}</span>` : n, eurS(v))).join('') + row('Netto', eur2(r.netto), ' total');
   } else {
-    $('#bnRows').innerHTML = row('Netto salaris (12 maanden)', eur(r.netto * 12), '', dd(r.netto * 12, r0.netto * 12)) +
-      row('Vakantiegeld netto', eur(r.vuN), '', dd(r.vuN, r0.vuN)) + row('Eindejaarsuitkering netto', eur(r.ejuN), '', dd(r.ejuN, r0.ejuN)) +
-      row('DCA + DCA sport netto', eur(r.dcaN), '', dd(r.dcaN, r0.dcaN)) + row('Netto jaarinkomen', eur(r.jaarNet), ' total', dd(r.jaarNet, r0.jaarNet)) +
+    // jaarinkomens van de gekozen persoon, van bruto naar netto; maand voor maand zoals bij de inkomstenbelasting
+    const Y = yearFigures(who, r, r0, changed);
+    const sub = t => `<span class="tiny muted" style="display:block">${t}</span>`;
+    $('#bnRows').innerHTML =
+      row(`Bruto jaarinkomen${sub('salaris, toelage, vakantiegeld, eindejaarsuitkering en DCA')}`, eur(Y.bruto), '', Y.d ? dd(Y.bruto, Y.d.bruto) : '') +
+      row(`Jaarinkomen ABP (pensioengevend)${sub('voltijd, salaris van januari; de premie gaat naar rato van je fte')}`, eur(Y.abp), '', Y.d ? dd(Y.abp, Y.d.abp) : '') +
+      row(`Fiscaal loon = inkomen uit werk${sub('bruto min pensioen-, arbeidsongeschiktheids- en AOV-premie; staat op je jaaropgave')}`, eur(Y.werk), '', Y.d ? dd(Y.werk, Y.d.werk) : '') +
+      (Math.abs(Y.verz - Y.bel) >= 1
+        ? row(`Belastbaar inkomen werk en woning${sub('inkomen uit werk + eigenwoningforfait − hypotheekrente')}`, eur(Y.bel), '', Y.d ? dd(Y.bel, Y.d.bel) : '') + row(`Verzamelinkomen = toetsingsinkomen${sub('box 1 + box 3')}`, eur(Y.verz), '', Y.d ? dd(Y.verz, Y.d.verz) : '')
+        : row(`Verzamelinkomen = toetsingsinkomen${sub('inkomen uit werk + eigenwoningforfait − hypotheekrente (box 1; geen box 3)')}`, eur(Y.verz), '', Y.d ? dd(Y.verz, Y.d.verz) : '')) +
+      row('Netto jaarinkomen', eur(Y.net), ' total', Y.d ? dd(Y.net, Y.d.net) : '') +
+      row(`<span class="small muted">waarvan vakantiegeld, eindejaarsuitkering en DCA</span>`, `<span class="small muted">${eur(r.vuN + r.ejuN + r.dcaN)}</span>`) +
       row('Tarief op extra inkomen', PCT1.format(r.marg));
+    $('#bnNet').textContent = eur(Y.net);
   }
   const keep = Math.round(100 * (1 - r.marg));
   let note = J ? `Krijg je € 100 bruto per maand extra, dan houd je daar ongeveer € ${keep} netto van over. Telt dat extra loon ook mee voor je pensioen, dan iets minder.` : '';
@@ -1900,7 +1924,6 @@ function renderBN() {
   $('#bnNote').textContent = note; $('#bnNote').style.display = note ? '' : 'none';
   const hint = $('#bnWaHint'); if (hint) { hint.textContent = changed ? 'aangepast' : 'salaris, fte, toelage en reisdagen'; hint.className = 'tiny ' + (changed ? 'pos' : 'muted'); }
   renderChanges();
-  renderJI();
   renderIB();
 }
 function bnInputsHTML() {
@@ -2057,28 +2080,6 @@ function ibBest(Y) {
 function ibNet(Y) {
   const { I } = ibBest(Y); if (!I || !Object.keys(I.p).length) return null;
   return Object.values(I.p).reduce((a, p) => a + p.eff, 0) - (I.box3 && I.box3.tax ? I.box3.tax : 0);
-}
-// alle jaarinkomens bij elkaar, per persoon (dezelfde berekening als de inkomstenbelasting, maand voor maand)
-function renderJI() {
-  const el = $('#jiCard'); if (!el) return;
-  let I = null; try { I = ibBest(BN_YEAR).I; } catch (e) { console.error(e); }
-  if (!I || !Object.keys(I.p).length) { el.style.display = 'none'; return; }
-  el.style.display = '';
-  const W = ['S', 'E'].filter(w => I.p[w]), nm = { S: 'Sander', E: 'Ellen' };
-  const b3 = I.box3 && I.box3.g > 0 && I.box3.tax != null ? I.box3.g * (paramsFor(BN_YEAR).box3_forfait_bank || 0) : 0;
-  // netto: de som van de maanden in salaris geschiedenis (werkelijk + prognose)
-  const net = w => { const k = w === 'S' ? 'sn' : 'en', rs = (DATA.hist || []).filter(r => new Date(r.d).getUTCFullYear() === BN_YEAR && r[k] > 0); return rs.length === 12 ? rs.reduce((a, r) => a + r[k], 0) : null; };
-  const rows = [
-    ['Bruto jaarinkomen', p => p.bruto, 'salaris, toelage, vakantiegeld, eindejaarsuitkering en DCA'],
-    ['Jaarinkomen ABP (pensioengevend)', p => p.abp, 'voltijd, salaris van januari; de premie gaat naar rato van je fte'],
-    ['Fiscaal loon = inkomen uit werk', p => p.werk, 'bruto min pensioen-, arbeidsongeschiktheids- en AOV-premie; staat op je jaaropgave'],
-    ['Belastbaar inkomen werk en woning (box 1)', p => p.bel, 'inkomen uit werk + eigenwoningforfait − hypotheekrente'],
-    ['Verzamelinkomen', (p, w) => p.bel + (w === 'S' ? b3 : 0), 'box 1 + box 2 + box 3; ook het toetsingsinkomen voor toeslagen'],
-    ['Netto jaarinkomen', (p, w) => net(w), 'som van de netto maanden (strook + prognose), vóór de aangifte'],
-  ];
-  $('#jiTitle').textContent = `Jaarinkomens ${BN_YEAR}${BN_YEAR > THIS_YEAR ? ' (schatting)' : ''}`;
-  $('#jiBody').innerHTML = `<div class="tablewrap"><table class="chgt"><thead><tr><th></th>${W.map(w => `<th>${nm[w]}</th>`).join('')}</tr></thead><tbody>${rows.map(([l, f, t]) => `<tr><td>${l}<div class="tiny muted">${t}</div></td>${W.map(w => { const v = f(I.p[w], w); return `<td>${v == null ? '–' : eur(v)}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>
-    <div class="note">Salarissen maand voor maand uit salaris geschiedenis${W.some(w => I.p[w].proj) ? ' (rest van het jaar geschat)' : ''}. Eigen woning ${Math.round(I.shS * 100)}% bij Sander, zoals bij Inkomstenbelasting. ${b3 ? 'Box 3 staat bij Sander.' : 'Geen box 3: het spaargeld blijft onder het heffingvrije vermogen.'}</div>`;
 }
 function renderIB() {
   const el = $('#ibCard'); if (!el) return;
@@ -3657,7 +3658,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-22 21:55';
+const APP_VERSION = '2026-11-22 22:10';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
