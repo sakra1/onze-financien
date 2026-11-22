@@ -831,8 +831,8 @@ function parseBN(aoa, hist) {
   };
 }
 
-// ABP-grondslag per fte: het deeltijdsalaris van januari afgerond op hele euro's, gedeeld door de fte (zo rekent het ABP: € 7.113,60 → € 7.114 / 0,9)
-const abpGrond = (sal, f) => f ? Math.round(sal) / f : sal;
+// ABP-grondslag per fte: het salaris van januari gedeeld door de fte (verschillen met het ABP vangt de extra looncomponent op)
+const abpGrond = (sal, f) => f ? sal / f : sal;
 // ===== gegevens per persoon: uit salaris geschiedenis en parameters (het tabblad bruto-netto alleen nog als reserve) =====
 function deriveBN() {
   if (!DATA || !DATA.bn) return;
@@ -1887,7 +1887,7 @@ function renderBN() {
       row('Jaarinkomen ABP (pensioengevend)', eur2(r.jaarABP));
   }
   const keep = Math.round(100 * (1 - r.marg));
-  let note = J ? `Krijg je € 100 bruto per maand extra, dan houd je daar ongeveer € ${keep} netto van over. Telt dat extra loon ook mee voor je pensioen, dan iets minder. Jaarinkomen ABP = 12 × het salaris van januari (deeltijdsalaris afgerond op hele euro's, omgerekend naar voltijd) × (1 + vakantiegeld + eindejaarsuitkering), plus de vaste toelage en de extra looncomponent uit bruto-netto; daarover berekent het ABP de premies.` : '';
+  let note = J ? `Krijg je € 100 bruto per maand extra, dan houd je daar ongeveer € ${keep} netto van over. Telt dat extra loon ook mee voor je pensioen, dan iets minder. Jaarinkomen ABP = 12 × het salaris van januari (omgerekend naar voltijd) × (1 + vakantiegeld + eindejaarsuitkering), plus de vaste toelage en de extra looncomponent uit bruto-netto; daarover berekent het ABP de premies.` : '';
   // controle tegen de salarisstrook: de laatste gewone maand uit salaris geschiedenis
   const c = !future && !J && DATA.bn[who] && DATA.bn[who].check;
   if (c) {
@@ -3630,7 +3630,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-22 21:25';
+const APP_VERSION = '2026-11-22 21:30';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
