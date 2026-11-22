@@ -150,7 +150,6 @@ table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: upper
 .chgt tr.tot td { font-weight: 600; }
 .chgt tr.grp td { text-align: left; font-weight: 600; color: var(--ink-2); padding-top: 10px; border-bottom: none; }
 b.ctr { font-variant-numeric: tabular-nums; display: inline-flex; line-height: 1.15; }
-#owLive, #spLive { font-size: 18px; }
 b.ctr span { font: inherit; color: inherit; margin: 0; padding: 0; letter-spacing: inherit; }
 b.ctr .odo-d { display: inline-block; height: 1.15em; overflow: hidden; }
 b.ctr .odo-c { display: inline-block; height: 1.15em; }
@@ -1696,7 +1695,9 @@ function odoTick(ts) {
   odoLast = ts;
   for (const [id, c] of Object.entries(LIVE_CTRS)) {
     const el = document.getElementById(id); if (!el || !c) continue;
-    odoSet(el, c.base + c.pd * (Date.now() - c.t0) / 864e5);
+    const v = c.base + c.pd * (Date.now() - c.t0) / 864e5;
+    if (c.plain) { const t = eur(v); if (el.textContent !== t) el.textContent = t; } // zonder animatie, hele euro's
+    else odoSet(el, v);
   }
 }
 requestAnimationFrame(odoTick);
@@ -1744,11 +1745,11 @@ function renderKpis(onlyKpis) {
     <div class="tile" style="grid-column:1/-1"><span>Netto vermogen</span><b class="ctr" id="netLive">${cur ? (NU ? eur2(cur.net) : eur(cur.net)) : '–'}</b><em>${(() => {
       if (!NU || !NU.v0 || NU.v0.net == null) return 'overwaarde + spaargeld';
       const d = NU.net - NU.v0.net, pd = NU.pd.net;
-      LIVE_CTRS = { netLive: { base: NU.net, t0: NU.t, pd }, owLive: { base: NU.woz - NU.hyp, t0: NU.t, pd: NU.pd.ow }, spLive: { base: NU.spaar, t0: NU.t, pd: NU.pd.sp } };
+      LIVE_CTRS = { netLive: { base: NU.net, t0: NU.t, pd }, owLive: { base: NU.woz - NU.hyp, t0: NU.t, pd: NU.pd.ow, plain: true }, spLive: { base: NU.spaar, t0: NU.t, pd: NU.pd.sp, plain: true } };
       return `<span class="${d >= 0 ? 'pos' : 'neg'}">${d >= 0 ? '+' : '−'} ${eur(Math.abs(Math.round(d / 1000) * 1000))}</span> sinds 1 januari (${eur(NU.v0.net)})${pd != null ? ` · groeit nu ± ${eur(Math.round(pd / 10) * 10)} per dag` : ''}`;
     })()}</em></div>
-    <div class="tile"><span>Overwaarde huis</span><b class="ctr" id="owLive">${cur ? (NU ? eur2(cur.woz - cur.hyp) : eur(cur.woz - cur.hyp)) : '–'}</b><em>${wozTxt}${NU && NU.pd.ow ? `<br>± ${eur(Math.round(NU.pd.ow / 10) * 10)} per dag` : ''}</em></div>
-    <div class="tile"><span>Spaargeld</span><b class="ctr" id="spLive">${cur ? (NU ? eur2(cur.spaar) : eur(cur.spaar)) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven` : ''}${NU && NU.pd.sp ? `<br>± ${eur(Math.round(NU.pd.sp / 10) * 10)} per dag` : ''}</em></div>${NU ? toel(`Huis: ${esc(NU.wozHow)}. Hypotheek: ${esc(NU.hypHow)}. Spaargeld: ${esc(NU.spHow)}. Buffer: spaargeld gedeeld door de maanduitgaven (vuistregel: 3 à 6 maanden).`, 'Hoe geschat', 'grid-column:1/-1;margin-top:-6px') : ''}${(() => { try { return milTile(miljoen()); } catch (e) { console.error(e); return ''; } })()}`;
+    <div class="tile"><span>Overwaarde huis</span><b id="owLive">${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
+    <div class="tile"><span>Spaargeld</span><b id="spLive">${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven` : ''}</em></div>${NU ? toel(`Huis: ${esc(NU.wozHow)}. Hypotheek: ${esc(NU.hypHow)}. Spaargeld: ${esc(NU.spHow)}. Buffer: spaargeld gedeeld door de maanduitgaven (vuistregel: 3 à 6 maanden).`, 'Hoe geschat', 'grid-column:1/-1;margin-top:-6px') : ''}${(() => { try { return milTile(miljoen()); } catch (e) { console.error(e); return ''; } })()}`;
   if (onlyKpis) return;
   renderFlow();
 }
@@ -3546,7 +3547,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-22 14:20';
+const APP_VERSION = '2026-11-22 14:25';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
