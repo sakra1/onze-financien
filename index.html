@@ -831,6 +831,8 @@ function parseBN(aoa, hist) {
   };
 }
 
+// ABP-grondslag per fte: het deeltijdsalaris van januari afgerond op hele euro's, gedeeld door de fte (zo rekent het ABP: € 7.113,60 → € 7.114 / 0,9)
+const abpGrond = (sal, f) => f ? Math.round(sal) / f : sal;
 // ===== gegevens per persoon: uit salaris geschiedenis en parameters (het tabblad bruto-netto alleen nog als reserve) =====
 function deriveBN() {
   if (!DATA || !DATA.bn) return;
@@ -846,7 +848,7 @@ function deriveBN() {
       x.f = last[k.f]; x.full = last[k.b] / last[k.f]; x.toelage = last[k.t] || 0;
       // ABP-grondslag: salaris per fte in januari van dit jaar
       const jan = rows.find(r => { const d = new Date(r.d); return d.getUTCFullYear() === THIS_YEAR && d.getUTCMonth() === 0; });
-      x.grondFull = jan ? jan[k.b] / jan[k.f] : x.full;
+      x.grondFull = jan ? abpGrond(jan[k.b], jan[k.f]) : abpGrond(x.full * x.f, x.f);
       // controle: de laatste gewone maand (zonder vakantiegeld of eindejaarsuitkering) van de salarisstrook
       const norm = rows.slice().reverse().find(r => r[k.n] > 0 && r[k.tot] != null && r[k.tot] - r[k.b] - (r[k.t] || 0) < 0.15 * r[k.b]);
       x.check = norm ? { d: norm.d, net: norm[k.n], full: norm[k.b] / norm[k.f], f: norm[k.f], toelage: norm[k.t] || 0 } : null;
@@ -919,6 +921,7 @@ function calcNet(x, P) {
     : (heffing(yTot + 100, P) - heffing(yTot, P)) / 100;
   const k = 1 - marg;
   return {
+    jaarABP,
     bruto, toelage: x.toelage, op, aaop, ipap, premies, hlM, lhM, verg, netto, jaarABP,
     vuB, ejuB, dcaB, vuN: vuB * k, ejuN: ejuB * k, dcaN: dcaB * k, marg,
     jaarNet: netto * 12 + (vuB + ejuB + dcaB) * k,
@@ -1185,6 +1188,7 @@ function projectHist() {
   const endY = THIS_YEAR + 1, out = [];
   const per = { S: { b: 'sb', n: 'sn', f: 'fs', t: 'ts', base: 'bs' }, E: { b: 'eb', n: 'en', f: 'fe', t: 'te', base: 'be' } };
   let y = new Date(last.d).getUTCFullYear(), m = mon(last.d);
+  const gJan = { S: {}, E: {} }; // ABP-grondslag per jaar (salaris januari)
   for (;;) {
     m++; if (m > 12) { m = 1; y++; } if (y > endY) break;
     const d = Date.UTC(y, m - 1, day), row = { d, proj: true };
@@ -1199,7 +1203,10 @@ function projectHist() {
       // netto: de laatste gewone maand (zonder VU of EJU), plus wat de verschillen in salaris, toelage en fte netto opleveren
       const fL = lastR[k.f] || f, bL = lastR[k.base] != null ? lastR[k.base] : b0, tL = lastR[k.t] || 0, tT = tpl[k.t] || 0;
       const fullT = b0 / f, fullN = bL / fL * r, bN = fullN * fN;
-      const xT = { ...x, f, full: fullT, grondFull: fullT, toelage: tT }, xN = { ...x, f: fN, full: fullN, grondFull: fullN, toelage: tL };
+      // pensioenpremie: het ABP rekent het hele jaar met het salaris van januari
+      if (m === 1) gJan[w][y] = abpGrond(bN, fN);
+      const gT = x.grondFull, gN = y <= THIS_YEAR ? x.grondFull : (gJan[w][y] ?? abpGrond(bN, fN));
+      const xT = { ...x, f, full: fullT, grondFull: gT, toelage: tT }, xN = { ...x, f: fN, full: fullN, grondFull: gN, toelage: tL };
       const n0 = calcNet(xT, bnP(new Date(tpl.d).getUTCFullYear())), n1 = calcNet(xN, bnP(y));
       let bru = tpl[k.b] + (bN - b0) + (tL - tT), net = tpl[k.n] + (n1.netto - n0.netto);
       Object.assign(row, { [k.b]: bru, [k.n]: net, [k.f]: fN, [k.t]: tL || null, [k.base]: bN });
@@ -1241,7 +1248,7 @@ function estPens() {
       if (y <= L) continue;
       const rows = DATA.hist.filter(r => new Date(r.d).getUTCFullYear() === y && r[per[w].f] > 0 && r[per[w].b] != null);
       if (rows.length < 12) continue;
-      const jan = rows[0], grond = jan[per[w].b] / jan[per[w].f];
+      const jan = rows[0], grond = abpGrond(jan[per[w].b], jan[per[w].f]);
       let op = 0;
       const Py = bnP(y);
       for (const r of rows) op += calcNet({ ...x, grondFull: grond, f: r[per[w].f] }, Py).op;
@@ -1837,7 +1844,7 @@ function xForYear(w, Y) {
   const jan = (DATA.hist || []).find(r => new Date(r.d).getUTCFullYear() === Y && r[k.b] > 0 && r[k.f] > 0);
   if (!jan) return { ...x };
   const full = jan[k.b] / jan[k.f];
-  return { ...x, full, grondFull: full, f: jan[k.f], toelage: jan[k.t] || 0, excelNet: null };
+  return { ...x, full, grondFull: abpGrond(jan[k.b], jan[k.f]), f: jan[k.f], toelage: jan[k.t] || 0, excelNet: null };
 }
 function initBN() {
   UI.bnBase = { S: xForYear('S', BN_YEAR), E: xForYear('E', BN_YEAR) };
@@ -1876,10 +1883,11 @@ function renderBN() {
     $('#bnRows').innerHTML = row('Netto salaris (12 maanden)', eur(r.netto * 12), '', dd(r.netto * 12, r0.netto * 12)) +
       row('Vakantiegeld netto', eur(r.vuN), '', dd(r.vuN, r0.vuN)) + row('Eindejaarsuitkering netto', eur(r.ejuN), '', dd(r.ejuN, r0.ejuN)) +
       row('DCA + DCA sport netto', eur(r.dcaN), '', dd(r.dcaN, r0.dcaN)) + row('Netto jaarinkomen', eur(r.jaarNet), ' total', dd(r.jaarNet, r0.jaarNet)) +
-      row('Tarief op extra inkomen', PCT1.format(r.marg));
+      row('Tarief op extra inkomen', PCT1.format(r.marg)) +
+      row('Jaarinkomen ABP (pensioengevend)', eur2(r.jaarABP));
   }
   const keep = Math.round(100 * (1 - r.marg));
-  let note = J ? `Krijg je € 100 bruto per maand extra, dan houd je daar ongeveer € ${keep} netto van over. Telt dat extra loon ook mee voor je pensioen, dan iets minder.` : '';
+  let note = J ? `Krijg je € 100 bruto per maand extra, dan houd je daar ongeveer € ${keep} netto van over. Telt dat extra loon ook mee voor je pensioen, dan iets minder. Jaarinkomen ABP = 12 × het salaris van januari (deeltijdsalaris afgerond op hele euro's, omgerekend naar voltijd) × (1 + vakantiegeld + eindejaarsuitkering), plus de vaste toelage en de extra looncomponent uit bruto-netto; daarover berekent het ABP de premies.` : '';
   // controle tegen de salarisstrook: de laatste gewone maand uit salaris geschiedenis
   const c = !future && !J && DATA.bn[who] && DATA.bn[who].check;
   if (c) {
@@ -3622,7 +3630,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-22 20:15';
+const APP_VERSION = '2026-11-22 21:25';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
