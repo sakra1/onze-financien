@@ -850,7 +850,8 @@ function deriveBN() {
       const norm = rows.slice().reverse().find(r => r[k.n] > 0 && r[k.tot] != null && r[k.tot] - r[k.b] - (r[k.t] || 0) < 0.15 * r[k.b]);
       x.check = norm ? { d: norm.d, net: norm[k.n], full: norm[k.b] / norm[k.f], f: norm[k.f], toelage: norm[k.t] || 0 } : null;
     } else { for (const f of ['f', 'full', 'grondFull', 'toelage']) if (sh[f] != null) { x[f] = sh[f]; fb.add('salaris en fte'); } }
-    const par = (key, lab, field) => { const v = nm(Q[`${key}_${name[w]}`]); if (v != null) x[field] = v; else if (sh[field] != null && sh[field] !== 0) { x[field] = sh[field]; fb.add(`${lab} (${key}_${name[w]})`); } else x[field] = x[field] ?? 0; };
+    // per persoon (naam_sander) of één waarde voor beiden (naam)
+    const par = (key, lab, field) => { const v = nm(Q[`${key}_${name[w]}`]) ?? nm(Q[key]); if (v != null) x[field] = v; else if (sh[field] != null && sh[field] !== 0) { x[field] = sh[field]; fb.add(`${lab} (${key}_${name[w]})`); } else x[field] = x[field] ?? 0; };
     par('extra_looncomponent', 'extra looncomponent', 'extra');
     par('internetvergoeding', 'internetvergoeding', 'internet');
     par('reisdagen', 'reisdagen per maand', 'reis');
@@ -3617,7 +3618,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-22 18:00';
+const APP_VERSION = '2026-11-22 18:10';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
