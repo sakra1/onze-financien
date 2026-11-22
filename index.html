@@ -661,6 +661,7 @@ const NUM1 = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 1 });
 const NUM0 = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 0 });
 const eur = v => (v == null || !isFinite(v)) ? '–' : EUR0.format(Math.round(v));
 const eur2 = v => (v == null || !isFinite(v)) ? '–' : EUR2.format(v);
+const signed2 = v => (v >= 0.005 ? '+' : v <= -0.005 ? '−' : '±') + eur2(Math.abs(v));
 const signed = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + EUR0.format(Math.abs(Math.round(v))).replace('-', '');
 function compactEur(v) {
   const a = Math.abs(v), s = v < 0 ? '−' : '';
@@ -1856,7 +1857,7 @@ function renderBN() {
   if (future) {
     const rNow = calcNet(withUitk(DATA.bn[who], who, THIS_YEAR), bnP(THIS_YEAR)), dy = J ? r.jaarNet - rNow.jaarNet : r.netto - rNow.netto;
     const filled = Object.values(DATA.parY || {}).filter(o => o[BN_YEAR] != null).length, all = Object.keys(DATA.parY || {}).length;
-    dEl.innerHTML = `${signed(dy)} ${per} t.o.v. ${THIS_YEAR}${changed ? ` · ${signed(d)} door Wat als` : ''}<div class="tiny">Schatting: salaris en fte uit de prognose (cao_nu), ${filled ? `${filled} van ${all} parameters uit de kolom ${BN_YEAR}, de rest` : 'alle parameters'} van ${THIS_YEAR}.</div>`;
+    dEl.innerHTML = `${J ? signed(dy) : signed2(dy)} ${per} t.o.v. ${THIS_YEAR}${changed ? ` · ${signed(d)} door Wat als` : ''}<div class="tiny">Schatting: salaris en fte uit de prognose (cao_nu), ${filled ? `${filled} van ${all} parameters uit de kolom ${BN_YEAR}, de rest` : 'alle parameters'} van ${THIS_YEAR}.</div>`;
     dEl.className = 'delta ' + (dy >= 0 ? 'pos' : 'neg');
   } else if (!changed) { dEl.textContent = ''; dEl.className = 'delta muted'; }
   else { dEl.textContent = `${signed(d)} ${per} door Wat als`; dEl.className = 'delta ' + (d > 0 ? 'pos' : 'neg'); }
@@ -2089,9 +2090,9 @@ function renderChanges() {
   el.style.display = '';
   const name = { S: 'Sander', E: 'Ellen' }[w], cls = v => v > 0.5 ? 'pos' : v < -0.5 ? 'neg' : 'muted';
   const lbl = m => esc(m.desc || m.k.replace(/_/g, ' '));
-  const effHTML = e ? `<div class="r"><span><b>${name}</b>, netto per maand</span><span class="${cls(e.mnd)}"><b>${signed(e.mnd)}</b></span></div>
+  const effHTML = e ? `<div class="r"><span><b>${name}</b>, netto per maand</span><span class="${cls(e.mnd)}"><b>${signed2(e.mnd)}</b></span></div>
     <div class="tiny muted" style="margin:-2px 0 4px">${signed(e.jaar)} per jaar, met vakantiegeld en eindejaarsuitkering</div>
-    ${e.per.length ? `<ul class="chgl">${e.per.map(p => `<li><span>${esc(p.label)}</span><span class="${cls(p.mnd)}">${signed(p.mnd)}</span></li>`).join('')}</ul>` : ''}` : '';
+    ${e.per.length ? `<ul class="chgl">${e.per.filter(p => Math.abs(p.mnd) >= 0.005).map(p => `<li><span>${esc(p.label)}</span><span class="${cls(p.mnd)}">${signed2(p.mnd)}</span></li>`).join('')}</ul>` : ''}` : '';
   const groups = []; for (const r of C.rows) { let g = groups.find(x => x.g === r.group); if (!g) groups.push(g = { g: r.group, rows: [] }); g.rows.push(r); }
   const table = C.rows.length ? `<details class="dp-more"><summary>Alle wijzigingen die jullie raken (${C.rows.length})</summary><div class="tablewrap"><table class="chgt"><thead><tr><th></th><th>${C.y0}</th><th>${C.y1}</th></tr></thead><tbody>${groups.map(g =>
       `${g.g ? `<tr class="grp"><td colspan="3">${esc(g.g)}</td></tr>` : ''}${g.rows.map(r => `<tr><td>${lbl(r)}<div class="tiny muted">${chgDiff(r.k, r.a, r.b)}</div></td><td>${chgFmt(r.k, r.a)}</td><td>${chgFmt(r.k, r.b)}</td></tr>`).join('')}`).join('')}</tbody></table></div>
@@ -3621,7 +3622,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-22 20:10';
+const APP_VERSION = '2026-11-22 20:15';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
