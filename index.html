@@ -227,7 +227,9 @@ input[type="range"] { width: 100%; accent-color: var(--s1); height: 28px; }
 .rows .r { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .rows .r:last-child { border-bottom: 0; }
 .rows .r.total { font-weight: 700; }
-.rows .r span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rows .r > span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rows .r > span:first-child { min-width: 0; }
+.rows .r.sep { border-top: 1px solid var(--line-2, var(--line)); margin-top: 6px; }
 
 .bars { display: grid; gap: 8px; }
 .bar .top { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
@@ -1906,8 +1908,11 @@ function renderBN() {
       (Math.abs(Y.verz - Y.bel) >= 1
         ? row(`Belastbaar inkomen werk en woning${sub('inkomen uit werk + eigenwoningforfait − hypotheekrente')}`, eur(Y.bel), '', Y.d ? dd(Y.bel, Y.d.bel) : '') + row(`Verzamelinkomen = toetsingsinkomen${sub('box 1 + box 3')}`, eur(Y.verz), '', Y.d ? dd(Y.verz, Y.d.verz) : '')
         : row(`Verzamelinkomen = toetsingsinkomen${sub('inkomen uit werk + eigenwoningforfait − hypotheekrente (box 1; geen box 3)')}`, eur(Y.verz), '', Y.d ? dd(Y.verz, Y.d.verz) : '')) +
+      // netto: de onderdelen tellen op tot het netto jaarinkomen
+      row('Netto salaris (12 maanden)', eur(Y.net - (r.vuN + r.ejuN + r.dcaN)), ' sep', Y.d ? dd(Y.net - (r.vuN + r.ejuN + r.dcaN), Y.d.net - (r0.vuN + r0.ejuN + r0.dcaN)) : '') +
+      row('Vakantiegeld netto', eur(r.vuN), '', dd(r.vuN, r0.vuN)) + row('Eindejaarsuitkering netto', eur(r.ejuN), '', dd(r.ejuN, r0.ejuN)) +
+      row('DCA + DCA sport netto', eur(r.dcaN), '', dd(r.dcaN, r0.dcaN)) +
       row('Netto jaarinkomen', eur(Y.net), ' total', Y.d ? dd(Y.net, Y.d.net) : '') +
-      row(`<span class="small muted">waarvan vakantiegeld, eindejaarsuitkering en DCA</span>`, `<span class="small muted">${eur(r.vuN + r.ejuN + r.dcaN)}</span>`) +
       row('Tarief op extra inkomen', PCT1.format(r.marg));
     $('#bnNet').textContent = eur(Y.net);
   }
@@ -3658,7 +3663,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-22 22:10';
+const APP_VERSION = '2026-11-22 22:20';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
