@@ -1938,7 +1938,9 @@ function paramChanges() {
   const P = (DATA && DATA.parY) || {};
   const ys = [...new Set(Object.values(P).flatMap(o => Object.keys(o).map(Number)).filter(y => y >= 1990))].sort((a, b) => a - b);
   if (ys.length < 2) return null;
-  const y1 = ys[ys.length - 1], y0 = ys[ys.length - 2];
+  // het komende jaar (zoals in de jaarkeuze), niet een verder jaar waarvoor alleen enkele waarden zijn ingevuld
+  const ysU = ys.filter(y => y <= THIS_YEAR + 1); if (ysU.length < 2) return null;
+  const y1 = ysU[ysU.length - 1], y0 = ysU[ysU.length - 2];
   const p0 = paramsFor(y0), p1 = paramsFor(y1);
   const meta = DATA.parMeta && DATA.parMeta.length ? DATA.parMeta : Object.keys(P).map(k => ({ k, desc: '', group: '' }));
   const rows = meta.filter(m => p0[m.k] != null && p1[m.k] != null && String(p0[m.k]) !== String(p1[m.k]) && !(typeof p0[m.k] === 'number' && typeof p1[m.k] === 'number' && Math.abs(p0[m.k] - p1[m.k]) < 1e-9))
@@ -3619,7 +3621,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-22 18:50';
+const APP_VERSION = '2026-11-22 19:40';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
