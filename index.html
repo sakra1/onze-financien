@@ -314,12 +314,12 @@ section[data-view].active { display: grid; }
     <div class="card" id="mDetIn" hidden>
       <div class="card-head"><h2>Alle inkomsten</h2><span class="num" id="inTotal"></span></div>
       <div id="mIncome"></div>
-      <details class="dp-more toel"><summary>Toelichting</summary><div class="tiny muted">Per maand gemiddeld. Bedragen met "berekend" rekent de app zelf uit (Loon en belasting); de rest komt uit het tabblad in_uit.</div></details>
+      <details class="dp-more toel"><summary>Toelichting</summary><div class="tiny muted">Per maand gemiddeld. Alle inkomsten rekent de app zelf uit ("berekend"): lonen, vakantiegeld, eindejaarsuitkering en DCA zoals in Inkomen → Loon en belasting, de belastingteruggaaf zoals bij Inkomstenbelasting, en de kinderbijslag uit de parameter kinderbijslag. Uit het tabblad in_uit komen alleen de namen van de posten; een post die de app niet herkent, neemt hij over uit in_uit.</div></details>
     </div>
     <div class="card" id="mDetUit" hidden>
       <div class="card-head"><h2>Waar gaat het geld heen?</h2><span class="tiny">tik voor de posten</span></div>
       <div class="bars" id="mBars"></div>
-      <details class="dp-more toel"><summary>Toelichting</summary><div class="tiny muted">Per maand, als deel van de totale inkomsten, volgens het tabblad in_uit van de Excel. Jaar-, kwartaal- en weekbedragen zijn omgerekend naar een maand.</div></details>
+      <details class="dp-more toel"><summary>Toelichting</summary><div class="tiny muted">Per maand, als deel van de totale inkomsten. De posten komen uit het tabblad in_uit, behalve de hypotheek: die rekent de app uit het aflossingsschema ("berekend"). Jaar-, kwartaal- en weekbedragen zijn omgerekend naar een maand.</div></details>
     </div>
     <div class="card" id="flowCard">
       <div class="card-head"><h2>Waar blijft elke euro?</h2>
@@ -327,7 +327,7 @@ section[data-view].active { display: grid; }
       </div>
       <div class="chart" id="flowChart" style="overflow:visible"></div>
       <div class="small" id="flowInfo" style="min-height:2.6em"></div>
-      <details class="dp-more toel"><summary>Toelichting</summary><div class="tiny muted">Van bruto (Sander, Ellen en overige inkomsten) via loonheffing en pensioenpremie naar netto, en van netto naar de uitgavengroepen en sparen. Lonen zoals in Inkomen → Loon en belasting, inclusief vakantiegeld, eindejaarsuitkering, toelage, DCA en vergoedingen; uitgaven en overige inkomsten uit het tabblad in_uit. Sparen is wat er overblijft, en kan daardoor iets afwijken van het maandbudget. Tik op een stroom of blok voor de bedragen.</div></details>
+      <details class="dp-more toel"><summary>Toelichting</summary><div class="tiny muted">Van bruto (Sander, Ellen en overige inkomsten) via loonheffing en pensioenpremie naar netto, en van netto naar de uitgavengroepen en sparen. Lonen zoals in Inkomen → Loon en belasting, inclusief vakantiegeld, eindejaarsuitkering, toelage, DCA en vergoedingen; overige inkomsten (belastingteruggaaf en kinderbijslag) zoals in het maandbudget; uitgaven uit het tabblad in_uit, de hypotheek uit het aflossingsschema. Sparen is wat er overblijft, en kan daardoor iets afwijken van het maandbudget. Tik op een stroom of blok voor de bedragen.</div></details>
     </div>
     <div class="tiles" id="kpis"></div>
   </section>
@@ -1257,7 +1257,7 @@ function renderWerkelijk() {
   const rows = [];
   const real = (DATA.histXls || DATA.hist || []).filter(isRealMonth).pop();
   if (real) rows.push(['Salarissen', fmtMonth(real.d), DATA.histProj ? `${fmtMonth(DATA.histProj.from)} – ${fmtMonth(DATA.histProj.to)}` : '–',
-    'laatste loonstrook doorgetrokken (salaris en toelage van de laatste maand, netto van de laatste gewone maand), met cao_nu en de fte uit je Excel; VU mei, EJU november']);
+    'laatste loonstrook doorgetrokken (salaris en toelage van de laatste maand, netto van de laatste gewone maand), met cao_nu en de fte uit je Excel; vakantiegeld (mei) en eindejaarsuitkering (november) over de maandsalarissen']);
   const PE = DATA.pensEst || {}, pe = Object.keys(PE).map(Number).sort((a, b) => a - b);
   const pReal = Object.keys(DATA.pensXls || {}).map(Number).filter(y => (DATA.pensXls[y].S || 0) > 0 || (DATA.pensXls[y].E || 0) > 0);
   if (pReal.length || pe.length) rows.push(['Pensioenpremie (OP)', pReal.length ? `${Math.max(...pReal)}` : '–', yr(pe), 'ABP-regels uit parameters']);
@@ -1467,8 +1467,8 @@ function renderSchattingen() {
     ].join('');
     const P = DATA.proj || {};
     host.innerHTML = `<div class="tablewrap"><table class="schat"><thead><tr><th>€</th>${ys.map(y => `<th>${y}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>
-      <div class="tiny">† = geschat door de app; zonder † staat het zo in je Excel.<br>${DATA.histProj ? `<b>Netto inkomen</b>: salarissen na ${fmtMonth(DATA.histProj.from - 864e5 * 28)} doorgetrokken vanuit je laatste loonstrook (salaris en toelage van de laatste maand), met de cao-verhogingen uit cao_nu, vakantiegeld in mei en eindejaarsuitkering in november; netto met de belastingregels uit je tabblad bruto-netto. ` : ''}
-      <b>Uitgaven</b>: wat jullie in ${P.anchor || 'het laatste afgeronde jaar'} uitgaven naast de hypotheek${P.base0 ? ` (${eur(P.base0)})` : ''}, verhoogd met de inflatie.
+      <div class="tiny">† = geschat door de app; zonder † staat het zo in je Excel.<br>${DATA.histProj ? `<b>Netto inkomen</b>: salarissen na ${fmtMonth(DATA.histProj.from - 864e5 * 28)} doorgetrokken vanuit je laatste loonstrook (salaris en toelage van de laatste maand), met de cao-verhogingen uit cao_nu, vakantiegeld in mei (over de maandsalarissen van juni t/m mei) en eindejaarsuitkering in november (over januari t/m december); netto met de regels uit het tabblad parameters. ` : ''}
+      <b>Uitgaven</b>: wat jullie in ${P.anchor || 'het laatste afgeronde jaar'} uitgaven naast de hypotheek${P.base0 ? ` (${eur(P.base0)})` : ''}, verhoogd met de inflatie, en met het verschil in kinderbijslag ten opzichte van dat jaar (parameter kinderbijslag).
       <b>Rente en aflossing</b>: annuïteit met ${DATA.hyp && DATA.hyp.rente != null ? PCT1.format(DATA.hyp.rente) : 'de rente'} uit het tabblad hypotheek${P.em ? `, extra aflossing in de maand onder het bedrag (kolom "maand extra aflossing" in vermogen IB, anders ${MONTHS[P.em - 1]})${P.keep ? ', maandlast blijft gelijk' : ', daarna lagere maandlast'}` : ''}.
       ${Object.keys(PE).length ? '<b>Pensioenpremie</b>: ABP-regels uit het tabblad parameters, over het salaris per fte van januari en de fte per maand. ' : ''}<b>WOZ</b>: ${(ys.map(y => vb[y]).find(v => v && v.wozHow) || {}).wozHow || '–'}.</div>`;
   }
@@ -1903,7 +1903,7 @@ function bnInputsHTML() {
     ${f('in-toel', 'Vaste toelage per maand', 0, 1000, 10, x.toelage, v => eur(v))}
     ${f('in-reis', 'Reisdagen per maand', 0, 23, 1, x.reis, v => String(v))}
     ${f('in-thuis', 'Thuiswerkdagen per maand', 0, 23, 1, x.thuis, v => String(v))}
-    <div class="note">De toelage telt mee voor pensioen en vakantiegeld, niet voor de eindejaarsuitkering. De ABP-premie gebruikt het salaris per 1 januari; schuif je het salaris, dan schuift die mee.</div>`;
+    <div class="note">${(() => { const P = bnP(BN_YEAR), on = [], off = []; ((P.toelPens ?? 1) ? on : off).push('het pensioen'); ((P.toelVu ?? 1) ? on : off).push('het vakantiegeld'); ((P.toelEju ?? 0) ? on : off).push('de eindejaarsuitkering'); return `De toelage telt ${on.length ? 'mee voor ' + on.join(' en ') : 'nergens voor mee'}${off.length && on.length ? ', niet voor ' + off.join(' en ') : ''} (parameters toelage_*).`; })()} De ABP-premie gebruikt het salaris per 1 januari; schuif je het salaris, dan schuift die mee. Een salarisverandering telt voor alle twaalf maanden van vakantiegeld en eindejaarsuitkering.</div>`;
 }
 /* ===== Wat verandert er: verschil tussen de laatste twee jaarkolommen van het tabblad parameters ===== */
 function parseParamsMeta(aoa) {
@@ -3621,7 +3621,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-22 19:40';
+const APP_VERSION = '2026-11-22 20:10';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
