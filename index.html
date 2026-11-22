@@ -873,8 +873,9 @@ function calcNet(x, P) {
   const lhM = heffing(hlY, P) / 12;
   const verg = x.internet + x.reis * P.km * P.kmRate + x.thuis * P.thuisRate;
   const netto = hlM - lhM + verg;
-  const vuB = (bruto + tV * x.toelage) * 12 * P.vu;
-  const ejuB = (bruto + tE * x.toelage) * 12 * P.eju;
+  // vakantiegeld en eindejaarsuitkering: over de werkelijke maandsalarissen als die bekend zijn (x.vuSum, x.ejuSum), anders 12 × dit maandsalaris
+  const vuB = (x.vuSum != null ? x.vuSum : (bruto + tV * x.toelage) * 12) * P.vu;
+  const ejuB = (x.ejuSum != null ? x.ejuSum : (bruto + tE * x.toelage) * 12) * P.eju;
   const dcaB = (P.dca + P.dcaSport) * f;
   const yTot = hlY + vuB + ejuB + dcaB;
   // netto VU/EJU/DCA: zoals in je Excel het bijzonder tarief = schijftarief + % verrekening loonheffingskorting
@@ -1110,6 +1111,26 @@ function renderIncome() {
 // een maand is werkelijk als er voor Sander of Ellen zowel een netto bedrag als een bruto maandloon staat;
 // formules over lege cellen (0) of een netto-formule zonder salaris tellen niet mee
 const isRealMonth = r => ((r.sn || 0) > 0 && (r.bs || 0) > 0) || ((r.en || 0) > 0 && (r.be || 0) > 0);
+// ===== grondslag vakantiegeld en eindejaarsuitkering, maand voor maand =====
+// vakantiegeld (mei) over juni vorig jaar t/m mei, eindejaarsuitkering over januari t/m december;
+// uit salaris geschiedenis (werkelijk) en de prognose voor maanden die nog niet bekend zijn
+function uitkSums(w, Y, rows) {
+  rows = rows || DATA.hist || [];
+  const k = w === 'S' ? { b: 'bs', t: 'ts' } : { b: 'be', t: 'te' };
+  const P = bnP(Y), tV = P.toelVu ?? 1, tE = P.toelEju ?? 0;
+  const ym = r => { const d = new Date(r.d); return d.getUTCFullYear() * 12 + d.getUTCMonth(); };
+  const sum = (from, to, tf) => { let s = 0, n = 0; for (const r of rows) { const v = ym(r); if (v >= from && v <= to && r[k.b] > 0) { s += r[k.b] + tf * (r[k.t] || 0); n++; } } return n ? s * 12 / n : null; };
+  return { vuSum: sum((Y - 1) * 12 + 5, Y * 12 + 4, tV), ejuSum: sum(Y * 12, Y * 12 + 11, tE) };
+}
+// x met de werkelijke grondslagen; wijkt x af van de basis (Wat als), dan telt het verschil voor alle 12 maanden
+function withUitk(x, w, Y, base) {
+  if (!x || !DATA || !DATA.hist) return x;
+  const u = uitkSums(w, Y); if (u.vuSum == null && u.ejuSum == null) return x;
+  const P = bnP(Y), tV = P.toelVu ?? 1, tE = P.toelEju ?? 0, b = base || x;
+  const dV = 12 * ((x.full * x.f + tV * (x.toelage || 0)) - (b.full * b.f + tV * (b.toelage || 0)));
+  const dE = 12 * ((x.full * x.f + tE * (x.toelage || 0)) - (b.full * b.f + tE * (b.toelage || 0)));
+  return { ...x, vuSum: u.vuSum != null ? u.vuSum + dV : undefined, ejuSum: u.ejuSum != null ? u.ejuSum + dE : undefined };
+}
 function projectHist() {
   if (!DATA || !DATA.hist) return;
   if (!DATA.histXls) DATA.histXls = DATA.hist.filter(r => !r.proj);
@@ -1145,11 +1166,22 @@ function projectHist() {
       const xT = { ...x, f, full: fullT, grondFull: fullT, toelage: tT }, xN = { ...x, f: fN, full: fullN, grondFull: fullN, toelage: tL };
       const n0 = calcNet(xT, bnP(new Date(tpl.d).getUTCFullYear())), n1 = calcNet(xN, bnP(y));
       let bru = tpl[k.b] + (bN - b0) + (tL - tT), net = tpl[k.n] + (n1.netto - n0.netto);
-      if (m === 5) { bru += n1.vuB; net += n1.vuN; }
-      if (m === 11) { bru += n1.ejuB * c.f; net += n1.ejuN * c.f; }
       Object.assign(row, { [k.b]: bru, [k.n]: net, [k.f]: fN, [k.t]: tL || null, [k.base]: bN });
+      if (m === 5 || m === 11) (row._u = row._u || {})[w] = { marg: n1.marg, cf: c.f };
     }
     out.push(row);
+  }
+  // vakantiegeld en eindejaarsuitkering pas na alle maanden: de grondslag is de som van de (werkelijke en geschatte) maandsalarissen
+  const all = H.concat(out);
+  for (const row of out) {
+    if (!row._u) continue;
+    const y2 = new Date(row.d).getUTCFullYear(), m2 = new Date(row.d).getUTCMonth() + 1, P2 = bnP(y2);
+    for (const [w, u] of Object.entries(row._u)) {
+      const k = per[w], S = uitkSums(w, y2, all);
+      const B = m2 === 5 ? (S.vuSum || 0) * P2.vu : (S.ejuSum || 0) * P2.eju * u.cf;
+      row[k.b] += B; row[k.n] += B * (1 - u.marg);
+    }
+    delete row._u;
   }
   if (out.length) { DATA.hist = H.concat(out); DATA.histProj = { from: out[0].d, to: out[out.length - 1].d, tpl: tpl.d }; }
 }
@@ -1774,7 +1806,7 @@ let BN_PER = 'm';
 const eurS = v => (v < -0.005 ? '−' : '') + eur2(Math.abs(v));
 function renderBN() {
   const P = bnP(BN_YEAR), who = UI.person, x = UI.bn[who], base = UI.bnBase[who];
-  const r = calcNet(x, P), r0 = calcNet(base, P);
+  const r = calcNet(withUitk(x, who, BN_YEAR, base), P), r0 = calcNet(withUitk(base, who, BN_YEAR), P);
   const future = BN_YEAR > THIS_YEAR, J = BN_PER === 'j';
   $('#bnNetLbl').textContent = J ? `Netto per jaar ${BN_YEAR}` : `Netto per maand${future ? ` (januari ${BN_YEAR})` : ''}`;
   $('#bnNet').textContent = J ? eur(r.jaarNet) : eur2(r.netto);
@@ -1782,7 +1814,7 @@ function renderBN() {
   const dEl = $('#bnDelta');
   const changed = Math.abs(r.netto - r0.netto) >= 0.5 || Math.abs(r.jaarNet - r0.jaarNet) >= 1;
   if (future) {
-    const rNow = calcNet(DATA.bn[who], bnP(THIS_YEAR)), dy = J ? r.jaarNet - rNow.jaarNet : r.netto - rNow.netto;
+    const rNow = calcNet(withUitk(DATA.bn[who], who, THIS_YEAR), bnP(THIS_YEAR)), dy = J ? r.jaarNet - rNow.jaarNet : r.netto - rNow.netto;
     const filled = Object.values(DATA.parY || {}).filter(o => o[BN_YEAR] != null).length, all = Object.keys(DATA.parY || {}).length;
     dEl.innerHTML = `${signed(dy)} ${per} t.o.v. ${THIS_YEAR}${changed ? ` · ${signed(d)} door Wat als` : ''}<div class="tiny">Schatting: salaris en fte uit de prognose (cao_nu), ${filled ? `${filled} van ${all} parameters uit de kolom ${BN_YEAR}, de rest` : 'alle parameters'} van ${THIS_YEAR}.</div>`;
     dEl.className = 'delta ' + (dy >= 0 ? 'pos' : 'neg');
@@ -1880,13 +1912,13 @@ function paramChanges() {
   const B0 = bnP(y0), B1 = bnP(y1);
   for (const w of ['S', 'E']) {
     if (!DATA.bn || !DATA.bn[w]) continue;
-    const x0 = y0 >= THIS_YEAR ? { ...DATA.bn[w] } : xForYear(w, y0), x1 = xForYear(w, y1);
+    const x0 = withUitk(y0 >= THIS_YEAR ? { ...DATA.bn[w] } : xForYear(w, y0), w, y0), x1 = withUitk(xForYear(w, y1), w, y1);
     const n = (x, P) => calcNet(x, P), N = (x, P) => n(x, P).netto, J = (x, P) => n(x, P).jaarNet;
     const per = [];
     const add = (label, xa, Pa, xb, Pb) => per.push({ label, mnd: N(xb, Pb) - N(xa, Pa), jaar: J(xb, Pb) - J(xa, Pa) });
     const xg = { ...x0, grondFull: x1.grondFull };
     if (Math.abs((x1.grondFull || 0) - (x0.grondFull || 0)) > 0.5) add(`Pensioenpremie: salaris per 1 januari ${eur(x0.grondFull)} → ${eur(x1.grondFull)} (voltijd)`, x0, B0, xg, B0);
-    if (Math.abs(x1.full - x0.full) > 0.5 || Math.abs(x1.f - x0.f) > 1e-6 || Math.abs((x1.toelage || 0) - (x0.toelage || 0)) > 0.5) add('Salaris, fte of toelage', xg, B0, x1, B0);
+    if (Math.abs(x1.full - x0.full) > 0.5 || Math.abs(x1.f - x0.f) > 1e-6 || Math.abs((x1.toelage || 0) - (x0.toelage || 0)) > 0.5 || Math.abs((x1.vuSum || 0) - (x0.vuSum || 0)) > 1 || Math.abs((x1.ejuSum || 0) - (x0.ejuSum || 0)) > 1) add('Salaris, fte of toelage (ook in vakantiegeld en eindejaarsuitkering)', xg, B0, x1, B0);
     let sumP = 0, sumJ = 0;
     for (const m of rows) {
       const key = PARAM_MAP[m.k]; if (!key || typeof m.b !== 'number') continue;
@@ -1937,6 +1969,7 @@ function ibCalc(Y, shOverride) {
       hl += r.hlM; lh += r.lhM; vuBase += r.bruto + tV * r.toelage; ejuBase += r.bruto + tE * r.toelage; fSum += x.f; if (m.proj) proj++;
     }
     const sc = 12 / ms.length; hl *= sc; lh *= sc; vuBase *= sc; ejuBase *= sc;
+    { const U = uitkSums(w, Y); if (U.vuSum != null) vuBase = U.vuSum; if (U.ejuSum != null) ejuBase = U.ejuSum; }
     const vuB = vuBase * P.vu, ejuB = ejuBase * P.eju, dcaB = (P.dca + P.dcaSport) * fSum / ms.length;
     const werk = hl + vuB + ejuB + dcaB;
     const marg = P.verr2 != null && P.verr3 != null ? (werk < P.b2 ? P.r2 + P.verr2 : P.r3 + P.verr3) : (heffing(werk + 100, P) - heffing(werk, P)) / 100;
@@ -2060,7 +2093,7 @@ function appInUit(item, kind) {
     if (kind === 'inn') {
       if (/belasting\s*terug|teruggaa?f|teruggave/.test(l)) { const v = ibNet(THIS_YEAR); return v == null ? null : { amount: v, per: 'jaar', how: `aangifte ${THIS_YEAR} volgens Loon en belasting` }; }
       if (!who || !DATA.bn || !DATA.bn[who]) return null;
-      const r = calcNet(DATA.bn[who], bnP(THIS_YEAR));
+      const r = calcNet(withUitk(DATA.bn[who], who, THIS_YEAR), bnP(THIS_YEAR));
       if (/netto\s*salaris/.test(l)) return { amount: r.netto, per: 'maand', how: 'netto per maand volgens Loon en belasting' };
       if (/vakantie/.test(l)) return { amount: r.vuN, per: 'jaar', how: 'netto vakantiegeld volgens Loon en belasting' };
       if (/eindejaar/.test(l)) return { amount: r.ejuN, per: 'jaar', how: 'netto eindejaarsuitkering volgens Loon en belasting' };
@@ -2130,7 +2163,7 @@ function flowData() {
   const per = { S: null, E: null };
   for (const [k] of people) {
     const x = DATA.bn[k]; if (!x || !x.full) continue;
-    const r = calcNet(x, P);
+    const r = calcNet(withUitk(x, k, THIS_YEAR), P);
     const bruto = r.jaarBruto, netto = r.jaarNet, pens = r.premies * 12, tax = Math.max(0, bruto - netto - pens);
     per[k] = { bruto, netto, pens, tax }; netTot += netto;
   }
@@ -3547,7 +3580,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-22 14:25';
+const APP_VERSION = '2026-11-22 16:00';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
