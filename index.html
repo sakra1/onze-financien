@@ -857,7 +857,6 @@ function deriveBN() {
     par('reisdagen', 'reisdagen per maand', 'reis');
     par('thuiswerkdagen', 'thuiswerkdagen per maand', 'thuis');
     x.excelNet = null;
-    try { const a = abpExtra(w, THIS_YEAR, x); if (a) { x.extra = a.extra; x.abp = a; fb.delete(`extra looncomponent (extra_looncomponent_${name[w]})`); } } catch (e) { console.error(e); }
     DATA.bn[w] = x;
   }
   if (nm(Q.km_woonwerk_retour) == null && DATA.bn.P && DATA.bn.P.km != null && (DATA.bn.S.reis || DATA.bn.E.reis)) fb.add('kilometers woon-werk (km_woonwerk_retour)');
@@ -1829,23 +1828,6 @@ function renderKpis(onlyKpis) {
 /* ================= bruto-netto view ================= */
 // bruto-netto voor dit jaar of (geschat) volgend jaar
 let BN_YEAR = THIS_YEAR;
-// ABP: pensioengevend jaarinkomen = 12 × salaris januari + vakantiegeld + eju + vaste toelagen + variabele looncomponenten van vorig jaar.
-// Dat laatste staat niet op de strook; de premie OP/NP wel. Uit die premie (parameter abp_premie_op_<naam>, alleen in de kolom van dat jaar)
-// rekent de app het jaarinkomen ABP terug en daaruit de extra looncomponent.
-function abpExtra(w, Y, x) {
-  const nmv = v => num(v) ?? looseNum(v), name = w === 'S' ? 'sander' : 'ellen';
-  const row = DATA.parY && DATA.parY[`abp_premie_op_${name}`], prem = row ? nmv(row[Y]) : null;
-  if (prem != null && x && x.f) {
-    const P = bnP(Y), tP = P.toelPens ?? 1, tV = P.toelVu ?? 1, tE = P.toelEju ?? 0;
-    if (!P.pOP) return null;
-    const jaar = prem * 12 / (P.pOP * x.f) + P.frOP;
-    const vast = x.grondFull * 12 * (1 + P.vu + P.eju) + tP * ((x.toelage || 0) / x.f) * 12 * (1 + tV * P.vu + tE * P.eju);
-    return { extra: Math.max(0, jaar - vast), jaar, prem, how: 'premie' };
-  }
-  const ex = DATA.parY && DATA.parY[`extra_looncomponent_${name}`], v = ex ? nmv(ex[Y]) : null;
-  if (v != null) return { extra: v, how: 'parameter' };
-  return null;
-}
 function xForYear(w, Y) {
   const x = DATA.bn[w]; if (!x || Y <= THIS_YEAR) return { ...x };
   const k = w === 'S' ? { b: 'bs', f: 'fs', t: 'ts' } : { b: 'be', f: 'fe', t: 'te' };
@@ -1853,9 +1835,7 @@ function xForYear(w, Y) {
   const jan = (DATA.hist || []).find(r => new Date(r.d).getUTCFullYear() === Y && r[k.b] > 0 && r[k.f] > 0);
   if (!jan) return { ...x };
   const full = jan[k.b] / jan[k.f];
-  const nx = { ...x, full, grondFull: full, f: jan[k.f], toelage: jan[k.t] || 0, excelNet: null };
-  const a = abpExtra(w, Y, nx); nx.extra = a ? a.extra : 0; nx.abp = a || { extra: 0, how: 'onbekend' };
-  return nx;
+  return { ...x, full, grondFull: full, f: jan[k.f], toelage: jan[k.t] || 0, excelNet: null };
 }
 function initBN() {
   UI.bnBase = { S: xForYear('S', BN_YEAR), E: xForYear('E', BN_YEAR) };
@@ -1904,11 +1884,6 @@ function renderBN() {
     const cy = new Date(c.d).getUTCFullYear(), mon = `${MONTHS[new Date(c.d).getUTCMonth()]} ${cy}`;
     const appN = calcNet({ ...DATA.bn[who], full: c.full, f: c.f, toelage: c.toelage }, bnP(cy)).netto, diff = appN - c.net;
     note = Math.abs(diff) < 1 ? `Klopt met de salarisstrook van ${mon} (${eur2(c.net)}).` : `Salarisstrook ${mon}: ${eur2(c.net)} netto, de app rekent ${eur2(appN)} (${signed(diff)}). Kleine verschillen komen door vergoedingen of inhoudingen die per maand wisselen.`;
-  }
-  if (!J) {
-    const bx = UI.bnBase[who], ab = bx && bx.abp, nmw = who === 'S' ? 'sander' : 'ellen';
-    if (ab && ab.how === 'premie') note += `${note ? ' ' : ''}ABP-jaarinkomen ${eur(ab.jaar)}, teruggerekend uit de premie OP/NP van ${eur2(ab.prem)}; daarin ${eur(ab.extra)} aan variabele looncomponenten uit vorig jaar.`;
-    else if (ab && ab.how === 'onbekend') note += `${note ? ' ' : ''}Variabele looncomponenten voor het ABP in ${BN_YEAR} nog onbekend (gerekend met 0). Vul in januari abp_premie_op_${nmw} in de kolom ${BN_YEAR} in.`;
   }
   $('#bnNote').textContent = note; $('#bnNote').style.display = note ? '' : 'none';
   const hint = $('#bnWaHint'); if (hint) { hint.textContent = changed ? 'aangepast' : 'salaris, fte, toelage en reisdagen'; hint.className = 'tiny ' + (changed ? 'pos' : 'muted'); }
@@ -3643,7 +3618,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-22 18:30';
+const APP_VERSION = '2026-11-22 18:40';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
