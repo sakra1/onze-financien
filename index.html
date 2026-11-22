@@ -817,7 +817,7 @@ function parseBN(aoa, hist) {
     const f = x.f || 1;
     const bruto = x.bruto ?? 0;
     return {
-      full: bruto / f, f, grondFull: (x.grond ?? bruto) / f, extra: x.extra ?? 0,
+      full: bruto / f, f, grondFull: (x.grond ?? bruto) / f, extra: x.extra ?? null,
       toelage: tExcel ?? tFallback ?? 0, reis: x.reis ?? 0, thuis: x.thuis ?? 0, internet: x.internet ?? 0,
       excelNet: x.excelNet ?? null
     };
@@ -3619,7 +3619,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-22 18:45';
+const APP_VERSION = '2026-11-22 18:50';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
