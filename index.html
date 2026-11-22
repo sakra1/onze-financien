@@ -1860,8 +1860,8 @@ function yearFigures(who, r, r0, changed) {
   const b3 = I && I.box3 && I.box3.g > 0 && who === 'S' ? I.box3.g * (paramsFor(BN_YEAR).box3_forfait_bank || 0) : 0;
   const k = who === 'S' ? 'sn' : 'en', rs = (DATA.hist || []).filter(q => new Date(q.d).getUTCFullYear() === BN_YEAR && q[k] > 0);
   const histNet = rs.length === 12 ? rs.reduce((a, q) => a + q[k], 0) : null;
-  const fromCalc = c => { const werk = c.hlM * 12 + c.vuB + c.ejuB + c.dcaB; return { bruto: (c.bruto + c.toelage) * 12 + c.vuB + c.ejuB + c.dcaB, abp: c.jaarABP, werk, bel: werk + ewr, verz: werk + ewr + b3, net: c.jaarNet }; };
-  const M = p ? { bruto: p.bruto, abp: p.abp, werk: p.werk, bel: p.bel, verz: p.bel + b3, net: histNet ?? r0.jaarNet } : fromCalc(r0);
+  const fromCalc = c => { const werk = c.hlM * 12 + c.vuB + c.ejuB + c.dcaB; return { bruto: (c.bruto + c.toelage) * 12 + c.vuB + c.ejuB + c.dcaB, prem: c.premies * 12, abp: c.jaarABP, werk, lh: c.lhM * 12 + (c.vuB + c.ejuB + c.dcaB) * c.marg, bel: werk + ewr, verz: werk + ewr + b3, net: c.jaarNet }; };
+  const M = p ? { bruto: p.bruto, prem: p.premies, abp: p.abp, werk: p.werk, lh: p.lh, bel: p.bel, verz: p.bel + b3, net: histNet ?? r0.jaarNet } : fromCalc(r0);
   if (!changed) return { ...M, d: null };
   // Wat als: de basis maand voor maand, plus wat de aanpassing over een heel jaar verandert
   const A = fromCalc(r), B = fromCalc(r0), out = { d: M };
@@ -1901,19 +1901,26 @@ function renderBN() {
     // jaarinkomens van de gekozen persoon, van bruto naar netto; maand voor maand zoals bij de inkomstenbelasting
     const Y = yearFigures(who, r, r0, changed);
     const sub = t => `<span class="tiny muted" style="display:block">${t}</span>`;
+    // van het hoogste bedrag naar netto: ABP-jaarinkomen, bruto, min premies = fiscaal loon, min loonheffing plus vergoedingen = netto
+    const D = f => Y.d ? dd(Y[f], Y.d[f]) : '';
+    const verg = Y.net - Y.werk + Y.lh, vergD = Y.d ? Y.d.net - Y.d.werk + Y.d.lh : null;
+    const small = (l, v) => row(`<span class="small muted">${l}</span>`, `<span class="small muted">${v}</span>`);
+    const netParts = r.vuN + r.ejuN + r.dcaN;
     $('#bnRows').innerHTML =
-      row(`Bruto jaarinkomen${sub('salaris, toelage, vakantiegeld, eindejaarsuitkering en DCA')}`, eur(Y.bruto), '', Y.d ? dd(Y.bruto, Y.d.bruto) : '') +
-      row(`Jaarinkomen ABP (pensioengevend)${sub('voltijd, salaris van januari; de premie gaat naar rato van je fte')}`, eur(Y.abp), '', Y.d ? dd(Y.abp, Y.d.abp) : '') +
-      row(`Fiscaal loon = inkomen uit werk${sub('bruto min pensioen-, arbeidsongeschiktheids- en AOV-premie; staat op je jaaropgave')}`, eur(Y.werk), '', Y.d ? dd(Y.werk, Y.d.werk) : '') +
-      (Math.abs(Y.verz - Y.bel) >= 1
-        ? row(`Belastbaar inkomen werk en woning${sub('inkomen uit werk + eigenwoningforfait − hypotheekrente')}`, eur(Y.bel), '', Y.d ? dd(Y.bel, Y.d.bel) : '') + row(`Verzamelinkomen = toetsingsinkomen${sub('box 1 + box 3')}`, eur(Y.verz), '', Y.d ? dd(Y.verz, Y.d.verz) : '')
-        : row(`Verzamelinkomen = toetsingsinkomen${sub('inkomen uit werk + eigenwoningforfait − hypotheekrente (box 1; geen box 3)')}`, eur(Y.verz), '', Y.d ? dd(Y.verz, Y.d.verz) : '')) +
-      // netto: de onderdelen tellen op tot het netto jaarinkomen
-      row('Netto salaris (12 maanden)', eur(Y.net - (r.vuN + r.ejuN + r.dcaN)), ' sep', Y.d ? dd(Y.net - (r.vuN + r.ejuN + r.dcaN), Y.d.net - (r0.vuN + r0.ejuN + r0.dcaN)) : '') +
-      row('Vakantiegeld netto', eur(r.vuN), '', dd(r.vuN, r0.vuN)) + row('Eindejaarsuitkering netto', eur(r.ejuN), '', dd(r.ejuN, r0.ejuN)) +
-      row('DCA + DCA sport netto', eur(r.dcaN), '', dd(r.dcaN, r0.dcaN)) +
-      row('Netto jaarinkomen', eur(Y.net), ' total', Y.d ? dd(Y.net, Y.d.net) : '') +
-      row('Tarief op extra inkomen', PCT1.format(r.marg));
+      row(`Jaarinkomen ABP (pensioengevend)${sub('voltijd, salaris van januari; hierover gaat de pensioenpremie, naar rato van je fte')}`, eur(Y.abp), '', D('abp')) +
+      row(`Bruto jaarinkomen${sub('salaris, toelage, vakantiegeld, eindejaarsuitkering en DCA')}`, eur(Y.bruto), '', D('bruto')) +
+      row('− Pensioen-, AOP- en AOV-premie', '−' + eur(Y.prem), '', D('prem')) +
+      row(`Fiscaal loon = inkomen uit werk${sub('staat op je jaaropgave')}`, eur(Y.werk), ' total', D('werk')) +
+      (Math.abs(Y.verz - Y.bel) >= 1 ? small('&nbsp;&nbsp;belastbaar inkomen werk en woning (met eigen woning)', eur(Y.bel)) : '') +
+      small(`&nbsp;&nbsp;verzamelinkomen = toetsingsinkomen${Math.abs(Y.verz - Y.bel) >= 1 ? '' : ' (met eigen woning)'}`, eur(Y.verz)) +
+      row('− Loonheffing', '−' + eur(Y.lh), '', D('lh')) +
+      row('+ Onbelaste vergoedingen', eur(verg), '', vergD != null ? dd(verg, vergD) : '') +
+      row('Netto jaarinkomen', eur(Y.net), ' total', D('net')) +
+      small('&nbsp;&nbsp;waarvan netto salaris (12 maanden)', eur(Y.net - netParts)) +
+      small('&nbsp;&nbsp;waarvan vakantiegeld', eur(r.vuN)) +
+      small('&nbsp;&nbsp;waarvan eindejaarsuitkering', eur(r.ejuN)) +
+      small('&nbsp;&nbsp;waarvan DCA en DCA sport', eur(r.dcaN)) +
+      row('Tarief op extra inkomen', PCT1.format(r.marg), ' sep');
     $('#bnNet').textContent = eur(Y.net);
   }
   const keep = Math.round(100 * (1 - r.marg));
@@ -3663,7 +3670,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-22 22:20';
+const APP_VERSION = '2026-11-22 22:35';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
