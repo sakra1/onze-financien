@@ -1916,7 +1916,9 @@ function renderBN() {
       row('Onbelaste vergoedingen', eur(verg), '', vergD != null ? dd(verg, vergD) : '') +
       row('Netto jaarinkomen', eur(Y.net), ' total', D('net')) +
       row('waarvan netto salaris', eur(Y.net - netParts), ' sub') +
-      row('waarvan vakantiegeld, eju en DCA', eur(netParts), ' sub') +
+      row('waarvan vakantiegeld', eur(r.vuN), ' sub') +
+      row('waarvan eindejaarsuitkering', eur(r.ejuN), ' sub') +
+      (r.dcaN ? row('waarvan DCA', eur(r.dcaN), ' sub') : '') +
       row('Verzamelinkomen', eur(Y.verz), ' sep sub', D('verz')) +
       row('Tarief op extra inkomen', PCT1.format(r.marg), ' sub');
     $('#bnNet').textContent = eur(Y.net);
@@ -3668,7 +3670,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-23 08:20';
+const APP_VERSION = '2026-11-23 08:25';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
