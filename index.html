@@ -1924,7 +1924,7 @@ function renderBN() {
     $('#bnNet').textContent = eur(Y.net);
   }
   const keep = Math.round(100 * (1 - r.marg));
-  let note = J ? `Jaarinkomen ABP: voltijd, salaris van januari; hierover gaat de pensioenpremie, naar rato van je fte. Bruto: salaris, toelage, vakantiegeld, eindejaarsuitkering en DCA. Fiscaal loon = inkomen uit werk, zoals op je jaaropgave. Verzamelinkomen: fiscaal loon plus eigenwoningforfait min hypotheekrente (en box 3); dit is ook het toetsingsinkomen voor toeslagen. Tarief op extra inkomen: van € 100 bruto extra per maand houd je ongeveer € ${keep} netto over.` : '';
+  let note = J ? `Jaarinkomen ABP: voltijd, salaris van januari; hierover gaat de pensioenpremie, naar rato van je fte. Bruto: salaris, toelage, vakantiegeld, eindejaarsuitkering en DCA. Fiscaal loon: zoals op je jaaropgave. Verzamelinkomen: fiscaal loon plus eigenwoningforfait min hypotheekrente (zie Inkomstenbelasting), plus je deel van box 3 als jullie daar boven de vrijstelling zitten; dit is ook het toetsingsinkomen voor toeslagen. Tarief op extra inkomen: van € 100 bruto extra per maand houd je ongeveer € ${keep} netto over.` : '';
   // controle tegen de salarisstrook: de laatste gewone maand uit salaris geschiedenis
   const c = !future && !J && DATA.bn[who] && DATA.bn[who].check;
   if (c) {
@@ -2110,17 +2110,17 @@ function renderIB() {
   $('#ibSum').innerHTML = res(tot);
   $('#ibTitle').textContent = `Inkomstenbelasting ${I.Y}${BN_YEAR > THIS_YEAR ? ' (schatting)' : ''}`;
   $('#ibBody').innerHTML = `<div class="tablewrap"><table class="chgt"><thead><tr><th></th>${W.map(w => `<th>${nm[w]}</th>`).join('')}</tr></thead><tbody>
-    ${row('Inkomen uit werk', p => eur(p.werk))}
+    ${row('Fiscaal loon', p => eur(p.werk))}
     ${row(`Eigenwoningforfait`, p => eur(p.ewf))}
     ${row(`Hypotheekrente`, p => e0(-p.rente))}
     ${anyHil ? row('Aftrek Wet Hillen', p => e0(-p.hil)) : ''}
-    ${row('Belastbaar inkomen', p => eur(p.bel), 'tot')}
+    ${row(I.box3 && I.box3.g > 0 ? 'Belastbaar box 1' : 'Verzamelinkomen', p => eur(p.bel), 'tot')}
     ${row('Belasting box 1', p => eur(p.b1))}
     ${anyAhk ? row('Algemene heffingskorting', p => e0(-p.ahk)) : ''}
     ${row('Arbeidskorting', p => e0(-p.ak))}
     ${anyTa ? row('Tariefsaanpassing', p => eur(p.ta)) : ''}
     ${row('Verschuldigd', p => eur(p.due), 'tot')}
-    ${row('Ingehouden loonheffing', p => eur(p.lh))}
+    ${row('Loonheffing', p => eur(p.lh))}
     ${row('Resultaat', p => res(p.res), anyGrens ? '' : 'tot')}
     ${anyGrens ? row('Na aanslag- en teruggaafgrens', p => Math.abs(p.eff) < 0.5 ? '<span class="muted">niets</span>' : res(p.eff), 'tot') : ''}
     </tbody></table></div>
@@ -3670,7 +3670,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-23 08:25';
+const APP_VERSION = '2026-11-23 08:35';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
