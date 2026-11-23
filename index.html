@@ -231,7 +231,6 @@ input[type="range"] { width: 100%; accent-color: var(--s1); height: 28px; }
 .rows .r > span:first-child { min-width: 0; }
 .rows .r.sep { border-top: 1px solid var(--line-2, var(--line)); margin-top: 6px; }
 .rows .r.sub { color: var(--ink-3); }
-.rows .r.sub2 { border-top: 1px solid var(--ink-3); }
 
 .bars { display: grid; gap: 8px; }
 .bar .top { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
@@ -1912,7 +1911,7 @@ function renderBN() {
       row('Jaarinkomen ABP', eur(Y.abp), ' sub', D('abp')) +
       row('Bruto jaarinkomen', eur(Y.bruto), ' sep', D('bruto')) +
       row('Pensioen-, AOP- en AOV-premie', eurS0(-Y.prem), '', D('prem')) +
-      row('Fiscaal loon', eur(Y.werk), ' sub2', D('werk')) +
+      row('Fiscaal loon', eur(Y.werk), '', D('werk')) +
       row('Loonheffing', eurS0(-Y.lh), '', D('lh')) +
       row('Onbelaste vergoedingen', eur(verg), '', vergD != null ? dd(verg, vergD) : '') +
       row('Netto jaarinkomen', eur(Y.net), ' total', D('net')) +
@@ -3671,7 +3670,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-23 16:20';
+const APP_VERSION = '2026-11-23 16:25';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
