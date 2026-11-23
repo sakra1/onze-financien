@@ -1923,12 +1923,11 @@ function renderBN() {
       row('waarvan vakantiegeld', eur(r.vuN), ' sub') +
       row('waarvan eindejaarsuitkering', eur(r.ejuN), ' sub') +
       (r.dcaN ? row('waarvan DCA', eur(r.dcaN), ' sub') : '') +
-      row('Verzamelinkomen', eur(Y.verz), ' sep sub', D('verz')) +
-      row('Tarief op extra inkomen', PCT1.format(r.marg), ' sub');
+      row('Tarief op extra inkomen', PCT1.format(r.marg), ' sep sub');
     $('#bnNet').textContent = eur(Y.net);
   }
   const keep = Math.round(100 * (1 - r.marg));
-  let note = J ? `Jaarinkomen ABP: voltijd, salaris van januari; hierover gaat de pensioenpremie, naar rato van je fte. Bruto: salaris, toelage, vakantiegeld, eindejaarsuitkering en DCA. Fiscaal loon: zoals op je jaaropgave. Verzamelinkomen: fiscaal loon plus eigenwoningforfait min hypotheekrente (zie Inkomstenbelasting), plus je deel van box 3 als jullie daar boven de vrijstelling zitten; dit is ook het toetsingsinkomen voor toeslagen. Tarief op extra inkomen: van € 100 bruto extra per maand houd je ongeveer € ${keep} netto over.` : '';
+  let note = J ? `Jaarinkomen ABP: voltijd, salaris van januari; hierover gaat de pensioenpremie, naar rato van je fte. Bruto: salaris, toelage, vakantiegeld, eindejaarsuitkering en DCA. Fiscaal loon: zoals op je jaaropgave. Tarief op extra inkomen: van € 100 bruto extra per maand houd je ongeveer € ${keep} netto over.` : '';
   // controle tegen de salarisstrook: de laatste gewone maand uit salaris geschiedenis
   const c = !future && !J && DATA.bn[who] && DATA.bn[who].check;
   if (c) {
@@ -2132,7 +2131,7 @@ function renderIB() {
     <div class="tiny muted">${I.shPar == null ? 'Gekozen zodat jullie samen het meeste terugkrijgen, met € 20 marge onder de aanslaggrens omdat dit een schatting is. Bij de aangifte kun je de verdeling zelf kiezen en zie je meteen de uitkomst' : `Uit de parameter eigen_woning_aandeel_sander${best && Math.abs(best.J.shS - I.shS) > 0.005 ? `; het meeste terug bij Sander ${Math.round(best.J.shS * 100)}%` : ''}`}${anyGrens || I.shPar == null ? `. Bijbetalen tot € ${I.ag} en terugkrijgen tot € ${I.tg} per persoon gebeurt niet (aanslag- en teruggaafgrens; geldt niet als je een voorlopige aanslag hebt waarop je moet betalen).` : '.'}</div>
     ${I.box3 ? `<div class="rows" style="margin-top:8px"><div class="r"><span>Box 3 (samen)</span><span>${I.box3.g <= 0 ? '<span class="muted">geen</span>' : I.box3.tax != null ? `<span class="neg">${eur(I.box3.tax)}</span>` : '?'}</span></div></div>
       <div class="tiny muted">Spaargeld 1 jan ${I.Y} ${eur(I.box3.sp)}${I.box3.spEst ? ' (geschat)' : ''}, heffingvrij ${eur(I.box3.vrij)}.</div>` : ''}
-    <div class="note">Salaris maand voor maand uit salaris geschiedenis${proj ? ' (rest van het jaar geschat)' : ''}; loonheffing volgens de tabellen, zoals in je Excel. WOZ ${I.woz ? eur(I.woz) : '–'}${I.wozOff ? ` (beschikking ${I.Y})` : ' (geschat)'}. Rente ${eur(I.rente)}${I.renteEst ? ` uit het aflossingsschema (${esc((I.renteHow.match(/extra aflossing [^,;]+/) || ['zonder extra aflossing'])[0])}); voor de aangifte geldt het jaaroverzicht` : ' uit je Excel'}.</div>`;
+    <div class="note">Het verzamelinkomen is ook het toetsingsinkomen voor toeslagen${I.box3 && I.box3.g > 0 ? ' (inclusief je deel van box 3)' : ''}. Salaris maand voor maand uit salaris geschiedenis${proj ? ' (rest van het jaar geschat)' : ''}; loonheffing volgens de tabellen, zoals in je Excel. WOZ ${I.woz ? eur(I.woz) : '–'}${I.wozOff ? ` (beschikking ${I.Y})` : ' (geschat)'}. Rente ${eur(I.rente)}${I.renteEst ? ` uit het aflossingsschema (${esc((I.renteHow.match(/extra aflossing [^,;]+/) || ['zonder extra aflossing'])[0])}); voor de aangifte geldt het jaaroverzicht` : ' uit je Excel'}.</div>`;
 }
 function renderChanges() {
   const el = $('#bnChanges'); if (!el) return;
@@ -3674,7 +3673,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-23 16:30';
+const APP_VERSION = '2026-11-23 16:35';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
