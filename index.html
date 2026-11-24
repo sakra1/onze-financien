@@ -545,7 +545,7 @@ section[data-view].active { display: grid; }
       <div class="legend" id="k4Legend"></div>
       <div class="chart" id="k4Chart"></div>
       <details class="table"><summary>Toon maandsalarissen als tabel</summary><div class="tablewrap" id="k4Table"></div></details>
-      <div class="note">Gemiddeld maandsalaris per fte per jaar (inclusief vaste toelagen) als optelsom, zoals in het notebook: startsalaris + promotie + cao, met daarbovenop de eindejaarsuitkering (omgerekend per maand) en onder de as wat de inflatie van het hele loon wegneemt. Promotie: elke carrièrestap (periodiek, bevordering, toelage) met het bedrag dat je er toen bij kreeg; jaren zonder promotie blijven vlak. Cao: alle cao-verhogingen, als percentage van het salaris van dat moment, dus ook over eerder verdiende promoties. Een cao-verhoging telt pas zodra het salaris echt verandert, zodat een te laat uitbetaalde cao-verhoging niet als promotie telt.</div>
+      <div class="note">Gemiddeld maandsalaris per fte per jaar (inclusief vaste toelagen) als optelsom, zoals in het notebook: startsalaris + promotie + cao, met daarbovenop de eindejaarsuitkering en het vakantiegeld (8%), beide omgerekend per maand, en onder de as wat de inflatie van dat hele bedrag wegneemt. Promotie: elke carrièrestap (periodiek, bevordering, toelage) met het bedrag dat je er toen bij kreeg; jaren zonder promotie blijven vlak. Cao: alle cao-verhogingen, als percentage van het salaris van dat moment, dus ook over eerder verdiende promoties. Een cao-verhoging telt pas zodra het salaris echt verandert, zodat een te laat uitbetaalde cao-verhoging niet als promotie telt.</div>
       <h3>Groeifactoren sinds het startjaar</h3>
       <div class="tiles" id="k7Tiles"></div>
       <div class="legend" id="k7Legend"></div>
@@ -2789,22 +2789,25 @@ function renderCareer() {
   const by = {}; rows.forEach(r => by[r.year] = r);
   const cats = rows.filter(r => r.base != null).map(r => r.year);
   // 1. in euro's (som): startsalaris + promotie (bedrag van toen) + cao (over alles) + cao op de eju; inflatie als negatief bedrag
-  const st = {}, pr = {}, ca = {}, ej = {}, inf = {};
+  // vakantiegeld: een vaste 8% van het maandloon (geen cao- of promotie-effect, wel deel van wat je krijgt)
+  const VUP = 0.08, st = {}, pr = {}, ca = {}, ej = {}, vu = {}, inf = {}, tot = {};
   for (const y of cats) {
     const r = by[y];
-    st[y] = S0; pr[y] = Math.max(0, r.PE); ca[y] = r.base - S0 - pr[y]; ej[y] = r.EJ;
-    inf[y] = r.I ? -(r.base + r.EJ) * (1 - 1 / r.I) : null;
+    st[y] = S0; pr[y] = Math.max(0, r.PE); ca[y] = r.base - S0 - pr[y]; ej[y] = r.EJ; vu[y] = VUP * r.base;
+    tot[y] = r.base + r.EJ + vu[y];
+    inf[y] = r.I ? -tot[y] * (1 - 1 / r.I) : null;
   }
   barChart($('#k4Chart'), cats, [
     { name: 'Startsalaris', color: '--ink-3', on: true, values: st },
     { name: 'Promotie', color: '--s3', on: true, values: pr },
     { name: 'Cao maandloon', color: '--s1', on: true, values: ca },
     { name: 'Cao eju', color: '--s1d', on: true, values: ej },
+    { name: 'Vakantiegeld', color: '--s4', on: true, values: vu },
     { name: 'Weg door inflatie', color: '--bad', on: true, values: inf }
   ], { stack: true, label: 'opbouw maandsalaris per fte', fmt: eur, yFmt: compactEur, progCat: y => by[y].prog, height: 280,
-       tipExtra: y => `<div class="r"><span><b>Maandloon incl. eju</b></span><span><b>${eur(by[y].base + by[y].EJ)}</b></span></div>` +
-         (by[y].I ? `<div class="r"><span>in prijzen van ${y0}</span><span>${eur((by[y].base + by[y].EJ) / by[y].I)}</span></div>` : '') });
-  $('#k4Legend').innerHTML = [['Startsalaris', '--ink-3'], ['Promotie', '--s3'], ['Cao maandloon', '--s1'], ['Cao eju', '--s1d'], ['Inflatie (onder de as)', '--bad']].map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
+       tipExtra: y => `<div class="r"><span><b>Per maand incl. eju en vak.geld</b></span><span><b>${eur(tot[y])}</b></span></div>` +
+         (by[y].I ? `<div class="r"><span>in prijzen van ${y0}</span><span>${eur(tot[y] / by[y].I)}</span></div>` : '') });
+  $('#k4Legend').innerHTML = [['Startsalaris', '--ink-3'], ['Promotie', '--s3'], ['Cao maandloon', '--s1'], ['Cao eju', '--s1d'], ['Vakantiegeld', '--s4'], ['Inflatie (onder de as)', '--bad']].map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
 
   const nowR = rows.filter(r => !r.prog).pop() || rows[rows.length - 1];
   const kNow = nowR.base - S0 - nowR.PE;
@@ -3737,7 +3740,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-24 20:35';
+const APP_VERSION = '2026-11-24 20:45';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
