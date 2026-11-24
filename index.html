@@ -547,6 +547,7 @@ section[data-view].active { display: grid; }
       <details class="table"><summary>Toon maandsalarissen als tabel</summary><div class="tablewrap" id="k4Table"></div></details>
       <div class="note">Gemiddeld maandsalaris per fte per jaar (inclusief vaste toelagen) als optelsom, zoals in het notebook: startsalaris + promotie + cao, met daarbovenop de eindejaarsuitkering (omgerekend per maand) en onder de as wat de inflatie van het hele loon wegneemt. Promotie: elke carrièrestap (periodiek, bevordering, toelage) met het bedrag dat je er toen bij kreeg; jaren zonder promotie blijven vlak. Cao: alle cao-verhogingen, als percentage van het salaris van dat moment, dus ook over eerder verdiende promoties. Een cao-verhoging telt pas zodra het salaris echt verandert, zodat een te laat uitbetaalde cao-verhoging niet als promotie telt.</div>
       <h3>Groeifactoren sinds het startjaar</h3>
+      <div class="tiles" id="k7Tiles"></div>
       <div class="legend" id="k7Legend"></div>
       <div class="controls" id="k7Chips"></div>
       <div class="chart" id="k7Chart"></div>
@@ -2809,7 +2810,8 @@ function renderCareer() {
   const kNow = nowR.base - S0 - nowR.PE;
   $('#k4Tiles').innerHTML = `
     <div class="tile"><span>Promotie</span><b>+ ${eur(nowR.PE)}</b><em>${PCT0.format(nowR.PE / nowR.base)} van je loon in ${nowR.year}</em></div>
-    <div class="tile"><span>Cao</span><b>+ ${eur(kNow)}</b><em>${PCT0.format(kNow / nowR.base)} van je loon in ${nowR.year}</em></div>
+    <div class="tile"><span>Cao</span><b>+ ${eur(kNow)}</b><em>${PCT0.format(kNow / nowR.base)} van je loon in ${nowR.year}</em></div>`;
+  $('#k7Tiles').innerHTML = `
     <div class="tile"><span>Promotiefactor</span><b>× ${(nowR.P).toFixed(1).replace('.', ',')}</b><em>sinds ${y0} (in lonen van ${y0})</em></div>
     <div class="tile"><span>Cao-factor (incl. eju)</span><b>× ${(nowR.C * nowR.E).toFixed(1).replace('.', ',')}</b><em>maandloon × ${NUM2.format(Math.round(nowR.C * 100) / 100)}, eju × ${NUM2.format(Math.round(nowR.E * 100) / 100)}</em></div>`;
 
@@ -3735,7 +3737,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-24 17:30';
+const APP_VERSION = '2026-11-24 20:35';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
