@@ -1936,17 +1936,36 @@ function renderBN() {
     $('#bnNet').textContent = eur(Y.net);
   }
   const keep = Math.round(100 * (1 - r.marg));
-  let note = J ? `Jaarinkomen ABP: voltijd, salaris van januari; hierover gaat de pensioenpremie, naar rato van je fte. Bruto: salaris, toelage, vakantiegeld, eindejaarsuitkering en DCA. Fiscaal loon: zoals op je jaaropgave. Tarief op extra inkomen: van € 100 bruto extra per maand houd je ongeveer € ${keep} netto over.` : '';
-  if (J) { const Yc = yearFigures(who, r0, r0, false); if (Yc.hist != null) { const df = Yc.hist - Yc.net; note += Math.abs(df) < 50 ? ' Het netto volgens salaris geschiedenis (ingevulde maanden plus de prognose) klopt met de berekening.' : ` Let op: volgens salaris geschiedenis is het netto ${eur(Math.abs(df))} ${df > 0 ? 'hoger' : 'lager'} dan de app berekent. De app rekent per maand met het salaris en de toelage (bruto_${who} en toelage_${who}) en met de vergoedingen uit parameters; nabetalingen en andere bedragen in de kolommen voor overig en reiskosten telt hij hier niet mee. In de jaaroverzichten (Over de jaren) telt het netto uit salaris geschiedenis wél, inclusief die bedragen; is het jaar afgesloten, dan zijn dat de echte bedragen van je loonstroken.`; } }
-  // controle tegen de salarisstrook: de laatste gewone maand uit salaris geschiedenis
-  const c = !future && !J && DATA.bn[who] && DATA.bn[who].check;
-  if (c) {
-    const cy = new Date(c.d).getUTCFullYear(), mon = `${MONTHS[new Date(c.d).getUTCMonth()]} ${cy}`;
-    const appN = calcNet({ ...DATA.bn[who], full: c.full, f: c.f, toelage: c.toelage }, bnP(cy)).netto, diff = appN - c.net;
-    note = Math.abs(diff) < 1 ? `Klopt met de salarisstrook van ${mon} (${eur2(c.net)}).` : `Salarisstrook ${mon}: ${eur2(c.net)} netto, de app rekent ${eur2(appN)} (${signed(diff)}). Kleine verschillen komen door vergoedingen of inhoudingen die per maand wisselen.`;
+  // korte melding zichtbaar; de uitleg in een uitklapveld
+  let head = '', expl = [];
+  if (J) {
+    const Yc = yearFigures(who, r0, r0, false);
+    if (Yc.hist != null) {
+      const df = Yc.hist - Yc.net;
+      head = Math.abs(df) < 50 ? 'Klopt met het netto uit salaris geschiedenis.' : `Volgens salaris geschiedenis is het netto ${eur(Math.abs(df))} ${df > 0 ? 'hoger' : 'lager'}, meestal door nabetalingen die deze berekening niet meeneemt.`;
+    }
+    expl = [
+      ['Berekening', `maand voor maand uit het salaris en de toelage in salaris geschiedenis (bruto_${who}, toelage_${who}) en de vergoedingen uit parameters. Nabetalingen en bedragen in de kolommen voor overig en reiskosten tellen hier niet mee.`],
+      ['Volgens Excel', 'het netto uit salaris geschiedenis: de ingevulde maanden plus een prognose voor de rest. Dit telt wél mee in de jaaroverzichten (Over de jaren); voor een afgesloten jaar zijn dat de bedragen van je loonstroken.'],
+      ['Jaarinkomen ABP', 'voltijd, salaris en toelage van januari; hierover gaat de pensioenpremie, naar rato van je fte.'],
+      ['Bruto', 'salaris, toelage, vakantiegeld, eindejaarsuitkering en DCA.'],
+      ['Fiscaal loon', 'bruto min pensioen-, AOP- en AOV-premie, zoals op je jaaropgave.'],
+      ['Tarief op extra inkomen', `van € 100 bruto extra per maand houd je ongeveer € ${keep} netto over.`]
+    ];
+  } else {
+    // controle tegen de salarisstrook: de laatste gewone maand uit salaris geschiedenis
+    const c = !future && DATA.bn[who] && DATA.bn[who].check;
+    if (c) {
+      const cy = new Date(c.d).getUTCFullYear(), mon = `${MONTHS[new Date(c.d).getUTCMonth()]} ${cy}`;
+      const appN = calcNet({ ...DATA.bn[who], full: c.full, f: c.f, toelage: c.toelage }, bnP(cy)).netto, diff = appN - c.net;
+      head = Math.abs(diff) < 1 ? `Klopt met de salarisstrook van ${mon} (${eur2(c.net)}).` : `Salarisstrook ${mon}: ${eur2(c.net)} netto, de app rekent ${eur2(appN)} (${signed(diff)}).`;
+      if (Math.abs(diff) >= 1) expl.push(['Verschil met de strook', 'kleine verschillen komen door vergoedingen of inhoudingen die per maand wisselen, zoals reiskosten.']);
+    }
+    expl.push(['Jaarinkomen ABP', '12 × het salaris van januari (omgerekend naar voltijd) × (1 + vakantiegeld + eindejaarsuitkering), plus de vaste toelage van januari en de extra looncomponent uit bruto-netto. Daarover berekent het ABP de pensioenpremies.']);
   }
-  if (!J) note += `${note ? ' ' : ''}Jaarinkomen ABP = 12 × het salaris van januari (omgerekend naar voltijd) × (1 + vakantiegeld + eindejaarsuitkering), plus de vaste toelage van januari en de extra looncomponent uit bruto-netto; daarover berekent het ABP de pensioenpremies.`;
-  $('#bnNote').textContent = note; $('#bnNote').style.display = note ? '' : 'none';
+  const nEl = $('#bnNote'), wasOpen = !!nEl.querySelector('details[open]');
+  nEl.innerHTML = (head ? `<div>${head}</div>` : '') + (expl.length ? `<details class="dp-more toel"${wasOpen ? ' open' : ''}><summary>Toelichting</summary>${expl.map(([k, v]) => `<div style="margin-top:4px"><b style="font-weight:600">${k}</b>: ${v}</div>`).join('')}</details>` : '');
+  nEl.style.display = head || expl.length ? '' : 'none';
   const hint = $('#bnWaHint'); if (hint) { hint.textContent = changed ? 'aangepast' : 'salaris, fte, toelage en reisdagen'; hint.className = 'tiny ' + (changed ? 'pos' : 'muted'); }
   renderChanges();
   renderIB();
@@ -3683,7 +3702,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-24 10:05';
+const APP_VERSION = '2026-11-24 10:15';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
