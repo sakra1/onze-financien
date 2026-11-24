@@ -1937,7 +1937,7 @@ function renderBN() {
   }
   const keep = Math.round(100 * (1 - r.marg));
   let note = J ? `Jaarinkomen ABP: voltijd, salaris van januari; hierover gaat de pensioenpremie, naar rato van je fte. Bruto: salaris, toelage, vakantiegeld, eindejaarsuitkering en DCA. Fiscaal loon: zoals op je jaaropgave. Tarief op extra inkomen: van € 100 bruto extra per maand houd je ongeveer € ${keep} netto over.` : '';
-  if (J) { const Yc = yearFigures(who, r0, r0, false); if (Yc.hist != null) { const df = Yc.hist - Yc.net; note += Math.abs(df) < 50 ? ' Het netto volgens salaris geschiedenis (ingevulde maanden plus de prognose) klopt met de berekening.' : ` Let op: volgens salaris geschiedenis is het netto ${eur(Math.abs(df))} ${df > 0 ? 'hoger' : 'lager'} dan de app berekent. De app rekent per maand met het salaris en de toelage (bruto_${who} en toelage_${who}) en met de vergoedingen uit parameters; nabetalingen en andere bedragen in de kolommen voor overig en reiskosten telt hij niet mee. Zet ze waar het kan in de maand en kolom waar ze bij horen.`; } }
+  if (J) { const Yc = yearFigures(who, r0, r0, false); if (Yc.hist != null) { const df = Yc.hist - Yc.net; note += Math.abs(df) < 50 ? ' Het netto volgens salaris geschiedenis (ingevulde maanden plus de prognose) klopt met de berekening.' : ` Let op: volgens salaris geschiedenis is het netto ${eur(Math.abs(df))} ${df > 0 ? 'hoger' : 'lager'} dan de app berekent. De app rekent per maand met het salaris en de toelage (bruto_${who} en toelage_${who}) en met de vergoedingen uit parameters; nabetalingen en andere bedragen in de kolommen voor overig en reiskosten telt hij hier niet mee. In de jaaroverzichten (Over de jaren) telt het netto uit salaris geschiedenis wél, inclusief die bedragen; is het jaar afgesloten, dan zijn dat de echte bedragen van je loonstroken.`; } }
   // controle tegen de salarisstrook: de laatste gewone maand uit salaris geschiedenis
   const c = !future && !J && DATA.bn[who] && DATA.bn[who].check;
   if (c) {
@@ -3683,7 +3683,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-24 08:40';
+const APP_VERSION = '2026-11-24 10:05';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
