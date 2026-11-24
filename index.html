@@ -1864,13 +1864,16 @@ function yearFigures(who, r, r0, changed) {
   const p = I && I.p[who], ewr = p ? p.bel - p.werk : 0;
   const b3 = I && I.box3 && I.box3.g > 0 && who === 'S' ? I.box3.g * (paramsFor(BN_YEAR).box3_forfait_bank || 0) : 0;
   const k = who === 'S' ? 'sn' : 'en', rs = (DATA.hist || []).filter(q => new Date(q.d).getUTCFullYear() === BN_YEAR && q[k] > 0);
-  const histNet = rs.length === 12 ? rs.reduce((a, q) => a + q[k], 0) : null;
-  const fromCalc = c => { const werk = c.hlM * 12 + c.vuB + c.ejuB + c.dcaB; return { bruto: (c.bruto + c.toelage) * 12 + c.vuB + c.ejuB + c.dcaB, prem: c.premies * 12, abp: c.jaarABP, werk, lh: c.lhM * 12 + (c.vuB + c.ejuB + c.dcaB) * c.marg, bel: werk + ewr, verz: werk + ewr + b3, net: c.jaarNet }; };
-  const M = p ? { bruto: p.bruto, prem: p.premies, abp: p.abp, werk: p.werk, lh: p.lh, bel: p.bel, verz: p.bel + b3, net: histNet ?? r0.jaarNet } : fromCalc(r0);
+  // ter controle: het netto volgens salaris geschiedenis (ingevulde maanden plus de prognose voor de rest)
+  const histNet = rs.length === 12 && rs.some(q => !q.proj) ? rs.reduce((a, q) => a + q[k], 0) : null;
+  const fromCalc = c => { const werk = c.hlM * 12 + c.vuB + c.ejuB + c.dcaB; return { bruto: (c.bruto + c.toelage) * 12 + c.vuB + c.ejuB + c.dcaB, prem: c.premies * 12, abp: c.jaarABP, werk, lh: c.lhM * 12 + (c.vuB + c.ejuB + c.dcaB) * c.marg, bel: werk + ewr, verz: werk + ewr + b3, verg: c.verg * 12, net: c.jaarNet }; };
+  // alles berekend: fiscaal loon min loonheffing plus de onbelaste vergoedingen uit de parameters
+  const M = p ? { bruto: p.bruto, prem: p.premies, abp: p.abp, werk: p.werk, lh: p.lh, bel: p.bel, verz: p.bel + b3, verg: r0.verg * 12, net: p.werk - p.lh + r0.verg * 12 } : fromCalc(r0);
+  M.hist = histNet;
   if (!changed) return { ...M, d: null };
   // Wat als: de basis maand voor maand, plus wat de aanpassing over een heel jaar verandert
   const A = fromCalc(r), B = fromCalc(r0), out = { d: M };
-  for (const f of Object.keys(M)) out[f] = M[f] + (A[f] - B[f]);
+  for (const f of Object.keys(M)) out[f] = f === 'hist' ? M.hist : M[f] + (A[f] - B[f]);
   return out;
 }
 let BN_PER = 'm';
@@ -1909,25 +1912,28 @@ function renderBN() {
     const sub = t => `<span class="tiny muted" style="display:block">${t}</span>`;
     // van het hoogste bedrag naar netto; één lettergrootte, alleen het netto vet, bijregels grijs
     const D = f => Y.d ? dd(Y[f], Y.d[f]) : '';
-    const verg = Y.net - Y.werk + Y.lh, vergD = Y.d ? Y.d.net - Y.d.werk + Y.d.lh : null;
     const netParts = r.vuN + r.ejuN + r.dcaN;
+    // controle: wijkt het netto uit salaris geschiedenis af van wat de app berekent? (zonder Wat als)
+    const chk = Y.hist != null ? Y.hist - (Y.d || Y).net : null;
     $('#bnRows').innerHTML =
       row('Jaarinkomen ABP', eur(Y.abp), ' sub', D('abp')) +
       row('Bruto jaarinkomen', eur(Y.bruto), ' sep', D('bruto')) +
       row('Pensioen-, AOP- en AOV-premie', eurS0(-Y.prem), '', D('prem')) +
       row('Fiscaal loon', eur(Y.werk), ' sum', D('werk')) +
       row('Loonheffing', eurS0(-Y.lh), '', D('lh')) +
-      row('Onbelaste vergoedingen', eur(verg), '', vergD != null ? dd(verg, vergD) : '') +
+      row('Onbelaste vergoedingen', eur(Y.verg), '', D('verg')) +
       row('Netto jaarinkomen', eur(Y.net), ' total', D('net')) +
       row('waarvan netto salaris', eur(Y.net - netParts), ' sub') +
       row('waarvan vakantiegeld', eur(r.vuN), ' sub') +
       row('waarvan eindejaarsuitkering', eur(r.ejuN), ' sub') +
       (r.dcaN ? row('waarvan DCA', eur(r.dcaN), ' sub') : '') +
-      row('Tarief op extra inkomen', PCT1.format(r.marg), ' sep sub');
+      (chk != null ? row('Volgens Excel', eur(Y.hist) + ` <span class="${Math.abs(chk) < 50 ? 'muted' : 'neg'} small">(${signed(chk)})</span>`, ' sep sub') : '') +
+      row('Tarief op extra inkomen', PCT1.format(r.marg), chk != null ? ' sub' : ' sep sub');
     $('#bnNet').textContent = eur(Y.net);
   }
   const keep = Math.round(100 * (1 - r.marg));
   let note = J ? `Jaarinkomen ABP: voltijd, salaris van januari; hierover gaat de pensioenpremie, naar rato van je fte. Bruto: salaris, toelage, vakantiegeld, eindejaarsuitkering en DCA. Fiscaal loon: zoals op je jaaropgave. Tarief op extra inkomen: van € 100 bruto extra per maand houd je ongeveer € ${keep} netto over.` : '';
+  if (J) { const Yc = yearFigures(who, r0, r0, false); if (Yc.hist != null) { const df = Yc.hist - Yc.net; note += Math.abs(df) < 50 ? ' Het netto volgens salaris geschiedenis (ingevulde maanden plus de prognose) klopt met de berekening.' : ` Let op: volgens salaris geschiedenis is het netto ${eur(Math.abs(df))} ${df > 0 ? 'hoger' : 'lager'} dan de app berekent. De app rekent per maand met het salaris en de toelage (bruto_${who} en toelage_${who}) en met de vergoedingen uit parameters; nabetalingen en andere bedragen in de kolommen voor overig en reiskosten telt hij niet mee. Zet ze waar het kan in de maand en kolom waar ze bij horen.`; } }
   // controle tegen de salarisstrook: de laatste gewone maand uit salaris geschiedenis
   const c = !future && !J && DATA.bn[who] && DATA.bn[who].check;
   if (c) {
@@ -3673,7 +3679,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-23 16:35';
+const APP_VERSION = '2026-11-24 08:30';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
