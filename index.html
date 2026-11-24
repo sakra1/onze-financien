@@ -26,7 +26,7 @@
   --accent: #14324f;
   --accent-ink: #ffffff;
   --soft: #e8eef5;
-  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s1d: #1d4f8f;
   --good: #0f7b4a; --bad: #b3261e;
   --font-display: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
   --font-body: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
@@ -37,7 +37,7 @@
     color-scheme: dark;
     --bg: #0f151b; --card: #18212a; --ink: #eef2f6; --ink-2: #b4bfca; --ink-3: #8794a1;
     --line: #2a3541; --accent: #8fb8e6; --accent-ink: #0f151b; --soft: #22303d;
-    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s1d: #2459a0;
     --good: #4cc38a; --bad: #ff8a80;
   }
 }
@@ -45,7 +45,7 @@
   color-scheme: dark;
   --bg: #0f151b; --card: #18212a; --ink: #eef2f6; --ink-2: #b4bfca; --ink-3: #8794a1;
   --line: #2a3541; --accent: #8fb8e6; --accent-ink: #0f151b; --soft: #22303d;
-  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s1d: #2459a0;
   --good: #4cc38a; --bad: #ff8a80;
 }
 * { box-sizing: border-box; }
@@ -545,12 +545,12 @@ section[data-view].active { display: grid; }
       <div class="legend" id="k4Legend"></div>
       <div class="chart" id="k4Chart"></div>
       <details class="table"><summary>Toon maandsalarissen als tabel</summary><div class="tablewrap" id="k4Table"></div></details>
-      <div class="note">Gemiddeld maandsalaris per fte per jaar (inclusief vaste toelagen, zonder eju en vakantiegeld) als optelsom, zoals in het notebook: startsalaris + promotie + cao. Promotie: elke carrièrestap (periodiek, bevordering, toelage) met het bedrag dat je er toen bij kreeg; jaren zonder promotie blijven vlak. Cao: alle cao-verhogingen, als percentage van het salaris van dat moment, dus ook over eerder verdiende promoties. Een cao-verhoging telt pas zodra het salaris echt verandert, zodat een te laat uitbetaalde cao-verhoging niet als promotie telt.</div>
-      <h3>Met eju en inflatie</h3>
+      <div class="note">Gemiddeld maandsalaris per fte per jaar (inclusief vaste toelagen) als optelsom, zoals in het notebook: startsalaris + promotie + cao, met daarbovenop de hogere eindejaarsuitkering (omgerekend per maand) en onder de as wat de inflatie van het hele loon wegneemt. Promotie: elke carrièrestap (periodiek, bevordering, toelage) met het bedrag dat je er toen bij kreeg; jaren zonder promotie blijven vlak. Cao: alle cao-verhogingen, als percentage van het salaris van dat moment, dus ook over eerder verdiende promoties. Een cao-verhoging telt pas zodra het salaris echt verandert, zodat een te laat uitbetaalde cao-verhoging niet als promotie telt.</div>
+      <h3>Groeifactoren sinds het startjaar</h3>
       <div class="legend" id="k7Legend"></div>
       <div class="controls" id="k7Chips"></div>
       <div class="chart" id="k7Chart"></div>
-      <div class="note">Dezelfde lagen als hierboven, met daarbovenop de cao-verhogingen van de eindejaarsuitkering (omgerekend per maand). Het rode vlak onder de as is het inflatie-effect als negatief bedrag: wat de inflatie van het hele loon wegneemt, het verschil tussen het loon en hetzelfde loon in prijzen van het startjaar (gestreept). "Reëel, alleen cao": het startsalaris met alleen de cao-verhogingen, in prijzen van het startjaar, dus zonder één promotie; ligt die lijn rond het startsalaris, dan heeft de cao precies de inflatie gecompenseerd.</div>
+      <div class="note">Hetzelfde loon als vermenigvuldiging: startsalaris × P × C, en het jaarloon nog × E. P = promotie, C = cao op het maandloon, E = hogere eindejaarsuitkering. Op deze logaritmische as krijgt elke factor zijn eigen, eerlijke hoogte. Rood onder de 1 is de inflatie. Ligt de gestreepte lijn (reëel) net boven groen, dan hebben cao en eju de inflatie net gecompenseerd en komt de echte groei uit promoties; de gele lijn (reële cao) ligt dan net boven de 1.<br><br>Let op: de grens tussen groen en blauw ligt hier anders dan in de euro-grafiek hierboven. Daar telt een promotie met het bedrag van toen; hier telt hij in lonen van het startjaar, en zijn latere groei door de cao zit in C. De totalen zijn gelijk: euro's laten zien wat je erbij kreeg, factoren hoeveel keer je loon groeide.</div>
       <h3>Stijging per jaar: promotie en cao</h3>
       <div class="controls" id="k6Chips"></div>
       <div class="chart" id="k6Chart"></div>
@@ -2786,51 +2786,54 @@ function renderCareer() {
   const { S0, y0, rows } = cs;
   const by = {}; rows.forEach(r => by[r.year] = r);
   const cats = rows.filter(r => r.base != null).map(r => r.year);
-  const st = {}, pr = {}, ca = {};
+  // 1. in euro's (som): startsalaris + promotie (bedrag van toen) + cao (over alles) + cao op de eju; inflatie als negatief bedrag
+  const st = {}, pr = {}, ca = {}, ej = {}, inf = {};
   for (const y of cats) {
-    // startsalaris + promoties (in euro's van het jaar waarin ze kwamen) + cao (over alles, ook over eerdere promoties)
     const r = by[y];
-    st[y] = S0; pr[y] = Math.max(0, r.PE); ca[y] = r.base - S0 - pr[y];
+    st[y] = S0; pr[y] = Math.max(0, r.PE); ca[y] = r.base - S0 - pr[y]; ej[y] = r.EJ;
+    inf[y] = r.I ? -(r.base + r.EJ) * (1 - 1 / r.I) : null;
   }
   barChart($('#k4Chart'), cats, [
     { name: 'Startsalaris', color: '--ink-3', on: true, values: st },
     { name: 'Promotie', color: '--s3', on: true, values: pr },
-    { name: 'Cao-effect', color: '--s1', on: true, values: ca }
-  ], { stack: true, label: 'opbouw maandsalaris per fte', fmt: eur, yFmt: compactEur, progCat: y => by[y].prog, height: 240,
-       tipExtra: y => `<div class="r"><span><b>Maandloon per fte</b></span><span><b>${eur(by[y].base)}</b></span></div>` });
-  $('#k4Legend').innerHTML = [['Startsalaris', '--ink-3'], ['Promotie', '--s3'], ['Cao-effect', '--s1']].map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
+    { name: 'Cao maandloon', color: '--s1', on: true, values: ca },
+    { name: 'Cao eju', color: '--s1d', on: true, values: ej },
+    { name: 'Weg door inflatie', color: '--bad', on: true, values: inf }
+  ], { stack: true, label: 'opbouw maandsalaris per fte', fmt: eur, yFmt: compactEur, progCat: y => by[y].prog, height: 280,
+       tipExtra: y => `<div class="r"><span><b>Maandloon incl. eju</b></span><span><b>${eur(by[y].base + by[y].EJ)}</b></span></div>` +
+         (by[y].I ? `<div class="r"><span>in prijzen van ${y0}</span><span>${eur((by[y].base + by[y].EJ) / by[y].I)}</span></div>` : '') });
+  $('#k4Legend').innerHTML = [['Startsalaris', '--ink-3'], ['Promotie', '--s3'], ['Cao maandloon', '--s1'], ['Cao eju', '--s1d'], ['Inflatie (onder de as)', '--bad']].map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
 
   const nowR = rows.filter(r => !r.prog).pop() || rows[rows.length - 1];
   const kNow = nowR.base - S0 - nowR.PE;
   $('#k4Tiles').innerHTML = `
     <div class="tile"><span>Promotie</span><b>+ ${eur(nowR.PE)}</b><em>${PCT0.format(nowR.PE / nowR.base)} van je loon in ${nowR.year}</em></div>
     <div class="tile"><span>Cao</span><b>+ ${eur(kNow)}</b><em>${PCT0.format(kNow / nowR.base)} van je loon in ${nowR.year}</em></div>
-    <div class="tile"><span>Startsalaris</span><b>${eur(S0)}</b><em>per maand per fte in ${y0}</em></div>`;
+    <div class="tile"><span>Promotiefactor</span><b>× ${(nowR.P).toFixed(1).replace('.', ',')}</b><em>sinds ${y0} (in lonen van ${y0})</em></div>
+    <div class="tile"><span>Cao-factor (incl. eju)</span><b>× ${(nowR.C * nowR.E).toFixed(1).replace('.', ',')}</b><em>maandloon × ${NUM2.format(Math.round(nowR.C * 100) / 100)}, eju × ${NUM2.format(Math.round(nowR.E * 100) / 100)}</em></div>`;
 
+  // 2. in factoren (product), logaritmische as: S = S0 × P × C, jaarloon × E; inflatie onder de 1
   const f = (k, fn) => rows.filter(r => fn(r) != null && isFinite(fn(r))).map(r => ({ x: r.year, y: fn(r), prog: r.prog }));
-  // zoals de onderste grafieken in het notebook: maandloon per fte inclusief de extra eju, nominaal en in prijzen van het startjaar
   const defs = [
-    ['n', 'Loon incl. eju', '--ink', r => r.base != null ? r.base + r.EJ : null, false],
-    ['r', 'Reëel (prijzen ' + y0 + ')', '--ink-2', r => r.base != null && r.I ? (r.base + r.EJ) / r.I : null, true],
-    ['c', 'Reëel, alleen cao', '--s4', r => r.CO != null && r.I ? r.CO / r.I : null, false]
+    ['n', 'Loonontwikkeling (P·C·E)', '--ink', r => r.P * r.C * r.E, false],
+    ['r', 'Reëel (÷ inflatie)', '--ink-2', r => r.I ? r.P * r.C * r.E / r.I : null, true],
+    ['c', 'Reële cao (C·E ÷ inflatie)', '--s4', r => r.I ? r.C * r.E / r.I : null, false]
   ];
-  // gestapelde lagen zoals de bovenste grafiek, plus de eju en wat de inflatie wegneemt; logaritmische as
-  const yrs = rows.filter(r => r.base != null).map(r => r.year);
+  const yrs = rows.map(r => r.year);
   const mk = fn => new Map(yrs.map(y => [y, fn(by[y])]).filter(([, v]) => v != null && isFinite(v)));
-  // inflatie als negatief bedrag onder de x-as: wat de inflatie van het hele loon wegneemt (nominaal min reëel)
-  const lv = { z: mk(() => 0), s0: mk(() => S0), inf: mk(r => r.I ? -(r.base + r.EJ) * (1 - 1 / r.I) : null), pr: mk(r => S0 + r.PE), b: mk(r => r.base), n: mk(r => r.base + r.EJ) };
+  const lv = { one: mk(() => 1), infl: mk(r => r.I ? 1 / r.I : null), p: mk(r => r.P), pc: mk(r => r.P * r.C), pce: mk(r => r.P * r.C * r.E) };
+  const lowF = Math.min(1, ...lv.infl.values()) * 0.9;
   const k7Bands = [
-    { lo: lv.inf, hi: mk(r => r.I ? 0 : null), color: '--s2', opacity: 0.3 },
-    { lo: lv.z, hi: lv.s0, color: '--ink-3', opacity: 0.18 },
-    { lo: lv.s0, hi: lv.pr, color: '--s3', opacity: 0.3 },
-    { lo: lv.pr, hi: lv.b, color: '--s1', opacity: 0.22 },
-    { lo: lv.b, hi: lv.n, color: '--s1', opacity: 0.5 }
+    { lo: lv.infl, hi: mk(r => r.I ? 1 : null), color: '--bad', opacity: 0.25 },
+    { lo: lv.one, hi: lv.p, color: '--s3', opacity: 0.3 },
+    { lo: lv.p, hi: lv.pc, color: '--s1', opacity: 0.25 },
+    { lo: lv.pc, hi: lv.pce, color: '--s1d', opacity: 0.55 }
   ];
+  const fx = v => NUM2.format(Math.round(v * 100) / 100) + '×';
   lineChart($('#k7Chart'), defs.map(([k, name, color, fn, dash]) => ({ name, color, dashedAll: dash, points: KUI.k7[k] ? f(k, fn) : [] })), {
-    label: 'loon incl. eju en inflatie', bands: k7Bands, height: 260, yFmt: compactEur, tipFmt: eur, xFmt: String, tipTitle: String,
-    tipExtra: y => { const r = by[y]; if (!r || r.base == null) return ''; const inf = r.I ? (r.base + r.EJ) * (1 - 1 / r.I) : null;
-      return `<div class="r"><span>promotie</span><span>${eur(r.PE)}</span></div><div class="r"><span>cao</span><span>${eur(r.base - S0 - r.PE)}</span></div><div class="r"><span>cao eju</span><span>${eur(r.EJ)}</span></div>` + (inf != null ? `<div class="r"><span>weg door inflatie</span><span>${eur(inf)}</span></div>` : ''); } });
-  $('#k7Legend').innerHTML = [['Startsalaris', '--ink-3'], ['Promotie', '--s3'], ['Cao maandloon', '--s1'], ['Cao eju', '--s1', 0.9], ['Inflatie (onder de as)', '--s2']].map(([n, c, o]) => `<span style="--c:var(${c})${o ? ';filter:brightness(0.8)' : ''}">${n}</span>`).join('');
+    label: 'groeifactoren', log: true, yMinFix: lowF, refLine: 1, bands: k7Bands, height: 260, yFmt: v => NUM2.format(v) + '×', tipFmt: fx, xFmt: String, tipTitle: String,
+    tipExtra: y => { const r = by[y]; return r ? `<div class="r"><span>promotie P</span><span>${fx(r.P)}</span></div><div class="r"><span>cao C</span><span>${fx(r.C)}</span></div><div class="r"><span>eju E</span><span>${fx(r.E)}</span></div>` + (r.I ? `<div class="r"><span>inflatie</span><span>${fx(r.I)}</span></div>` : '') : ''; } });
+  $('#k7Legend').innerHTML = [['Promotie P', '--s3'], ['Cao maandloon C', '--s1'], ['Cao eju E', '--s1d'], ['Inflatie (onder de 1)', '--bad']].map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
   chips($('#k7Chips'), defs.map(([k, n, c, , d]) => [k, n, c, d]), KUI.k7, renderKoopkracht);
 
   // jaar-op-jaar: promotie en cao (cel 24 van het notebook)
@@ -3730,7 +3733,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-24 16:55';
+const APP_VERSION = '2026-11-24 17:20';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
