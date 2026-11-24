@@ -231,6 +231,10 @@ input[type="range"] { width: 100%; accent-color: var(--s1); height: 28px; }
 .rows .r > span:first-child { min-width: 0; }
 .rows .r.sep { border-top: 1px solid var(--line-2, var(--line)); margin-top: 6px; }
 .rows .r.sub { color: var(--ink-3); }
+.math { font-family: 'Cambria Math', 'STIX Two Math', 'Times New Roman', serif; font-style: italic; text-align: center; margin: 8px 0; font-size: 15px; color: var(--ink); }
+.math sub, .math sup { font-size: 70%; }
+.math-ex { text-align: center; font-size: 13px; color: var(--ink-2); margin: -2px 0 8px; }
+.toel p { margin: 6px 0; }
 /* bruto naar netto: alleen een lijn boven een (tussen)totaal; losse blokken met witruimte */
 #bnRows .r { border-bottom: 0; }
 #bnRows .r.sum, #bnRows .r.total { border-top: 1px solid var(--line-2, var(--line)); }
@@ -545,17 +549,44 @@ section[data-view].active { display: grid; }
       <div class="legend" id="k4Legend"></div>
       <div class="chart" id="k4Chart"></div>
       <details class="table"><summary>Toon maandsalarissen als tabel</summary><div class="tablewrap" id="k4Table"></div></details>
-      <div class="note">Gemiddeld maandsalaris per fte per jaar (inclusief vaste toelagen) als optelsom, zoals in het notebook: startsalaris + promotie + cao, met daarbovenop de eindejaarsuitkering en het vakantiegeld (8%), beide omgerekend per maand, en onder de as wat de inflatie van dat hele bedrag wegneemt. Promotie: elke carrièrestap (periodiek, bevordering, toelage) met het bedrag dat je er toen bij kreeg; jaren zonder promotie blijven vlak. Cao: alle cao-verhogingen, als percentage van het salaris van dat moment, dus ook over eerder verdiende promoties. Een cao-verhoging telt pas zodra het salaris echt verandert, zodat een te laat uitbetaalde cao-verhoging niet als promotie telt.</div>
+      <div class="note">Maandloon per fte = startsalaris + promotie + cao. Daarboven de eju en het vakantiegeld per maand, onder de as wat de inflatie wegneemt.
+        <details class="dp-more toel"><summary>Toelichting</summary>
+          <div class="math">S<sub>t</sub> = S<sub>0</sub> + Π<sub>t</sub> + K<sub>t</sub></div>
+          <div id="k4Ex" class="math-ex"></div>
+          <p><b>S<sub>t</sub></b> maandloon per fte (met vaste toelagen), <b>S<sub>0</sub></b> startsalaris, <b>Π<sub>t</sub></b> promotie: alle carrièrestappen opgeteld, <b>K<sub>t</sub></b> cao: alle cao-verhogingen opgeteld.</p>
+          <p><b>Bij elke salariswijziging</b> rekent de app eerst uit wat de cao alleen had gegeven, vanaf de vorige wijziging (het anker), met de cao-percentages <i>p</i> (vaste cao-bedragen tellen er gewoon bij op):</p>
+          <div class="math">S<sup>verwacht</sup> = S<sub>anker</sub> × (1 + p<sub>1</sub>) × (1 + p<sub>2</sub>) × …</div>
+          <div class="math">ΔK = S<sup>verwacht</sup> − S<sub>anker</sub></div>
+          <div class="math">ΔΠ = S<sub>t</sub> − S<sup>verwacht</sup></div>
+          <p>Een toelage van € 200 geeft ΔΠ = € 200; een cao-verhoging van 3% op € 8.000 geeft ΔK = € 240. Een cao-verhoging telt pas als het salaris echt verandert, zodat een te laat uitbetaalde verhoging niet als promotie telt.</p>
+          <p><b>Bovenop:</b> eju = S<sub>t</sub> × (E<sub>t</sub> − 1), met E<sub>t</sub> = 1 + het eju-percentage (2% vanaf december 2002, 8,3% vanaf 2009); vakantiegeld = 0,08 × S<sub>t</sub>. <b>Onder de as:</b> −totaal × (1 − 1/I<sub>t</sub>), met I<sub>t</sub> de prijsindex ten opzichte van het startjaar.</p>
+        </details></div>
       <h3>Groeifactoren sinds het startjaar</h3>
       <div class="tiles" id="k7Tiles"></div>
       <div class="legend" id="k7Legend"></div>
       <div class="controls" id="k7Chips"></div>
       <div class="chart" id="k7Chart"></div>
-      <div class="note">Hetzelfde loon als vermenigvuldiging: startsalaris × P × C, en het jaarloon nog × E. P = promotie, C = cao op het maandloon, E = 1 + het eju-percentage (2% vanaf december 2002, 8,3% vanaf 2009). Op deze logaritmische as krijgt elke factor zijn eigen, eerlijke hoogte. Rood onder de 1 is de inflatie. Ligt de gestreepte lijn (reëel) net boven groen, dan hebben cao en eju de inflatie net gecompenseerd en komt de echte groei uit promoties; de gele lijn (reële cao) ligt dan net boven de 1.<br><br>Let op: de grens tussen groen en blauw ligt hier anders dan in de euro-grafiek hierboven. Daar telt een promotie met het bedrag van toen; hier telt hij in lonen van het startjaar, en zijn latere groei door de cao zit in C. De totalen zijn gelijk: euro's laten zien wat je erbij kreeg, factoren hoeveel keer je loon groeide.</div>
+      <div class="note">Hetzelfde maandloon als vermenigvuldiging, op een logaritmische as: elke factor krijgt zijn eigen, eerlijke hoogte.
+        <details class="dp-more toel"><summary>Toelichting</summary>
+          <div class="math">S<sub>t</sub> = S<sub>0</sub> × P<sub>t</sub> × C<sub>t</sub></div>
+          <div class="math">jaarloon = 12 × S<sub>t</sub> × E<sub>t</sub> × 1,08</div>
+          <div id="k7Ex" class="math-ex"></div>
+          <p><b>P<sub>t</sub></b> promotiefactor, <b>C<sub>t</sub></b> cao-factor op het maandloon, <b>E<sub>t</sub></b> = 1 + het eju-percentage. Het vakantiegeld (1,08) is constant en valt weg. Dezelfde stap als hierboven geeft:</p>
+          <div class="math">P<sub>t</sub> = P<sub>anker</sub> × S<sub>t</sub> / S<sup>verwacht</sup></div>
+          <div class="math">C<sub>t</sub> = S<sub>t</sub> / (S<sub>0</sub> × P<sub>t</sub>)</div>
+          <p><b>Lijnen:</b> loonontwikkeling P·C·E, reëel P·C·E / I<sub>t</sub> (gestreept) en reële cao C·E / I<sub>t</sub> (geel). Rood onder de 1 loopt van 1 naar 1/I<sub>t</sub>. Ligt de gestreepte lijn net boven groen, oftewel C·E / I<sub>t</sub> net boven 1, dan hebben cao en eju de inflatie net gecompenseerd en komt de echte groei uit promoties.</p>
+          <p><b>Verschil met de euro-grafiek:</b> daar telt een promotie met het bedrag van toen (ΔΠ). Hier telt hij in lonen van het startjaar: S<sub>0</sub> × (P<sub>t</sub> − 1) is kleiner dan Π<sub>t</sub>, en het verschil zit in C<sub>t</sub>. Het totaal S<sub>t</sub> is gelijk.</p>
+        </details></div>
       <h3>Stijging per jaar: promotie en cao</h3>
       <div class="controls" id="k6Chips"></div>
       <div class="chart" id="k6Chart"></div>
-      <div class="note">Stijging van het gemiddelde maandloon per fte ten opzichte van het jaar ervoor: de toename van de promotie- en de cao-laag uit de grafiek hierboven, als percentage van het loon van het jaar ervoor. Samen precies de totale stijging. Lichtere staven zijn (deels) prognose.</div>
+      <div class="note">Stijging van het maandloon per fte ten opzichte van het jaar ervoor, gesplitst in promotie en cao (de lagen uit de euro-grafiek). Lichtere staven zijn (deels) prognose.
+        <details class="dp-more toel"><summary>Toelichting</summary>
+          <div class="math">promotie = (Π<sub>t</sub> − Π<sub>t−1</sub>) / S<sub>t−1</sub></div>
+          <div class="math">cao = (K<sub>t</sub> − K<sub>t−1</sub>) / S<sub>t−1</sub></div>
+          <div class="math">promotie + cao = (S<sub>t</sub> − S<sub>t−1</sub>) / S<sub>t−1</sub></div>
+          <p>Promotie + cao telt precies op tot de totale stijging. Eju en vakantiegeld blijven hier buiten beschouwing.</p>
+        </details></div>
     </div>
 
     <div class="note src-note" style="padding:0 2px"></div>
@@ -2811,6 +2842,10 @@ function renderCareer() {
 
   const nowR = rows.filter(r => !r.prog).pop() || rows[rows.length - 1];
   const kNow = nowR.base - S0 - nowR.PE;
+  const nm = who === 'S' ? 'Sander' : 'Ellen', f2 = v => NUM2.format(Math.round(v * 100) / 100);
+  $('#k4Ex').innerHTML = `${nm}, ${nowR.year}: ${eur(nowR.base)} = ${eur(S0)} + ${eur(nowR.PE)} + ${eur(kNow)}`;
+  const f3 = v => v.toFixed(3).replace('.', ',');
+  $('#k7Ex').innerHTML = `${nm}, ${nowR.year}: ${eur(nowR.base)} = ${eur(S0)} × ${f3(nowR.P)} × ${f3(nowR.C)}; E = ${f3(nowR.E)}`;
   $('#k4Tiles').innerHTML = `
     <div class="tile"><span>Promotie</span><b>+ ${eur(nowR.PE)}</b><em>${PCT0.format(nowR.PE / nowR.base)} van je loon in ${nowR.year}</em></div>
     <div class="tile"><span>Cao</span><b>+ ${eur(kNow)}</b><em>${PCT0.format(kNow / nowR.base)} van je loon in ${nowR.year}</em></div>`;
@@ -3740,7 +3775,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-24 20:45';
+const APP_VERSION = '2026-11-24 21:20';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
