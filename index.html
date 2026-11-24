@@ -547,9 +547,10 @@ section[data-view].active { display: grid; }
       <details class="table"><summary>Toon maandsalarissen als tabel</summary><div class="tablewrap" id="k4Table"></div></details>
       <div class="note">Gemiddeld maandsalaris per fte per jaar (inclusief vaste toelagen, zonder eju en vakantiegeld) als optelsom, zoals in het notebook: startsalaris + promotie + cao. Promotie: elke carrièrestap (periodiek, bevordering, toelage) met het bedrag dat je er toen bij kreeg; jaren zonder promotie blijven vlak. Cao: alle cao-verhogingen, als percentage van het salaris van dat moment, dus ook over eerder verdiende promoties. Een cao-verhoging telt pas zodra het salaris echt verandert, zodat een te laat uitbetaalde cao-verhoging niet als promotie telt.</div>
       <h3>Met eju en inflatie</h3>
+      <div class="legend" id="k7Legend"></div>
       <div class="controls" id="k7Chips"></div>
       <div class="chart" id="k7Chart"></div>
-      <div class="note">Maandloon per fte inclusief wat de hogere eindejaarsuitkering sinds het startjaar per maand extra oplevert. Gestreept: hetzelfde in prijzen van het startjaar. "Reëel, alleen cao": het startsalaris met alleen de cao-verhogingen, dus zonder één promotie. De horizontale lijn is het startsalaris; ligt "alleen cao" daar rond, dan heeft de cao precies de inflatie gecompenseerd.</div>
+      <div class="note">Dezelfde lagen als hierboven, op een logaritmische as (gelijke afstand = gelijk percentage), met daarbovenop de cao-verhogingen van de eindejaarsuitkering (omgerekend per maand). Het rode vlak is wat de inflatie wegneemt: tussen het loon en hetzelfde loon in prijzen van het startjaar (gestreept). "Reëel, alleen cao": het startsalaris met alleen de cao-verhogingen, in prijzen van het startjaar, dus zonder één promotie; ligt die lijn rond het startsalaris, dan heeft de cao precies de inflatie gecompenseerd.</div>
       <h3>Stijging per jaar: promotie en cao</h3>
       <div class="controls" id="k6Chips"></div>
       <div class="chart" id="k6Chart"></div>
@@ -980,14 +981,18 @@ function lineChart(host, series, opts) {
   const bandVals = bands.flatMap(b => [...b.lo.values(), ...b.hi.values()]);
   let yMin = Math.min(...vis.flatMap(s => s.points.map(p => p.y)), ...bandVals);
   let yMax = Math.max(...vis.flatMap(s => s.points.map(p => p.y)), ...bandVals);
-  if (opts.yZero !== false) yMin = Math.min(0, yMin);
+  if (opts.yZero !== false && !opts.log) yMin = Math.min(0, yMin);
   if (opts.yMinFix != null) yMin = opts.yMinFix;
   if (opts.yMaxFix != null) yMax = Math.max(opts.yMaxFix, yMax);
-  const ticks = niceTicks(yMin, yMax);
+  // logaritmische y-as: ticks op 1, 2, 5 × 10^k
+  const logTicks = (lo, hi) => { const out = []; for (let k = Math.floor(Math.log10(lo)) - 1; k <= Math.ceil(Math.log10(hi)); k++) for (const mm of [1, 2, 5]) out.push(mm * 10 ** k);
+    const a = out.filter(v => v <= lo * 1.0001).pop() ?? out[0], b = out.find(v => v >= hi * 0.9999) ?? out[out.length - 1]; return out.filter(v => v >= a && v <= b); };
+  const ticks = opts.log ? logTicks(yMin, yMax) : niceTicks(yMin, yMax);
   const y0 = ticks[0], y1 = ticks[ticks.length - 1];
   const xMin = xs[0], xMax = xs[xs.length - 1] === xs[0] ? xs[0] + 1 : xs[xs.length - 1];
   const X = v => m.l + (v - xMin) / (xMax - xMin) * (W - m.l - m.r);
-  const Y = v => m.t + (1 - (v - y0) / (y1 - y0)) * (H - m.t - m.b);
+  const Y = opts.log ? v => m.t + (1 - (Math.log(Math.max(v, y0)) - Math.log(y0)) / (Math.log(y1) - Math.log(y0))) * (H - m.t - m.b)
+                     : v => m.t + (1 - (v - y0) / (y1 - y0)) * (H - m.t - m.b);
   const ink3 = cssVar('--ink-3'), line = cssVar('--line'), card = cssVar('--card');
   // grid + y labels
   for (const t of ticks) {
@@ -1010,7 +1015,7 @@ function lineChart(host, series, opts) {
     const xsB = [...b.lo.keys()].filter(x => b.hi.has(x) && x >= xMin && x <= xMax).sort((a, c) => a - c);
     if (xsB.length < 2) continue;
     const top = xsB.map(x => `${X(x).toFixed(1)},${Y(b.hi.get(x)).toFixed(1)}`), bot = xsB.slice().reverse().map(x => `${X(x).toFixed(1)},${Y(b.lo.get(x)).toFixed(1)}`);
-    el('polygon', { points: top.concat(bot).join(' '), fill: cssVar('--ink-3'), opacity: b.opacity }, svg);
+    el('polygon', { points: top.concat(bot).join(' '), fill: cssVar(b.color || '--ink-3'), opacity: b.opacity }, svg);
   }
   if (opts.refLine != null && opts.refLine >= y0 && opts.refLine <= y1) el('line', { x1: m.l, x2: W - m.r, y1: Y(opts.refLine), y2: Y(opts.refLine), stroke: cssVar('--ink-2'), 'stroke-width': 1 }, svg);
   // prognosezone: licht vlak vanaf het eerste prognosepunt, met label
@@ -1059,7 +1064,7 @@ function lineChart(host, series, opts) {
       dots[i].setAttribute('cx', X(p.x)); dots[i].setAttribute('cy', Y(p.y)); dots[i].setAttribute('visibility', 'visible');
       rows += `<div class="r"><span><i style="--c:var(${s.color})"></i>${esc(s.name)}</span><span>${(opts.tipFmt || eur)(p.y)}</span></div>`;
     });
-    tip.innerHTML = `<div class="t">${esc(opts.tipTitle(best))}${anyProg ? ' · prognose' : ''}</div>${rows}`;
+    tip.innerHTML = `<div class="t">${esc(opts.tipTitle(best))}${anyProg ? ' · prognose' : ''}</div>${rows}${opts.tipExtra ? opts.tipExtra(best) : ''}`;
     tip.style.display = 'block';
     const hostW = host.clientWidth, tw = tip.offsetWidth;
     let left = X(best) * (r.width / W) + 12;
@@ -2805,12 +2810,26 @@ function renderCareer() {
   const f = (k, fn) => rows.filter(r => fn(r) != null && isFinite(fn(r))).map(r => ({ x: r.year, y: fn(r), prog: r.prog }));
   // zoals de onderste grafieken in het notebook: maandloon per fte inclusief de extra eju, nominaal en in prijzen van het startjaar
   const defs = [
-    ['n', 'Loon incl. eju', '--s1', r => r.base != null ? r.base + r.EJ : null, false],
+    ['n', 'Loon incl. eju', '--ink', r => r.base != null ? r.base + r.EJ : null, false],
     ['r', 'Reëel (prijzen ' + y0 + ')', '--ink-2', r => r.base != null && r.I ? (r.base + r.EJ) / r.I : null, true],
     ['c', 'Reëel, alleen cao', '--s4', r => r.CO != null && r.I ? r.CO / r.I : null, false]
   ];
+  // gestapelde lagen zoals de bovenste grafiek, plus de eju en wat de inflatie wegneemt; logaritmische as
+  const yrs = rows.filter(r => r.base != null).map(r => r.year), lowY = [100, 200, 500, 1000, 2000].filter(v => v < S0 * 0.95).pop() || 100;
+  const mk = fn => new Map(yrs.map(y => [y, fn(by[y])]).filter(([, v]) => v != null && isFinite(v)));
+  const lv = { lo: mk(() => lowY), s0: mk(() => S0), pr: mk(r => S0 + r.PE), b: mk(r => r.base), n: mk(r => r.base + r.EJ), re: mk(r => r.I ? (r.base + r.EJ) / r.I : null) };
+  const k7Bands = [
+    { lo: lv.lo, hi: lv.s0, color: '--ink-3', opacity: 0.18 },
+    { lo: lv.s0, hi: lv.pr, color: '--s3', opacity: 0.3 },
+    { lo: lv.pr, hi: lv.b, color: '--s1', opacity: 0.22 },
+    { lo: lv.b, hi: lv.n, color: '--s1', opacity: 0.5 },
+    { lo: lv.re, hi: lv.n, color: '--s2', opacity: 0.28 }
+  ];
   lineChart($('#k7Chart'), defs.map(([k, name, color, fn, dash]) => ({ name, color, dashedAll: dash, points: KUI.k7[k] ? f(k, fn) : [] })), {
-    label: 'loon incl. eju en inflatie', refLine: S0, yFmt: compactEur, tipFmt: eur, xFmt: String, tipTitle: String });
+    label: 'loon incl. eju en inflatie', log: true, yMinFix: lowY, bands: k7Bands, height: 260, yFmt: compactEur, tipFmt: eur, xFmt: String, tipTitle: String,
+    tipExtra: y => { const r = by[y]; if (!r || r.base == null) return ''; const inf = r.I ? (r.base + r.EJ) * (1 - 1 / r.I) : null;
+      return `<div class="r"><span>promotie</span><span>${eur(r.PE)}</span></div><div class="r"><span>cao</span><span>${eur(r.base - S0 - r.PE)}</span></div><div class="r"><span>cao eju</span><span>${eur(r.EJ)}</span></div>` + (inf != null ? `<div class="r"><span>weg door inflatie</span><span>${eur(inf)}</span></div>` : ''); } });
+  $('#k7Legend').innerHTML = [['Startsalaris', '--ink-3'], ['Promotie', '--s3'], ['Cao maandloon', '--s1'], ['Cao eju', '--s1', 0.9], ['Inflatie', '--s2']].map(([n, c, o]) => `<span style="--c:var(${c})${o ? ';filter:brightness(0.8)' : ''}">${n}</span>`).join('');
   chips($('#k7Chips'), defs.map(([k, n, c, , d]) => [k, n, c, d]), KUI.k7, renderKoopkracht);
 
   // jaar-op-jaar: promotie en cao (cel 24 van het notebook)
@@ -3710,7 +3729,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-24 11:40';
+const APP_VERSION = '2026-11-24 16:30';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
