@@ -545,7 +545,7 @@ section[data-view].active { display: grid; }
       <div class="legend" id="k4Legend"></div>
       <div class="chart" id="k4Chart"></div>
       <details class="table"><summary>Toon maandsalarissen als tabel</summary><div class="tablewrap" id="k4Table"></div></details>
-      <div class="note">Gemiddeld maandsalaris per fte per jaar (inclusief vaste toelagen, zonder EJU en vakantiegeld), gestapeld: startsalaris, daarbovenop de groei door periodieken, bevorderingen en toelagen (promotie), en daarbovenop de cao-verhogingen. Zoals in het notebook wordt een cao-verhoging pas verwerkt zodra het salaris echt verandert, zodat een te laat uitbetaalde cao-verhoging niet als promotie telt.</div>
+      <div class="note">Gemiddeld maandsalaris per fte per jaar (inclusief vaste toelagen, zonder EJU en vakantiegeld), gestapeld: startsalaris, daarbovenop de groei door periodieken, bevorderingen en toelagen (promotie, in euro's van het jaar waarin ze kwamen), en daarbovenop de cao-verhogingen, ook die over eerdere promoties. Zoals in het notebook wordt een cao-verhoging pas verwerkt zodra het salaris echt verandert, zodat een te laat uitbetaalde cao-verhoging niet als promotie telt.</div>
       <h3>Groeifactoren sinds het startjaar</h3>
       <div class="controls" id="k7Chips"></div>
       <div class="chart" id="k7Chart"></div>
@@ -2717,14 +2717,16 @@ function careerSeries(who) {
   if (first < 0) return null;
   const applyEv = (v, d0, d1, ev) => { for (const e of ev) if (e.d > d0 && e.d <= d1) v = v * (1 + e.perc) + e.amount; return v; };
   // stap 1: promotiefactor met ankerpunt (cao-stappen worden pas verwerkt als het salaris echt verandert)
-  const P = new Array(H.length).fill(null);
-  P[first] = 1; let anchor = first, last = 1;
+  const P = new Array(H.length).fill(null), PE = new Array(H.length).fill(null);
+  P[first] = 1; PE[first] = 0; let anchor = first, last = 1, lastE = 0;
   for (let i = first + 1; i < H.length; i++) {
     const cur = base[i];
-    if (cur == null || !isFinite(cur)) { P[i] = last; continue; }
-    if (Math.abs(cur - base[anchor]) <= 1e-6) { P[i] = last; continue; }
+    if (cur == null || !isFinite(cur)) { P[i] = last; PE[i] = lastE; continue; }
+    if (Math.abs(cur - base[anchor]) <= 1e-6) { P[i] = last; PE[i] = lastE; continue; }
     const exp = applyEv(base[anchor], dates[anchor], dates[i], raise);
-    last = P[anchor] * (exp ? cur / exp : 1); P[i] = last; anchor = i;
+    last = P[anchor] * (exp ? cur / exp : 1); P[i] = last;
+    // promotie in euro's van dat moment: de sprong bovenop wat de cao alleen had gegeven
+    lastE += exp ? cur - exp : 0; PE[i] = lastE; anchor = i;
   }
   // stap 2: persoonlijke cao-factor C, teruggerekend vanaf S0 en P
   const S0 = base[first];
@@ -2744,9 +2746,9 @@ function careerSeries(who) {
   const by = {};
   for (let i = first; i < H.length; i++) {
     const y = new Date(dates[i]).getUTCFullYear();
-    const o = by[y] || (by[y] = { P: 0, C: 0, E: 0, n: 0, b: 0, nb: 0, prog: false });
+    const o = by[y] || (by[y] = { P: 0, C: 0, E: 0, n: 0, b: 0, nb: 0, pe: 0, prog: false });
     o.P += P[i]; o.C += C[i]; o.E += E[i]; o.n++;
-    if (base[i] != null && isFinite(base[i])) { o.b += base[i]; o.nb++; }
+    if (base[i] != null && isFinite(base[i])) { o.b += base[i]; o.pe += PE[i]; o.nb++; }
     if (dates[i] > TODAY.getTime()) o.prog = true;
   }
   const ys = Object.keys(by).map(Number).sort((a, b) => a - b);
@@ -2756,7 +2758,7 @@ function careerSeries(who) {
   const i0 = I[y0];
   const rows = ys.map(y => {
     const o = by[y];
-    return { year: y, P: o.P / o.n, C: o.C / o.n, E: o.E / o.n, base: o.nb ? o.b / o.nb : null, prog: o.prog, I: I[y] != null && i0 ? I[y] / i0 : null };
+    return { year: y, P: o.P / o.n, C: o.C / o.n, E: o.E / o.n, base: o.nb ? o.b / o.nb : null, PE: o.nb ? o.pe / o.nb : null, prog: o.prog, I: I[y] != null && i0 ? I[y] / i0 : null };
   });
   return { S0, y0, rows, hasCao: raise.length > 0 };
 }
@@ -2778,8 +2780,9 @@ function renderCareer() {
   const cats = rows.filter(r => r.base != null).map(r => r.year);
   const st = {}, pr = {}, ca = {};
   for (const y of cats) {
-    const r = by[y], sp = S0 * r.P;
-    st[y] = S0 * Math.min(r.P, 1); pr[y] = Math.max(0, sp - S0); ca[y] = r.base - sp;
+    // startsalaris + promoties (in euro's van het jaar waarin ze kwamen) + cao (over alles, ook over eerdere promoties)
+    const r = by[y];
+    st[y] = S0; pr[y] = Math.max(0, r.PE); ca[y] = r.base - S0 - pr[y];
   }
   barChart($('#k4Chart'), cats, [
     { name: 'Startsalaris', color: '--ink-3', on: true, values: st },
@@ -3702,7 +3705,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-24 10:15';
+const APP_VERSION = '2026-11-24 10:25';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
