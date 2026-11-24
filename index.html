@@ -550,7 +550,7 @@ section[data-view].active { display: grid; }
       <div class="legend" id="k7Legend"></div>
       <div class="controls" id="k7Chips"></div>
       <div class="chart" id="k7Chart"></div>
-      <div class="note">Dezelfde lagen als hierboven, op een logaritmische as (gelijke afstand = gelijk percentage), met daarbovenop de cao-verhogingen van de eindejaarsuitkering (omgerekend per maand). De horizontale lijn is het startsalaris. Het rode vlak eronder is het inflatie-effect als negatief effect: op deze as precies even groot als de afstand tussen het loon en hetzelfde loon in prijzen van het startjaar (gestreept). "Reëel, alleen cao": het startsalaris met alleen de cao-verhogingen, in prijzen van het startjaar, dus zonder één promotie; ligt die lijn rond het startsalaris, dan heeft de cao precies de inflatie gecompenseerd.</div>
+      <div class="note">Dezelfde lagen als hierboven, met daarbovenop de cao-verhogingen van de eindejaarsuitkering (omgerekend per maand). Het rode vlak onder de as is het inflatie-effect als negatief bedrag: wat de inflatie van het hele loon wegneemt, het verschil tussen het loon en hetzelfde loon in prijzen van het startjaar (gestreept). "Reëel, alleen cao": het startsalaris met alleen de cao-verhogingen, in prijzen van het startjaar, dus zonder één promotie; ligt die lijn rond het startsalaris, dan heeft de cao precies de inflatie gecompenseerd.</div>
       <h3>Stijging per jaar: promotie en cao</h3>
       <div class="controls" id="k6Chips"></div>
       <div class="chart" id="k6Chart"></div>
@@ -2817,20 +2817,20 @@ function renderCareer() {
   // gestapelde lagen zoals de bovenste grafiek, plus de eju en wat de inflatie wegneemt; logaritmische as
   const yrs = rows.filter(r => r.base != null).map(r => r.year);
   const mk = fn => new Map(yrs.map(y => [y, fn(by[y])]).filter(([, v]) => v != null && isFinite(v)));
-  // inflatie als negatief effect onder het startsalaris: S0 -> S0 / I, op de log-as even groot als nominaal -> reëel
-  const lv = { s0: mk(() => S0), inf: mk(r => r.I ? S0 / r.I : null), pr: mk(r => S0 + r.PE), b: mk(r => r.base), n: mk(r => r.base + r.EJ) };
-  const lowY = Math.min(S0, ...lv.inf.values()) * 0.9;
+  // inflatie als negatief bedrag onder de x-as: wat de inflatie van het hele loon wegneemt (nominaal min reëel)
+  const lv = { z: mk(() => 0), s0: mk(() => S0), inf: mk(r => r.I ? -(r.base + r.EJ) * (1 - 1 / r.I) : null), pr: mk(r => S0 + r.PE), b: mk(r => r.base), n: mk(r => r.base + r.EJ) };
   const k7Bands = [
-    { lo: lv.inf, hi: lv.s0, color: '--s2', opacity: 0.3 },
+    { lo: lv.inf, hi: mk(r => r.I ? 0 : null), color: '--s2', opacity: 0.3 },
+    { lo: lv.z, hi: lv.s0, color: '--ink-3', opacity: 0.18 },
     { lo: lv.s0, hi: lv.pr, color: '--s3', opacity: 0.3 },
     { lo: lv.pr, hi: lv.b, color: '--s1', opacity: 0.22 },
     { lo: lv.b, hi: lv.n, color: '--s1', opacity: 0.5 }
   ];
   lineChart($('#k7Chart'), defs.map(([k, name, color, fn, dash]) => ({ name, color, dashedAll: dash, points: KUI.k7[k] ? f(k, fn) : [] })), {
-    label: 'loon incl. eju en inflatie', log: true, yMinFix: lowY, refLine: S0, bands: k7Bands, height: 260, yFmt: compactEur, tipFmt: eur, xFmt: String, tipTitle: String,
+    label: 'loon incl. eju en inflatie', bands: k7Bands, height: 260, yFmt: compactEur, tipFmt: eur, xFmt: String, tipTitle: String,
     tipExtra: y => { const r = by[y]; if (!r || r.base == null) return ''; const inf = r.I ? (r.base + r.EJ) * (1 - 1 / r.I) : null;
       return `<div class="r"><span>promotie</span><span>${eur(r.PE)}</span></div><div class="r"><span>cao</span><span>${eur(r.base - S0 - r.PE)}</span></div><div class="r"><span>cao eju</span><span>${eur(r.EJ)}</span></div>` + (inf != null ? `<div class="r"><span>weg door inflatie</span><span>${eur(inf)}</span></div>` : ''); } });
-  $('#k7Legend').innerHTML = [['Promotie', '--s3'], ['Cao maandloon', '--s1'], ['Cao eju', '--s1', 0.9], ['Inflatie (onder het startsalaris)', '--s2']].map(([n, c, o]) => `<span style="--c:var(${c})${o ? ';filter:brightness(0.8)' : ''}">${n}</span>`).join('');
+  $('#k7Legend').innerHTML = [['Startsalaris', '--ink-3'], ['Promotie', '--s3'], ['Cao maandloon', '--s1'], ['Cao eju', '--s1', 0.9], ['Inflatie (onder de as)', '--s2']].map(([n, c, o]) => `<span style="--c:var(${c})${o ? ';filter:brightness(0.8)' : ''}">${n}</span>`).join('');
   chips($('#k7Chips'), defs.map(([k, n, c, , d]) => [k, n, c, d]), KUI.k7, renderKoopkracht);
 
   // jaar-op-jaar: promotie en cao (cel 24 van het notebook)
@@ -3730,7 +3730,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-24 16:45';
+const APP_VERSION = '2026-11-24 16:55';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
