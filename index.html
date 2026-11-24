@@ -545,12 +545,12 @@ section[data-view].active { display: grid; }
       <div class="legend" id="k4Legend"></div>
       <div class="chart" id="k4Chart"></div>
       <details class="table"><summary>Toon maandsalarissen als tabel</summary><div class="tablewrap" id="k4Table"></div></details>
-      <div class="note">Gemiddeld maandsalaris per fte per jaar (inclusief vaste toelagen) als optelsom, zoals in het notebook: startsalaris + promotie + cao, met daarbovenop de hogere eindejaarsuitkering (omgerekend per maand) en onder de as wat de inflatie van het hele loon wegneemt. Promotie: elke carrièrestap (periodiek, bevordering, toelage) met het bedrag dat je er toen bij kreeg; jaren zonder promotie blijven vlak. Cao: alle cao-verhogingen, als percentage van het salaris van dat moment, dus ook over eerder verdiende promoties. Een cao-verhoging telt pas zodra het salaris echt verandert, zodat een te laat uitbetaalde cao-verhoging niet als promotie telt.</div>
+      <div class="note">Gemiddeld maandsalaris per fte per jaar (inclusief vaste toelagen) als optelsom, zoals in het notebook: startsalaris + promotie + cao, met daarbovenop de eindejaarsuitkering (omgerekend per maand) en onder de as wat de inflatie van het hele loon wegneemt. Promotie: elke carrièrestap (periodiek, bevordering, toelage) met het bedrag dat je er toen bij kreeg; jaren zonder promotie blijven vlak. Cao: alle cao-verhogingen, als percentage van het salaris van dat moment, dus ook over eerder verdiende promoties. Een cao-verhoging telt pas zodra het salaris echt verandert, zodat een te laat uitbetaalde cao-verhoging niet als promotie telt.</div>
       <h3>Groeifactoren sinds het startjaar</h3>
       <div class="legend" id="k7Legend"></div>
       <div class="controls" id="k7Chips"></div>
       <div class="chart" id="k7Chart"></div>
-      <div class="note">Hetzelfde loon als vermenigvuldiging: startsalaris × P × C, en het jaarloon nog × E. P = promotie, C = cao op het maandloon, E = hogere eindejaarsuitkering. Op deze logaritmische as krijgt elke factor zijn eigen, eerlijke hoogte. Rood onder de 1 is de inflatie. Ligt de gestreepte lijn (reëel) net boven groen, dan hebben cao en eju de inflatie net gecompenseerd en komt de echte groei uit promoties; de gele lijn (reële cao) ligt dan net boven de 1.<br><br>Let op: de grens tussen groen en blauw ligt hier anders dan in de euro-grafiek hierboven. Daar telt een promotie met het bedrag van toen; hier telt hij in lonen van het startjaar, en zijn latere groei door de cao zit in C. De totalen zijn gelijk: euro's laten zien wat je erbij kreeg, factoren hoeveel keer je loon groeide.</div>
+      <div class="note">Hetzelfde loon als vermenigvuldiging: startsalaris × P × C, en het jaarloon nog × E. P = promotie, C = cao op het maandloon, E = 1 + het eju-percentage (2% vanaf december 2002, 8,3% vanaf 2009). Op deze logaritmische as krijgt elke factor zijn eigen, eerlijke hoogte. Rood onder de 1 is de inflatie. Ligt de gestreepte lijn (reëel) net boven groen, dan hebben cao en eju de inflatie net gecompenseerd en komt de echte groei uit promoties; de gele lijn (reële cao) ligt dan net boven de 1.<br><br>Let op: de grens tussen groen en blauw ligt hier anders dan in de euro-grafiek hierboven. Daar telt een promotie met het bedrag van toen; hier telt hij in lonen van het startjaar, en zijn latere groei door de cao zit in C. De totalen zijn gelijk: euro's laten zien wat je erbij kreeg, factoren hoeveel keer je loon groeide.</div>
       <h3>Stijging per jaar: promotie en cao</h3>
       <div class="controls" id="k6Chips"></div>
       <div class="chart" id="k6Chart"></div>
@@ -2746,7 +2746,8 @@ function careerSeries(who) {
   const E = new Array(H.length).fill(null);
   let cum = 1, ei = 0; const ejs = eju.slice().sort((a, b) => a.d - b.d);
   const raw = H.map(r => { while (ei < ejs.length && ejs[ei].d <= r.d) { cum *= 1 + ejs[ei].perc; ei++; } return cum; });
-  for (let i = first; i < H.length; i++) E[i] = raw[i] / raw[first];
+  // E = 1 + het structurele eju-percentage (vanaf "geen eju"), niet vanaf het startjaar: zo is bij iedereen de hele eju in beeld
+  for (let i = first; i < H.length; i++) E[i] = raw[i];
   // het startsalaris met alleen de cao-verhogingen: wat je zonder promoties zou verdienen
   const CO = new Array(H.length).fill(null);
   { let v = base[first]; CO[first] = v; for (let i = first + 1; i < H.length; i++) { v = applyEv(v, dates[i - 1], dates[i], raise); CO[i] = v; } }
@@ -3733,7 +3734,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-24 17:20';
+const APP_VERSION = '2026-11-24 17:25';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
