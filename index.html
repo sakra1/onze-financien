@@ -2825,10 +2825,11 @@ function renderCareer() {
   const lv = { one: mk(() => 1), infl: mk(r => r.I ? 1 / r.I : null), p: mk(r => r.P), pc: mk(r => r.P * r.C), pce: mk(r => r.P * r.C * r.E) };
   const lowF = Math.min(1, ...lv.infl.values()) * 0.9;
   const k7Bands = [
-    { lo: lv.infl, hi: mk(r => r.I ? 1 : null), color: '--bad', opacity: 0.25 },
-    { lo: lv.one, hi: lv.p, color: '--s3', opacity: 0.3 },
-    { lo: lv.p, hi: lv.pc, color: '--s1', opacity: 0.25 },
-    { lo: lv.pc, hi: lv.pce, color: '--s1d', opacity: 0.55 }
+    // geen overlap: dekkend, in dezelfde kleuren als de staven hierboven
+    { lo: lv.infl, hi: mk(r => r.I ? 1 : null), color: '--bad', opacity: 1 },
+    { lo: lv.one, hi: lv.p, color: '--s3', opacity: 1 },
+    { lo: lv.p, hi: lv.pc, color: '--s1', opacity: 1 },
+    { lo: lv.pc, hi: lv.pce, color: '--s1d', opacity: 1 }
   ];
   const fx = v => NUM2.format(Math.round(v * 100) / 100) + '×';
   lineChart($('#k7Chart'), defs.map(([k, name, color, fn, dash]) => ({ name, color, dashedAll: dash, points: KUI.k7[k] ? f(k, fn) : [] })), {
@@ -3734,7 +3735,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-24 17:25';
+const APP_VERSION = '2026-11-24 17:30';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
