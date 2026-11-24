@@ -1047,7 +1047,7 @@ function lineChart(host, series, opts) {
     const xsB = [...b.lo.keys()].filter(x => b.hi.has(x) && x >= xMin && x <= xMax).sort((a, c) => a - c);
     if (xsB.length < 2) continue;
     const top = xsB.map(x => `${X(x).toFixed(1)},${Y(b.hi.get(x)).toFixed(1)}`), bot = xsB.slice().reverse().map(x => `${X(x).toFixed(1)},${Y(b.lo.get(x)).toFixed(1)}`);
-    el('polygon', { points: top.concat(bot).join(' '), fill: cssVar(b.color || '--ink-3'), opacity: b.opacity }, svg);
+    el('polygon', { points: top.concat(bot).join(' '), fill: cssVar(b.color || '--ink-3'), opacity: b.opacity, ...(opts.bandSep ? { stroke: cssVar('--card'), 'stroke-width': 1.5, 'stroke-linejoin': 'round' } : {}) }, svg);
   }
   if (opts.refLine != null && opts.refLine >= y0 && opts.refLine <= y1) el('line', { x1: m.l, x2: W - m.r, y1: Y(opts.refLine), y2: Y(opts.refLine), stroke: cssVar('--ink-2'), 'stroke-width': 1 }, svg);
   // prognosezone: licht vlak vanaf het eerste prognosepunt, met label
@@ -1066,14 +1066,16 @@ function lineChart(host, series, opts) {
     const solid = firstProg < 0 ? pts : pts.slice(0, Math.max(1, firstProg));
     const dashed = firstProg < 0 ? [] : pts.slice(Math.max(0, firstProg - 1));
     const d = arr => arr.map((p, i) => i ? (opts.step ? `H${X(p.x).toFixed(1)} V${Y(p.y).toFixed(1)}` : `L${X(p.x).toFixed(1)} ${Y(p.y).toFixed(1)}`) : `M${X(p.x).toFixed(1)} ${Y(p.y).toFixed(1)}`).join(' ');
+    // halo: een rand in de kaartkleur onder de lijn, zodat hij los komt van gekleurde vlakken
+    if (opts.halo && pts.length > 1) el('path', { d: d(pts), fill: 'none', stroke: card, 'stroke-width': 5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
     if (s.dashedAll) {
-      el('path', { d: d(pts), fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-dasharray': '5 4', 'stroke-linejoin': 'round', opacity: 0.75 }, svg);
+      el('path', { d: d(pts), fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-dasharray': '5 4', 'stroke-linejoin': 'round', opacity: opts.halo ? 1 : 0.75 }, svg);
       continue;
     }
     if (solid.length > 1 && firstProg !== 0) el('path', { d: d(solid), fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-linejoin': 'round' }, svg);
     if (dashed.length > 1) el('path', { d: d(dashed), fill: 'none', stroke: col, 'stroke-width': 2, opacity: 0.45, 'stroke-linejoin': 'round' }, svg);
     const lastActual = firstProg < 0 ? pts[pts.length - 1] : pts[Math.max(0, firstProg - 1)];
-    if (!opts.step && pts.length <= 45) for (const p of pts) el('circle', { cx: X(p.x), cy: Y(p.y), r: 2.4, fill: col, opacity: p.prog ? 0.5 : 1 }, svg);
+    if (!opts.step && !opts.noDots && pts.length <= 45) for (const p of pts) el('circle', { cx: X(p.x), cy: Y(p.y), r: 2.4, fill: col, opacity: p.prog ? 0.5 : 1 }, svg);
     el('circle', { cx: X(lastActual.x), cy: Y(lastActual.y), r: 4, fill: col, stroke: card, 'stroke-width': 2 }, svg);
   }
   // hover layer
@@ -2857,7 +2859,7 @@ function renderCareer() {
   const f = (k, fn) => rows.filter(r => fn(r) != null && isFinite(fn(r))).map(r => ({ x: r.year, y: fn(r), prog: r.prog }));
   const defs = [
     ['n', 'Loonontwikkeling (P·C·E)', '--ink', r => r.P * r.C * r.E, false],
-    ['r', 'Reëel (÷ inflatie)', '--ink-2', r => r.I ? r.P * r.C * r.E / r.I : null, true],
+    ['r', 'Reëel (÷ inflatie)', '--ink', r => r.I ? r.P * r.C * r.E / r.I : null, true],
     ['c', 'Reële cao (C·E ÷ inflatie)', '--s4', r => r.I ? r.C * r.E / r.I : null, false]
   ];
   const yrs = rows.map(r => r.year);
@@ -2865,15 +2867,15 @@ function renderCareer() {
   const lv = { one: mk(() => 1), infl: mk(r => r.I ? 1 / r.I : null), p: mk(r => r.P), pc: mk(r => r.P * r.C), pce: mk(r => r.P * r.C * r.E) };
   const lowF = Math.min(1, ...lv.infl.values()) * 0.9;
   const k7Bands = [
-    // geen overlap: dekkend, in dezelfde kleuren als de staven hierboven
-    { lo: lv.infl, hi: mk(r => r.I ? 1 : null), color: '--bad', opacity: 1 },
-    { lo: lv.one, hi: lv.p, color: '--s3', opacity: 1 },
-    { lo: lv.p, hi: lv.pc, color: '--s1', opacity: 1 },
-    { lo: lv.pc, hi: lv.pce, color: '--s1d', opacity: 1 }
+    // geen overlap; lichte tinten van de staafkleuren, met een dunne witte rand, zodat de lijnen erboven goed leesbaar zijn
+    { lo: lv.infl, hi: mk(r => r.I ? 1 : null), color: '--bad', opacity: 0.4 },
+    { lo: lv.one, hi: lv.p, color: '--s3', opacity: 0.45 },
+    { lo: lv.p, hi: lv.pc, color: '--s1', opacity: 0.4 },
+    { lo: lv.pc, hi: lv.pce, color: '--s1d', opacity: 0.7 }
   ];
   const fx = v => NUM2.format(Math.round(v * 100) / 100) + '×';
   lineChart($('#k7Chart'), defs.map(([k, name, color, fn, dash]) => ({ name, color, dashedAll: dash, points: KUI.k7[k] ? f(k, fn) : [] })), {
-    label: 'groeifactoren', log: true, yMinFix: lowF, refLine: 1, bands: k7Bands, height: 260, yFmt: v => NUM2.format(v) + '×', tipFmt: fx, xFmt: String, tipTitle: String,
+    label: 'groeifactoren', log: true, yMinFix: lowF, refLine: 1, bands: k7Bands, bandSep: true, halo: true, noDots: true, height: 260, yFmt: v => NUM2.format(v) + '×', tipFmt: fx, xFmt: String, tipTitle: String,
     tipExtra: y => { const r = by[y]; return r ? `<div class="r"><span>promotie P</span><span>${fx(r.P)}</span></div><div class="r"><span>cao C</span><span>${fx(r.C)}</span></div><div class="r"><span>eju E</span><span>${fx(r.E)}</span></div>` + (r.I ? `<div class="r"><span>inflatie</span><span>${fx(r.I)}</span></div>` : '') : ''; } });
   $('#k7Legend').innerHTML = [['Promotie P', '--s3'], ['Cao maandloon C', '--s1'], ['Cao eju E', '--s1d'], ['Inflatie (onder de 1)', '--bad']].map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
   chips($('#k7Chips'), defs.map(([k, n, c, , d]) => [k, n, c, d]), KUI.k7, renderKoopkracht);
@@ -3775,7 +3777,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-24 21:20';
+const APP_VERSION = '2026-11-24 22:55';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
