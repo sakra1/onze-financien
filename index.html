@@ -856,6 +856,7 @@ function deriveBN() {
       // ABP-grondslag: salaris per fte in januari van dit jaar
       const jan = rows.find(r => { const d = new Date(r.d); return d.getUTCFullYear() === THIS_YEAR && d.getUTCMonth() === 0; });
       x.grondFull = jan ? abpGrond(jan[k.b], jan[k.f]) : abpGrond(x.full * x.f, x.f);
+      x.toelGrond = jan ? (jan[k.t] || 0) : x.toelage;
       // controle: de laatste gewone maand (zonder vakantiegeld of eindejaarsuitkering) van de salarisstrook
       const norm = rows.slice().reverse().find(r => r[k.n] > 0 && r[k.tot] != null && r[k.tot] - r[k.b] - (r[k.t] || 0) < 0.15 * r[k.b]);
       x.check = norm ? { d: norm.d, net: norm[k.n], full: norm[k.b] / norm[k.f], f: norm[k.f], toelage: norm[k.t] || 0 } : null;
@@ -906,7 +907,9 @@ function calcNet(x, P) {
   const f = x.f;
   const bruto = x.full * f;
   const tP = P.toelPens ?? 1, tV = P.toelVu ?? 1, tE = P.toelEju ?? 0;
-  const jaarABP = x.grondFull * 12 * (1 + P.vu + P.eju) + tP * (x.toelage / f) * 12 * (1 + tV * P.vu + tE * P.eju) + x.extra;
+  // het ABP legt het jaarinkomen per 1 januari vast: salaris én toelage van januari (toelGrond)
+  const tG = x.toelGrond ?? x.toelage;
+  const jaarABP = x.grondFull * 12 * (1 + P.vu + P.eju) + tP * (tG / f) * 12 * (1 + tV * P.vu + tE * P.eju) + x.extra;
   const op = Math.max(0, jaarABP - P.frOP) * P.pOP * f / 12;
   const aaop = Math.max(0, jaarABP - P.frAOP) * P.pAOP * f / 12;
   const ipap = jaarABP * f * P.pAOV / 12;
@@ -1211,9 +1214,10 @@ function projectHist() {
       const fL = lastR[k.f] || f, bL = lastR[k.base] != null ? lastR[k.base] : b0, tL = lastR[k.t] || 0, tT = tpl[k.t] || 0;
       const fullT = b0 / f, fullN = bL / fL * r, bN = fullN * fN;
       // pensioenpremie: het ABP rekent het hele jaar met het salaris van januari
-      if (m === 1) gJan[w][y] = abpGrond(bN, fN);
-      const gT = x.grondFull, gN = y <= THIS_YEAR ? x.grondFull : (gJan[w][y] ?? abpGrond(bN, fN));
-      const xT = { ...x, f, full: fullT, grondFull: gT, toelage: tT }, xN = { ...x, f: fN, full: fullN, grondFull: gN, toelage: tL };
+      if (m === 1) gJan[w][y] = [abpGrond(bN, fN), tL];
+      const gT = x.grondFull, gN = y <= THIS_YEAR ? x.grondFull : (gJan[w][y] ? gJan[w][y][0] : abpGrond(bN, fN));
+      const tgN = y <= THIS_YEAR ? x.toelGrond : (gJan[w][y] ? gJan[w][y][1] : tL);
+      const xT = { ...x, f, full: fullT, grondFull: gT, toelage: tT }, xN = { ...x, f: fN, full: fullN, grondFull: gN, toelage: tL, toelGrond: tgN };
       const n0 = calcNet(xT, bnP(new Date(tpl.d).getUTCFullYear())), n1 = calcNet(xN, bnP(y));
       let bru = tpl[k.b] + (bN - b0) + (tL - tT), net = tpl[k.n] + (n1.netto - n0.netto);
       Object.assign(row, { [k.b]: bru, [k.n]: net, [k.f]: fN, [k.t]: tL || null, [k.base]: bN });
@@ -1851,7 +1855,7 @@ function xForYear(w, Y) {
   const jan = (DATA.hist || []).find(r => new Date(r.d).getUTCFullYear() === Y && r[k.b] > 0 && r[k.f] > 0);
   if (!jan) return { ...x };
   const full = jan[k.b] / jan[k.f];
-  return { ...x, full, grondFull: abpGrond(jan[k.b], jan[k.f]), f: jan[k.f], toelage: jan[k.t] || 0, excelNet: null };
+  return { ...x, full, grondFull: abpGrond(jan[k.b], jan[k.f]), f: jan[k.f], toelage: jan[k.t] || 0, toelGrond: jan[k.t] || 0, excelNet: null };
 }
 function initBN() {
   UI.bnBase = { S: xForYear('S', BN_YEAR), E: xForYear('E', BN_YEAR) };
@@ -1941,7 +1945,7 @@ function renderBN() {
     const appN = calcNet({ ...DATA.bn[who], full: c.full, f: c.f, toelage: c.toelage }, bnP(cy)).netto, diff = appN - c.net;
     note = Math.abs(diff) < 1 ? `Klopt met de salarisstrook van ${mon} (${eur2(c.net)}).` : `Salarisstrook ${mon}: ${eur2(c.net)} netto, de app rekent ${eur2(appN)} (${signed(diff)}). Kleine verschillen komen door vergoedingen of inhoudingen die per maand wisselen.`;
   }
-  if (!J) note += `${note ? ' ' : ''}Jaarinkomen ABP = 12 × het salaris van januari (omgerekend naar voltijd) × (1 + vakantiegeld + eindejaarsuitkering), plus de vaste toelage en de extra looncomponent uit bruto-netto; daarover berekent het ABP de pensioenpremies.`;
+  if (!J) note += `${note ? ' ' : ''}Jaarinkomen ABP = 12 × het salaris van januari (omgerekend naar voltijd) × (1 + vakantiegeld + eindejaarsuitkering), plus de vaste toelage van januari en de extra looncomponent uit bruto-netto; daarover berekent het ABP de pensioenpremies.`;
   $('#bnNote').textContent = note; $('#bnNote').style.display = note ? '' : 'none';
   const hint = $('#bnWaHint'); if (hint) { hint.textContent = changed ? 'aangepast' : 'salaris, fte, toelage en reisdagen'; hint.className = 'tiny ' + (changed ? 'pos' : 'muted'); }
   renderChanges();
@@ -2056,10 +2060,10 @@ function ibCalc(Y, shOverride) {
     const k = w === 'S' ? { b: 'bs', f: 'fs', t: 'ts' } : { b: 'be', f: 'fe', t: 'te' };
     const ms = DATA.hist.filter(h => new Date(h.d).getUTCFullYear() === Y && h[k.b] > 0 && h[k.f] > 0);
     if (!ms.length || !DATA.bn[w]) continue;
-    const gF = xForYear(w, Y).grondFull;
+    const xF = xForYear(w, Y), gF = xF.grondFull, tGF = xF.toelGrond;
     let hl = 0, lh = 0, vuBase = 0, ejuBase = 0, fSum = 0, proj = 0, brM = 0, prM = 0, abpY = null;
     for (const m of ms) {
-      const x = { ...DATA.bn[w], full: m[k.b] / m[k.f], f: m[k.f], toelage: m[k.t] || 0, grondFull: gF };
+      const x = { ...DATA.bn[w], full: m[k.b] / m[k.f], f: m[k.f], toelage: m[k.t] || 0, grondFull: gF, toelGrond: tGF };
       const r = calcNet(x, P);
       if (abpY == null) abpY = r.jaarABP;
       brM += r.bruto + r.toelage; prM += r.premies;
@@ -3679,7 +3683,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-24 08:30';
+const APP_VERSION = '2026-11-24 08:40';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
