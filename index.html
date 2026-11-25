@@ -348,7 +348,7 @@ section[data-view].active { display: grid; }
     <div class="tiny" style="padding:0 2px">Alleen algemene cijfers (CBS, CPB en de cao Nederlandse Universiteiten), zonder gegevens van jullie zelf. Tik op een grafiek voor de waarden per jaar. Cao-verhogingen zijn inclusief de verhogingen van de eindejaarsuitkering, zoals in het notebook.</div>
 
     <div class="card" id="nl-perjaar">
-      <div class="card-head"><h2>Inflatie en cao per jaar</h2></div>
+      <div class="card-head"><h2>Inflatie, cao en huizenprijzen per jaar</h2></div>
       <div class="controls" id="nl1Chips"></div>
       <div class="controls">
         <div class="seg" role="group" aria-label="Periode">
@@ -358,7 +358,7 @@ section[data-view].active { display: grid; }
       </div>
       <div class="chart" id="nl1Chart"></div>
       <details class="table"><summary>Toon alle cao-verhogingen (gemiddeld)</summary><div class="tablewrap" id="nl1Table"></div></details>
-      <div class="note">Tik op een jaar om ook de losse cao-verhogingen met hun datum te zien. Cao-verhoging per jaar volgens de cao Nederlandse Universiteiten, gemeten zoals CBS de inflatie meet: jaargemiddelde tegenover het jaargemiddelde ervoor. Vaste euro-bedragen zijn omgerekend met het modale maandsalaris van <span class="refY">2000</span> (opgehoogd met de cao) als referentie, zoals in het notebook.</div>
+      <div class="note">Tik op een jaar om ook de losse cao-verhogingen met hun datum te zien. Huizenprijzen: de CBS-prijsindex bestaande koopwoningen in Nederland, ook als jaargemiddelde tegenover het jaar ervoor; voor het lopende jaar de maanden tot nu tegenover dezelfde maanden een jaar eerder. Cao-verhoging per jaar volgens de cao Nederlandse Universiteiten, gemeten zoals CBS de inflatie meet: jaargemiddelde tegenover het jaargemiddelde ervoor. Vaste euro-bedragen zijn omgerekend met het modale maandsalaris van <span class="refY">2000</span> (opgehoogd met de cao) als referentie, zoals in het notebook.</div>
     </div>
 
     <div class="card" id="nl-cumulatief">
@@ -2918,7 +2918,7 @@ function wmlYear(y) {
   }
   return s / 12;
 }
-const NUI = { range: 10, n1: { I: true, C: true }, n2: { C: true, I: true, M: true, W: true }, n3: { C: true, M: true, K: true, W: true }, n4: { P: true, M: true, W: true } };
+const NUI = { range: 10, n1: { I: true, C: true, H: true }, n2: { C: true, I: true, M: true, W: true }, n3: { C: true, M: true, K: true, W: true }, n4: { P: true, M: true, W: true } };
 function renderNederland() {
   $$('.refY').forEach(n => n.textContent = REF_Y);
   const fmtIdx = v => NUM2.format(Math.round(v * 10) / 10);
@@ -2935,11 +2935,21 @@ function renderNederland() {
       if (CPI[y] != null) iv[y] = CPI[y];
       if (path && y > REF_Y) cv[y] = Math.round((caoAvg(path, y) / caoAvg(path, y - 1) - 1) * 1000) / 10; // jaargemiddelde, net als de CBS-inflatie
     }
+    // huizenprijzen: jaargemiddelde van de CBS-prijsindex bestaande koopwoningen (Nederland), net als de inflatie;
+    // voor het lopende jaar de maanden tot nu tegen dezelfde maanden een jaar eerder
+    const hv = {}, hNote = {}, HN = typeof LIVE !== 'undefined' && LIVE && LIVE.huis && LIVE.huis.nl;
+    if (HN) for (const y of cats) {
+      const ms = []; for (let m = 1; m <= 12; m++) { const k = `${y}-${String(m).padStart(2, '0')}`, k0 = `${y - 1}-${String(m).padStart(2, '0')}`; if (HN[k] && HN[k0]) ms.push([HN[k], HN[k0]]); }
+      if (!ms.length) continue;
+      hv[y] = Math.round((ms.reduce((a, x) => a + x[0], 0) / ms.reduce((a, x) => a + x[1], 0) - 1) * 1000) / 10;
+      if (ms.length < 12) hNote[y] = `huizenprijzen: ${MONTHS[0]}–${MONTHS[ms.length - 1]} t.o.v. dezelfde maanden ${y - 1}`;
+    }
     const defs = [{ k: 'I', name: 'Inflatie', color: '--s4', values: iv }];
     if (path) defs.push({ k: 'C', name: 'Cao NU', color: '--s1', values: cv });
+    if (Object.keys(hv).length) defs.push({ k: 'H', name: 'Huizenprijzen', color: '--s3', values: hv });
     const mom = caoMoments(path);
     barChart($('#nl1Chart'), cats, defs.map(d => ({ ...d, on: NUI.n1[d.k] })), { label: 'inflatie en cao per jaar',
-      tipExtra: y => mom.filter(m => new Date(m.d).getUTCFullYear() === y).map(m => `<div class="r"><span>cao ${fmtDate(m.d)}</span><span>+${PCT1.format(m.pct)}</span></div>`).join('') });
+      tipExtra: y => mom.filter(m => new Date(m.d).getUTCFullYear() === y).map(m => `<div class="r"><span>cao ${fmtDate(m.d)}</span><span>+${PCT1.format(m.pct)}</span></div>`).join('') + (hNote[y] ? `<div class="r"><span class="tiny">${hNote[y]}</span></div>` : '') });
     $('#nl1Table').innerHTML = mom.length ? `<table><thead><tr><th>Datum</th><th>Afspraak</th><th>Stijging</th></tr></thead><tbody>${mom.slice().reverse().map(m => `<tr><td>${fmtDate(m.d)}${m.prog ? ' *' : ''}</td><td>${caoDeal(m.ev)}</td><td>${PCT1.format(m.pct)}</td></tr>`).join('')}</tbody></table>${mom.some(m => m.prog) ? '<div class="note">* nog niet ingegaan</div>' : ''}` : '<div class="note">Geen cao-afspraken gevonden.</div>';
     chips($('#nl1Chips'), defs.map(d => [d.k, d.name, d.color]), NUI.n1, renderNederland);
   }
@@ -3774,7 +3784,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-25 12:35';
+const APP_VERSION = '2026-11-25 19:55';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
