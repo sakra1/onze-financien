@@ -231,6 +231,16 @@ input[type="range"] { width: 100%; accent-color: var(--s1); height: 28px; }
 .rows .r > span:first-child { min-width: 0; }
 .rows .r.sep { border-top: 1px solid var(--line-2, var(--line)); margin-top: 6px; }
 .rows .r.sub { color: var(--ink-3); }
+.fs-btn { margin-left: auto; border: 0; background: var(--soft); color: var(--ink-2); width: 30px; height: 30px; border-radius: 999px; font-size: 16px; line-height: 30px; padding: 0; cursor: pointer; align-self: center; }
+.seg.rg button { padding: 4px 10px; font-size: 12px; }
+#fsOverlay { position: fixed; inset: 0; z-index: 1000; background: var(--bg); overflow: auto; padding: calc(env(safe-area-inset-top) + 8px) 10px calc(env(safe-area-inset-bottom) + 24px); }
+#fsOverlay[hidden] { display: none; }
+#fsOverlay .fs-bar { position: sticky; top: 0; z-index: 2; display: flex; justify-content: flex-end; padding-bottom: 6px; }
+#fsOverlay .fs-close { border: 0; background: var(--ink); color: var(--bg); border-radius: 999px; padding: 8px 14px; font-weight: 600; font-size: 14px; cursor: pointer; }
+#fsOverlay .card { margin: 0; }
+#fsOverlay .fs-btn { display: none; }
+/* schermvullend: alleen de grafieken met hun knoppen en legenda, zonder tegels en uitleg */
+#fsOverlay .tiles, #fsOverlay .note, #fsOverlay details.table, #fsOverlay .math-ex { display: none; }
 .math { font-family: 'Cambria Math', 'STIX Two Math', 'Times New Roman', serif; font-style: italic; text-align: center; margin: 8px 0; font-size: 15px; color: var(--ink); }
 .math sub, .math sup { font-size: 70%; }
 .math-ex { text-align: center; font-size: 13px; color: var(--ink-2); margin: -2px 0 8px; }
@@ -995,9 +1005,16 @@ function clearHost(host) {
   if (h) { host.style.minHeight = h + 'px'; requestAnimationFrame(() => { host.style.minHeight = ''; }); }
   host.innerHTML = '';
 }
+// vergroot (schermvullend): hogere grafieken; periode "10 j" op de kaart: alleen de laatste 10 jaar
+const fsH = (host, h) => host.closest('#fsOverlay') ? Math.max(h, Math.min(window.innerHeight - 130, 600)) : h;
+const rangeFrom = (host, years) => { const c = host.closest('.card'), n = c && +c.dataset.range; if (!n) return null; const ys = years.filter(y => y > 1900 && y < 2200); return ys.length ? Math.max(...ys) - n + 1 : null; };
+const yearOfX = x => x > 1e6 ? new Date(x).getUTCFullYear() : x;
 function lineChart(host, series, opts) {
   clearHost(host);
-  const W = Math.max(280, host.clientWidth || 320), H = opts.height || 230;
+  { const from = rangeFrom(host, series.flatMap(s => s.points.map(p => yearOfX(p.x))));
+    if (from != null) { const keep = x => yearOfX(x) >= from; series = series.map(s => ({ ...s, points: s.points.filter(p => keep(p.x)) }));
+      if (opts.bands) opts = { ...opts, bands: opts.bands.map(b => ({ ...b, lo: new Map([...b.lo].filter(([k]) => keep(k))), hi: new Map([...b.hi].filter(([k]) => keep(k))) })) }; } }
+  const W = Math.max(280, host.clientWidth || 320), H = fsH(host, opts.height || 230);
   const m = { l: 52, r: 12, t: 10, b: 26 };
   const vis = series.filter(s => s.points.length);
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H, role: 'img', 'aria-label': opts.label || 'grafiek' }, host);
@@ -2668,7 +2685,8 @@ const caoAt = (path, t) => { let v = path[0].y; for (const p of path) { if (p.x 
 /* bar chart; opts: {stack, fmt (tooltip), yFmt (axis), tipExtra(cat), progCat(cat), height, label} */
 function barChart(host, cats, series, opts) {
   clearHost(host);
-  const W = Math.max(280, host.clientWidth || 320), H = opts.height || 220;
+  { const from = rangeFrom(host, cats.map(Number).filter(isFinite)); if (from != null) cats = cats.filter(c => !(+c < from)); }
+  const W = Math.max(280, host.clientWidth || 320), H = fsH(host, opts.height || 220);
   const fmt = opts.fmt || (v => NUM2.format(v) + '%'), yFmt = opts.yFmt || (v => NUM2.format(v) + '%');
   const m = { l: opts.yFmt ? 52 : 40, r: 8, t: 10, b: 26 };
   const vis = series.filter(s => s.on);
@@ -3781,6 +3799,41 @@ function route() {
   window.scrollTo(0, 0);
 }
 $$('[data-sub]').forEach(b => b.addEventListener('click', () => setSub(b.dataset.sub)));
+// grafiek vergroten en periode kiezen
+const RANGE_CARDS = ['sec-fte', 'sec-carriere', 'sec-inkomen', 'sec-opbouw', 'sec-modaal', 'sec-koopkracht', 'sec-vermogen', 'sec-wonen', 'sec-sparen'];
+let FS = null;
+function fsOpen(card) {
+  const ov = $('#fsOverlay'), ph = document.createComment('fs'); card.before(ph); FS = { card, ph };
+  ov.querySelector('.fs-body').appendChild(card); ov.hidden = false; document.body.style.overflow = 'hidden'; ov.scrollTop = 0;
+  try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); } catch (e) { }
+  renderCharts();
+}
+function fsClose() {
+  if (!FS) return; FS.ph.replaceWith(FS.card); FS = null;
+  $('#fsOverlay').hidden = true; document.body.style.overflow = ''; renderCharts();
+}
+function initChartTools() {
+  if (!$('#fsOverlay')) {
+    const ov = document.createElement('div'); ov.id = 'fsOverlay'; ov.hidden = true;
+    ov.innerHTML = '<div class="fs-bar"><button type="button" class="fs-close">Sluiten ✕</button></div><div class="fs-body"></div>';
+    document.body.appendChild(ov); ov.querySelector('.fs-close').addEventListener('click', fsClose);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') fsClose(); });
+  }
+  for (const card of $$('.card')) {
+    const head = card.querySelector(':scope > .card-head');
+    if (!head || !card.querySelector('.chart') || head.querySelector('.fs-btn')) continue;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'fs-btn'; b.title = 'Vergroot'; b.setAttribute('aria-label', 'Grafiek vergroten'); b.textContent = '⤢';
+    b.addEventListener('click', () => fsOpen(card)); head.appendChild(b);
+    if (RANGE_CARDS.includes(card.id)) {
+      const seg = document.createElement('div'); seg.className = 'seg rg'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Periode');
+      seg.innerHTML = '<button type="button" data-rg="10" aria-pressed="false">10 jaar</button><button type="button" data-rg="0" aria-pressed="true">Alles</button>';
+      seg.addEventListener('click', e => { const t = e.target.closest('[data-rg]'); if (!t) return; card.dataset.range = t.dataset.rg === '0' ? '' : t.dataset.rg;
+        seg.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === t))); renderCharts(); });
+      const row = document.createElement('div'); row.className = 'controls'; row.appendChild(seg);
+      head.after(row);
+    }
+  }
+}
 function renderCharts() {
   if (!DATA) return;
   const v = $('section[data-view].active')?.dataset.view;
@@ -3793,6 +3846,7 @@ function renderCharts() {
 }
 function renderAll() {
   if (!DATA) return;
+  initChartTools();
   recomputeVerm();
   renderWerkelijk();
   renderKpis(); renderBNInputs(); renderBN(); renderMaand(); renderWInputs();
@@ -3806,7 +3860,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-25 20:30';
+const APP_VERSION = '2026-11-25 20:55';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
