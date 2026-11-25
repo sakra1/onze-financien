@@ -1050,11 +1050,17 @@ function lineChart(host, series, opts) {
   if (opts.refLine != null && opts.refLine >= y0 && opts.refLine <= y1) el('line', { x1: m.l, x2: W - m.r, y1: Y(opts.refLine), y2: Y(opts.refLine), stroke: cssVar('--ink-2'), 'stroke-width': 1 }, svg);
   // prognosezone: licht vlak vanaf het eerste prognosepunt, met label
   const progXs = vis.flatMap(s => s.dashedAll ? [] : s.points.filter(p => p.prog).map(p => p.x));
-  if (progXs.length) {
+  if (progXs.length && !opts.divider) {
     const firstX = Math.min(...progXs);
     const prev = xs.filter(x => x < firstX).pop();
     const x0p = prev != null ? (X(prev) + X(firstX)) / 2 : X(firstX);
     el('rect', { x: x0p, y: m.t, width: Math.max(0, W - m.r - x0p), height: H - m.t - m.b, fill: cssVar('--ink-3'), opacity: 0.1 }, svg);
+  }
+  // in plaats van een vlak: één stippellijn met een label vanaf waar het een schatting is
+  if (opts.divider && opts.divider.x != null) {
+    const nx = xs.find(x => x > opts.divider.x), xd = nx != null ? (X(opts.divider.x) + X(nx)) / 2 : X(opts.divider.x);
+    el('line', { x1: xd, x2: xd, y1: m.t, y2: H - m.b, stroke: cssVar('--ink-2'), 'stroke-width': 1, 'stroke-dasharray': '3 3' }, svg);
+    const t = el('text', { x: xd + 4, y: m.t + 10, 'font-size': 10, fill: cssVar('--ink-2') }, svg); t.textContent = opts.divider.label;
   }
   // lines
   for (const s of vis) {
@@ -3281,7 +3287,7 @@ function pctFor(y) {
 function renderPercentiel() {
   const A = yearAgg();
   const lastP = Math.max(...Object.keys(PCT).map(Number), 0);
-  const ys = Object.keys(A).map(Number).filter(y => A[y] && A[y].n >= 12 && y <= THIS_YEAR && pctFor(y)).sort((a, b) => a - b);
+  const ys = Object.keys(A).map(Number).filter(y => A[y] && A[y].n >= 12 && y <= THIS_YEAR + 1 && pctFor(y)).sort((a, b) => a - b);
   const PX = {}; ys.forEach(y => PX[y] = pctFor(y));
   if (!ys.length) { $('#pctChart').innerHTML = '<div class="note">De percentielen zijn nog niet opgehaald bij CBS.</div>'; $('#pctChips').innerHTML = ''; return; }
   const pos = GUI.pctv === 'pos';
@@ -3289,18 +3295,17 @@ function renderPercentiel() {
   const mk = k => ys.filter(y => v(y, k)).map(y => ({ x: y, y: pos ? pctPos(v(y, k), PX[y]) : v(y, k), prog: A[y].prog || !!PX[y].est }));
   const ser = [['S', 'Sander', '--s1'], ['E', 'Ellen', '--s2'], ['T', 'Samen', '--s3'], ['M', 'Modaal', '--s4']];
   const bandDefs = [[10, 90, 0.12], [20, 80, 0.12], [30, 70, 0.12], [40, 60, 0.12]];
-  // gemeten jaren en geschatte jaren (lichter), met het laatste CBS-jaar in beide zodat de banden aansluiten
-  const yM = ys.filter(y => !PX[y].est), yE = ys.filter(y => PX[y].est || y === lastP);
-  const bandOf = (yy, op) => bandDefs.map(([lo, hi]) => ({ lo: new Map(yy.map(y => [y, pos ? lo : PX[y]['p' + lo]])), hi: new Map(yy.map(y => [y, pos ? hi : PX[y]['p' + hi]])), opacity: op }));
-  const bands = [...bandOf(yM, 0.12), ...(yE.length > 1 ? bandOf(yE, 0.06) : [])];
+  // één set banden voor alle jaren; de geschatte jaren herken je aan de stippellijn en de gestreepte lijnen
+  const bands = bandDefs.map(([lo, hi, opacity]) => ({ lo: new Map(ys.map(y => [y, pos ? lo : PX[y]['p' + lo]])), hi: new Map(ys.map(y => [y, pos ? hi : PX[y]['p' + hi]])), opacity }));
   lineChart($('#pctChart'), ser.map(([k, name, color]) => ({ name, color, points: GUI.pctOn[k] ? mk(k) : [] })), {
     label: 'inkomenspercentielen', xFmt: String, tipTitle: String, bands,
     yFmt: pos ? (q => 'p' + q) : compactEur, tipFmt: pos ? (q => 'p' + Math.round(q)) : eur,
     refLine: pos ? 50 : null, yMinFix: pos ? 0 : null, yMaxFix: pos ? 100 : null,
+    divider: ys.some(y => PX[y].est) ? { x: lastP, label: 'geschat' } : null,
     tipExtra: y => PX[y] && PX[y].est ? `<div class="r"><span class="tiny">percentielen geschat: CBS ${PX[y].from} × ${PX[y].how === 'modaal' ? 'groei modaal' : 'inflatie'} (${signedPct(PX[y].f - 1)})</span></div>` : '' });
   chips($('#pctChips'), ser, GUI.pctOn, renderPercentiel);
   const est = ys.filter(y => PX[y].est);
-  $('#pctEst').textContent = est.length ? `CBS heeft de percentielen t/m ${lastP}. Voor ${est.length > 1 ? `${est[0]}–${est[est.length - 1]}` : est[0]} zijn ze geschat: de verdeling van ${lastP} opgeschaald met de groei van het modale inkomen (CPB), dus alsof alle inkomens even hard stegen. Lichtere banden en gestreepte lijnen; zodra CBS nieuwe cijfers publiceert, gebruikt de app die.` : '';
+  $('#pctEst').textContent = est.length ? `CBS heeft de percentielen t/m ${lastP}. Voor ${est.length > 1 ? `${est[0]}–${est[est.length - 1]}` : est[0]} zijn ze geschat: de verdeling van ${lastP} opgeschaald met de groei van het modale inkomen (CPB), dus alsof alle inkomens even hard stegen. Rechts van de stippellijn; zodra CBS nieuwe cijfers publiceert, gebruikt de app die.${ys.includes(THIS_YEAR + 1) ? ` ${THIS_YEAR + 1} rekent ook met jullie verwachte inkomen.` : ''}` : '';
 }
 GUI.cmp = 'keer';
 function renderCmp() {
@@ -3801,7 +3806,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-25 20:10';
+const APP_VERSION = '2026-11-25 20:20';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
