@@ -639,8 +639,9 @@ section[data-view].active { display: grid; }
       <div class="legend" id="spLegend"></div>
       <div class="chart" id="spChart"></div>
       <div class="note">Spaarvermogen = verandering van het spaarsaldo + extra aflossing + investeringen in het huis − incidentele meevallers (giften, erfenis).</div>
-      <h3>Totaal tot en met dit jaar</h3>
+      <h3 id="spTotHead">Totaal</h3>
       <div class="bars" id="spTotals"></div>
+      <div class="note" id="spTotNote"></div>
       <h3>Spaarquote</h3>
       <div class="chart" id="sqChart"></div>
       <div class="note">Spaarvermogen als deel van het netto inkomen samen.</div>
@@ -3212,6 +3213,10 @@ function renderSparen() {
   $('#spTotals').innerHTML = tl.map(([n, v, c]) => `<div class="bar"><div class="top"><span>${n}</span><span class="num">${Math.round(v) ? signed(v) : eur(0)}</span></div>
     <div class="track"><div class="fill" style="width:${Math.abs(v) / mx * 100}%;background:var(${c})"></div></div></div>`).join('')
     + `<div class="bar"><div class="top"><span><b>Totaal gespaard</b></span><span class="num"><b>${eur(tot('total'))}</b></span></div></div>`;
+  // alleen afgesloten jaren: het spaarvermogen van een jaar is pas bekend met het spaargeld op 1 januari daarna
+  $('#spTotHead').textContent = done.length ? `Totaal ${done[0].year}–${done[done.length - 1].year}` : 'Totaal';
+  const cur = S.find(r => r.prog && r.year === THIS_YEAR);
+  $('#spTotNote').textContent = cur ? `${cur.year} telt hier mee zodra het spaargeld van 1 januari ${cur.year + 1} bekend is${cur.extra ? `, dus ook de extra aflossing van ${eur(cur.extra)}` : ''}.` : '';
 
   const sq = {}, sqc = [];
   for (const r of S) if (A[r.year] && A[r.year].ok && A[r.year].tn) { sq[r.year] = r.total / A[r.year].tn * 100; sqc.push(r.year); }
@@ -3777,7 +3782,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-24 22:55';
+const APP_VERSION = '2026-11-25 09:40';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
