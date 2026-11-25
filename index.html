@@ -460,7 +460,7 @@ section[data-view].active { display: grid; }
         <div class="controls" id="pctChips"></div>
         <div class="chart" id="pctChart"></div>
         <div class="note" id="pctEst"></div>
-        <div class="note" id="pctNote">Grijze banden: p10–p90, p20–p80, p30–p70 en p40–p60 van het bruto huishoudinkomen in Nederland (CBS). Zoals in het notebook worden jullie bruto inkomens, ieder apart en samen, en modaal daartegen afgezet. Onder p10 telt als 5; boven p90 wordt doorgerekend met dezelfde helling als tussen p80 en p90 (hoogstens p99).</div>
+        <div class="note" id="pctNote">Grijze banden: p10–p90, p20–p80, p30–p70 en p40–p60 van het bruto huishoudinkomen in Nederland (CBS). Zoals in het notebook worden jullie bruto inkomens, ieder apart en samen, en modaal daartegen afgezet. Onder p10 telt als 5. Boven p90 een Pareto-staart, de gangbare benadering voor de top van een inkomensverdeling: percentiel = 100 − 10 × (inkomen / p90)<sup>−α</sup>, met α = ln 2 / ln(p90 / p80) uit hetzelfde jaar.</div>
       </div>
     </div>
 
@@ -3288,8 +3288,8 @@ $$('[data-breal]').forEach(b => b.addEventListener('click', () => { GUI.baseReal
 function pctPos(v, pv) {
   const ps = [10, 20, 30, 40, 50, 60, 70, 80, 90], vals = ps.map(q => pv['p' + q]);
   if (v <= vals[0]) return 5;
-  // boven p90: dezelfde helling als tussen p80 en p90, hoogstens p99
-  if (v >= vals[8]) return Math.min(99, 90 + (v - vals[8]) / (vals[8] - vals[7]) * 10);
+  // boven p90: Pareto-staart, 100 − 10 × (v / p90)^−α met α = ln 2 / ln(p90 / p80) uit hetzelfde jaar
+  if (v >= vals[8]) { const a = Math.log(2) / Math.log(vals[8] / vals[7]); return 100 - 10 * Math.pow(v / vals[8], -a); }
   for (let i = 0; i < 8; i++) if (v >= vals[i] && v <= vals[i + 1]) return ps[i] + (v - vals[i]) / (vals[i + 1] - vals[i]) * 10;
   return null;
 }
@@ -3861,7 +3861,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-25 21:00';
+const APP_VERSION = '2026-11-25 21:10';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
