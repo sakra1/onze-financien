@@ -2974,7 +2974,7 @@ function renderNederland() {
     if (Object.keys(hv).length) defs.push({ k: 'H', name: 'Huizenprijzen', color: '--s3', values: hv });
     const mom = caoMoments(path);
     barChart($('#nl1Chart'), cats, defs.map(d => ({ ...d, on: NUI.n1[d.k] })), { label: 'inflatie en cao per jaar',
-      tipExtra: y => mom.filter(m => new Date(m.d).getUTCFullYear() === y).map(m => `<div class="r"><span>cao ${fmtDate(m.d)}</span><span>+${PCT1.format(m.pct)}</span></div>`).join('') + (hNote[y] ? `<div class="r"><span class="tiny">${hNote[y]}</span></div>` : '') });
+      tipExtra: y => mom.filter(m => new Date(m.d).getUTCFullYear() === y).map(m => `<div class="r"><span>cao ${fmtDate(m.d)}</span><span>+${PCT1.format(m.pct)}</span></div>`).join('') + (hNote[y] ? `<div class="tiny muted" style="white-space:normal;max-width:170px;margin-top:4px">${hNote[y]}</div>` : '') });
     $('#nl1Table').innerHTML = mom.length ? `<table><thead><tr><th>Datum</th><th>Afspraak</th><th>Stijging</th></tr></thead><tbody>${mom.slice().reverse().map(m => `<tr><td>${fmtDate(m.d)}${m.prog ? ' *' : ''}</td><td>${caoDeal(m.ev)}</td><td>${PCT1.format(m.pct)}</td></tr>`).join('')}</tbody></table>${mom.some(m => m.prog) ? '<div class="note">* nog niet ingegaan</div>' : ''}` : '<div class="note">Geen cao-afspraken gevonden.</div>';
     chips($('#nl1Chips'), defs.map(d => [d.k, d.name, d.color]), NUI.n1, renderNederland);
   }
@@ -3321,7 +3321,7 @@ function renderPercentiel() {
     yFmt: pos ? (q => 'p' + q) : compactEur, tipFmt: pos ? (q => 'p' + Math.round(q)) : eur,
     refLine: pos ? 50 : null, yMinFix: pos ? 0 : null, yMaxFix: pos ? 100 : null,
     divider: ys.some(y => PX[y].est) ? { x: lastP, label: 'geschat' } : null,
-    tipExtra: y => PX[y] && PX[y].est ? `<div class="r"><span class="tiny">percentielen geschat: CBS ${PX[y].from} × ${PX[y].how === 'modaal' ? 'groei modaal' : 'inflatie'} (${signedPct(PX[y].f - 1)})</span></div>` : '' });
+    tipExtra: y => PX[y] && PX[y].est ? `<div class="tiny muted" style="white-space:normal;max-width:170px;margin-top:4px">geschat: CBS ${PX[y].from} ${signedPct(PX[y].f - 1)} (${PX[y].how === 'modaal' ? 'modaal' : 'inflatie'})</div>` : '' });
   chips($('#pctChips'), ser, GUI.pctOn, renderPercentiel);
   const est = ys.filter(y => PX[y].est);
   $('#pctEst').textContent = est.length ? `CBS heeft de percentielen t/m ${lastP}. Voor ${est.length > 1 ? `${est[0]}–${est[est.length - 1]}` : est[0]} zijn ze geschat: de verdeling van ${lastP} opgeschaald met de groei van het modale inkomen (CPB), dus alsof alle inkomens even hard stegen. Rechts van de stippellijn; zodra CBS nieuwe cijfers publiceert, gebruikt de app die.${ys.includes(THIS_YEAR + 1) ? ` ${THIS_YEAR + 1} rekent ook met jullie verwachte inkomen.` : ''}` : '';
@@ -3861,7 +3861,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-25 21:10';
+const APP_VERSION = '2026-11-25 21:15';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
