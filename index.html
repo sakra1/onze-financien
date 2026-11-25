@@ -1060,7 +1060,7 @@ function lineChart(host, series, opts) {
   if (opts.divider && opts.divider.x != null) {
     const nx = xs.find(x => x > opts.divider.x), xd = nx != null ? (X(opts.divider.x) + X(nx)) / 2 : X(opts.divider.x);
     el('line', { x1: xd, x2: xd, y1: m.t, y2: H - m.b, stroke: cssVar('--ink-2'), 'stroke-width': 1, 'stroke-dasharray': '3 3' }, svg);
-    const t = el('text', { x: xd + 4, y: m.t + 10, 'font-size': 10, fill: cssVar('--ink-2') }, svg); t.textContent = opts.divider.label;
+    const right = xd > W * 0.7, t = el('text', { x: right ? xd - 4 : xd + 4, y: m.t + 10, 'font-size': 10, fill: cssVar('--ink-2'), 'text-anchor': right ? 'end' : 'start' }, svg); t.textContent = opts.divider.label;
   }
   // lines
   for (const s of vis) {
@@ -3806,7 +3806,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-25 20:20';
+const APP_VERSION = '2026-11-25 20:30';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
