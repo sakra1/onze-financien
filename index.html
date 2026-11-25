@@ -2802,7 +2802,8 @@ function careerSeries(who) {
   const i0 = I[y0];
   const rows = ys.map(y => {
     const o = by[y];
-    return { year: y, P: o.P / o.n, C: o.C / o.n, E: o.E / o.n, base: o.nb ? o.b / o.nb : null, PE: o.nb ? o.pe / o.nb : null, EJ: o.nb ? o.ej / o.nb : null, CO: o.nb ? o.co / o.nb : null, prog: o.prog, I: I[y] != null && i0 ? I[y] / i0 : null };
+    // C per jaar zo dat S = S0 × P × C ook voor de jaargemiddelden precies klopt
+    return { year: y, P: o.P / o.n, C: o.nb ? (o.b / o.nb) / (S0 * o.P / o.n) : o.C / o.n, E: o.E / o.n, base: o.nb ? o.b / o.nb : null, PE: o.nb ? o.pe / o.nb : null, EJ: o.nb ? o.ej / o.nb : null, CO: o.nb ? o.co / o.nb : null, prog: o.prog, I: I[y] != null && i0 ? I[y] / i0 : null };
   });
   return { S0, y0, rows, hasCao: raise.length > 0 };
 }
@@ -3782,7 +3783,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-25 09:40';
+const APP_VERSION = '2026-11-25 09:55';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
