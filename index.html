@@ -233,6 +233,14 @@ input[type="range"] { width: 100%; accent-color: var(--s1); height: 28px; }
 .rows .r > span:first-child { min-width: 0; }
 .rows .r.sep { border-top: 1px solid var(--line-2, var(--line)); margin-top: 6px; }
 .rows .r.sub { color: var(--ink-3); }
+/* Face ID-slot: niets van de app zichtbaar zolang hij vergrendeld is */
+html.locked body > *:not(#lockScreen) { visibility: hidden; }
+#lockScreen { position: fixed; inset: 0; z-index: 2000; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 24px; }
+#lockScreen[hidden] { display: none; }
+html.locked #lockScreen[hidden] { display: flex; }
+.lock-box { text-align: center; display: grid; gap: 10px; justify-items: center; max-width: 300px; }
+.lock-ico { font-size: 40px; }
+html.blurred main, html.blurred header.top { filter: blur(14px); }
 .fs-btn { margin-left: auto; border: 0; background: var(--soft); color: var(--ink-2); width: 30px; height: 30px; border-radius: 999px; font-size: 16px; line-height: 30px; padding: 0; cursor: pointer; align-self: center; }
 .seg.rg button { padding: 4px 10px; font-size: 12px; }
 #fsOverlay { position: fixed; inset: 0; z-index: 1000; background: var(--bg); overflow: auto; padding: calc(env(safe-area-inset-top) + 8px) 10px calc(env(safe-area-inset-bottom) + 24px); }
@@ -293,6 +301,17 @@ section[data-view].active { display: grid; }
 </style>
 </head>
 <body>
+<div id="lockScreen" hidden>
+  <div class="lock-box">
+    <div class="lock-ico" aria-hidden="true">🔒</div>
+    <h2>Onze financiën</h2>
+    <p class="small muted">Vergrendeld met Face ID</p>
+    <button class="btn primary" type="button" id="unlockBtn">Ontgrendel</button>
+    <div class="small" id="lockMsg" role="status"></div>
+    <button class="btn sm" type="button" id="lockReset" hidden>Gegevens wissen en openen</button>
+  </div>
+</div>
+<script>try { if (localStorage.getItem('of-lock-on') === '1') document.documentElement.classList.add('locked'); } catch (e) { }</script>
 <header class="top">
   <div class="titles">
     <h1>Onze financiën</h1>
@@ -307,6 +326,7 @@ section[data-view].active { display: grid; }
     <div class="dp-row"><div><b>Financieel overzicht</b> <span class="small" id="stMain"></span></div><label class="btn primary sm" for="fileMain">Kiezen</label></div>
     <div class="dp-row"><div><b>CBS en Wikipedia</b> <span class="small" id="stLive"></span></div><button class="btn sm" type="button" id="liveBtn">Ververs</button></div>
     <label class="small dp-chk"><input type="checkbox" id="rememberChk"> Onthoud op dit toestel</label>
+    <div class="dp-row"><div><b>Face ID</b> <span class="small" id="stLock"></span></div><button class="btn sm" type="button" id="lockBtn">Aanzetten</button></div>
     <div class="dp-row"><div class="small">App-versie <span id="appVer"></span> <span class="muted" id="updMsg"></span></div><button class="btn sm" type="button" id="updBtn">Zoek update</button></div>
     <div class="small" id="loadMsg" role="status"></div>
     <div class="small" id="stWarn"></div>
@@ -3863,8 +3883,68 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-25 21:35';
+const APP_VERSION = '2026-11-25 21:50';
 $('#appVer').textContent = APP_VERSION;
+// ===== Face ID-slot (passkey op dit toestel, zonder server) =====
+const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
+const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64u = str => Uint8Array.from(atob(str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4)), c => c.charCodeAt(0));
+const rnd = n => crypto.getRandomValues(new Uint8Array(n));
+const lockOn = () => { try { return localStorage.getItem(LOCK_ON) === '1' && !!localStorage.getItem(LOCK_ID); } catch (e) { return false; } };
+async function lockAvailable() {
+  try { return !!(window.PublicKeyCredential && window.isSecureContext && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); } catch (e) { return false; }
+}
+function lockShow() { document.documentElement.classList.add('locked'); $('#lockScreen').hidden = false; $('#lockMsg').textContent = ''; }
+function lockHide() { document.documentElement.classList.remove('locked', 'blurred'); $('#lockScreen').hidden = true; }
+async function lockVerify() {
+  const id = localStorage.getItem(LOCK_ID); if (!id) return true;
+  await navigator.credentials.get({ publicKey: { challenge: rnd(32), rpId: location.hostname, allowCredentials: [{ type: 'public-key', id: unb64u(id) }], userVerification: 'required', timeout: 60000 } });
+  return true;
+}
+let unlocking = false;
+async function unlock(auto) {
+  if (unlocking) return; unlocking = true; $('#lockMsg').textContent = '';
+  try { await lockVerify(); lockHide(); LOCK_T = Date.now(); }
+  // automatische poging (zonder tik) mag stil mislukken: sommige browsers willen eerst een tik
+  catch (e) { if (auto) return; $('#lockMsg').textContent = e && e.name === 'NotAllowedError' ? 'Niet gelukt of geannuleerd. Probeer het opnieuw.' : 'Ontgrendelen lukt niet (' + (e && e.name || 'fout') + ').'; $('#lockReset').hidden = false; }
+  finally { unlocking = false; }
+}
+async function lockEnable() {
+  const user = rnd(16);
+  const cred = await navigator.credentials.create({ publicKey: {
+    challenge: rnd(32), rp: { name: 'Onze financiën', id: location.hostname },
+    user: { id: user, name: 'onze-financien', displayName: 'Onze financiën' },
+    pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+    authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' }, timeout: 60000 } });
+  localStorage.setItem(LOCK_ID, b64u(cred.rawId)); localStorage.setItem(LOCK_ON, '1');
+}
+async function lockStatus() {
+  const av = await lockAvailable(), on = lockOn();
+  $('#stLock').innerHTML = on ? '<span class="pos">✓</span> aan: bij openen en na 5 minuten weg' : av ? 'uit' : 'niet beschikbaar op dit toestel';
+  $('#lockBtn').textContent = on ? 'Uitzetten' : 'Aanzetten'; $('#lockBtn').disabled = !on && !av;
+}
+$('#lockBtn').addEventListener('click', async () => {
+  try {
+    if (lockOn()) { await lockVerify(); localStorage.removeItem(LOCK_ON); localStorage.removeItem(LOCK_ID); $('#loadMsg').textContent = 'Face ID-slot staat uit. Je kunt de passkey "Onze financiën" eventueel verwijderen uit je wachtwoorden.'; }
+    else { await lockEnable(); $('#loadMsg').textContent = 'Face ID-slot staat aan.' + ($('#rememberChk').checked ? '' : ' Zet ook "Onthoud op dit toestel" aan, anders bewaart de app niets om te beveiligen.'); }
+  } catch (e) { $('#loadMsg').textContent = 'Dat lukte niet (' + (e && e.name || 'fout') + ').'; }
+  lockStatus();
+});
+$('#unlockBtn').addEventListener('click', () => unlock(false));
+$('#lockReset').addEventListener('click', () => {
+  if (!confirm('De passkey werkt niet meer? Dan wist de app de bewaarde gegevens en zet het slot uit. Je kiest daarna je Excel opnieuw.')) return;
+  try { localStorage.removeItem(STORE_KEY); localStorage.removeItem(STORE_KEY + '-ext'); localStorage.removeItem(LOCK_ON); localStorage.removeItem(LOCK_ID); } catch (e) { }
+  location.reload();
+});
+// opnieuw vergrendelen na 5 minuten op de achtergrond; intussen wazig in het app-overzicht
+let LOCK_T = Date.now();
+document.addEventListener('visibilitychange', () => {
+  if (!lockOn()) return;
+  if (document.hidden) { LOCK_T = Date.now(); document.documentElement.classList.add('blurred'); }
+  else { document.documentElement.classList.remove('blurred'); if (Date.now() - LOCK_T > LOCK_AFTER) { lockShow(); unlock(true); } }
+});
+if (lockOn()) { lockShow(); unlock(true); } else lockHide();
+lockStatus();
 async function checkUpdate(manual) {
   try {
     const t = await (await fetch('./?check=' + Date.now(), { cache: 'no-store' })).text();
