@@ -449,6 +449,7 @@ section[data-view].active { display: grid; }
       <div class="cmp-pct" hidden>
         <div class="controls" id="pctChips"></div>
         <div class="chart" id="pctChart"></div>
+        <div class="note" id="pctEst"></div>
         <div class="note" id="pctNote">Grijze banden: p10–p90, p20–p80, p30–p70 en p40–p60 van het bruto huishoudinkomen in Nederland (CBS). Zoals in het notebook worden jullie bruto inkomens, ieder apart en samen, en modaal daartegen afgezet. Onder p10 telt als 5; boven p90 wordt doorgerekend.</div>
       </div>
     </div>
@@ -3268,22 +3269,38 @@ function pctPos(v, pv) {
   return null;
 }
 GUI.pctv = 'eur'; GUI.pctOn = { S: true, E: true, T: true, M: true };
+// percentielen na het laatste CBS-jaar: de laatste verdeling opgeschaald met de groei van modaal (CPB), anders met de inflatie
+function pctFor(y) {
+  if (PCT[y]) return PCT[y];
+  const ks = Object.keys(PCT).map(Number).filter(k => k < y); if (!ks.length) return null;
+  const L = Math.max(...ks);
+  let f = MODAAL[y] && MODAAL[L] ? MODAAL[y] / MODAAL[L] : null, how = 'modaal';
+  if (f == null) { f = 1; for (let k = L + 1; k <= y; k++) { if (CPI[k] == null) return null; f *= 1 + CPI[k] / 100; } how = 'inflatie'; }
+  const o = { est: true, from: L, how, f }; for (const q of [10, 20, 30, 40, 50, 60, 70, 80, 90]) o['p' + q] = PCT[L]['p' + q] * f; return o;
+}
 function renderPercentiel() {
   const A = yearAgg();
-  const ys = Object.keys(PCT).map(Number).filter(y => A[y] && A[y].n >= 12).sort((a, b) => a - b);
+  const lastP = Math.max(...Object.keys(PCT).map(Number), 0);
+  const ys = Object.keys(A).map(Number).filter(y => A[y] && A[y].n >= 12 && y <= THIS_YEAR && pctFor(y)).sort((a, b) => a - b);
+  const PX = {}; ys.forEach(y => PX[y] = pctFor(y));
   if (!ys.length) { $('#pctChart').innerHTML = '<div class="note">De percentielen zijn nog niet opgehaald bij CBS.</div>'; $('#pctChips').innerHTML = ''; return; }
   const pos = GUI.pctv === 'pos';
   const v = (y, k) => k === 'M' ? MODAAL[y] : A[y][{ S: 'sb', E: 'eb', T: 'tb' }[k]];
-  const mk = k => ys.filter(y => v(y, k)).map(y => ({ x: y, y: pos ? pctPos(v(y, k), PCT[y]) : v(y, k), prog: A[y].prog }));
+  const mk = k => ys.filter(y => v(y, k)).map(y => ({ x: y, y: pos ? pctPos(v(y, k), PX[y]) : v(y, k), prog: A[y].prog || !!PX[y].est }));
   const ser = [['S', 'Sander', '--s1'], ['E', 'Ellen', '--s2'], ['T', 'Samen', '--s3'], ['M', 'Modaal', '--s4']];
   const bandDefs = [[10, 90, 0.12], [20, 80, 0.12], [30, 70, 0.12], [40, 60, 0.12]];
-  const bands = bandDefs.map(([lo, hi, opacity]) => ({
-    lo: new Map(ys.map(y => [y, pos ? lo : PCT[y]['p' + lo]])), hi: new Map(ys.map(y => [y, pos ? hi : PCT[y]['p' + hi]])), opacity }));
+  // gemeten jaren en geschatte jaren (lichter), met het laatste CBS-jaar in beide zodat de banden aansluiten
+  const yM = ys.filter(y => !PX[y].est), yE = ys.filter(y => PX[y].est || y === lastP);
+  const bandOf = (yy, op) => bandDefs.map(([lo, hi]) => ({ lo: new Map(yy.map(y => [y, pos ? lo : PX[y]['p' + lo]])), hi: new Map(yy.map(y => [y, pos ? hi : PX[y]['p' + hi]])), opacity: op }));
+  const bands = [...bandOf(yM, 0.12), ...(yE.length > 1 ? bandOf(yE, 0.06) : [])];
   lineChart($('#pctChart'), ser.map(([k, name, color]) => ({ name, color, points: GUI.pctOn[k] ? mk(k) : [] })), {
     label: 'inkomenspercentielen', xFmt: String, tipTitle: String, bands,
     yFmt: pos ? (q => 'p' + q) : compactEur, tipFmt: pos ? (q => 'p' + Math.round(q)) : eur,
-    refLine: pos ? 50 : null, yMinFix: pos ? 0 : null, yMaxFix: pos ? 100 : null });
+    refLine: pos ? 50 : null, yMinFix: pos ? 0 : null, yMaxFix: pos ? 100 : null,
+    tipExtra: y => PX[y] && PX[y].est ? `<div class="r"><span class="tiny">percentielen geschat: CBS ${PX[y].from} × ${PX[y].how === 'modaal' ? 'groei modaal' : 'inflatie'} (${signedPct(PX[y].f - 1)})</span></div>` : '' });
   chips($('#pctChips'), ser, GUI.pctOn, renderPercentiel);
+  const est = ys.filter(y => PX[y].est);
+  $('#pctEst').textContent = est.length ? `CBS heeft de percentielen t/m ${lastP}. Voor ${est.length > 1 ? `${est[0]}–${est[est.length - 1]}` : est[0]} zijn ze geschat: de verdeling van ${lastP} opgeschaald met de groei van het modale inkomen (CPB), dus alsof alle inkomens even hard stegen. Lichtere banden en gestreepte lijnen; zodra CBS nieuwe cijfers publiceert, gebruikt de app die.` : '';
 }
 GUI.cmp = 'keer';
 function renderCmp() {
@@ -3784,7 +3801,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-25 19:55';
+const APP_VERSION = '2026-11-25 20:10';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
