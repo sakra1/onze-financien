@@ -307,12 +307,12 @@ section[data-view].active { display: grid; }
     <div class="dp-row"><div><b>Financieel overzicht</b> <span class="small" id="stMain"></span></div><label class="btn primary sm" for="fileMain">Kiezen</label></div>
     <div class="dp-row"><div><b>CBS en Wikipedia</b> <span class="small" id="stLive"></span></div><button class="btn sm" type="button" id="liveBtn">Ververs</button></div>
     <label class="small dp-chk"><input type="checkbox" id="rememberChk"> Onthoud op dit toestel</label>
+    <div class="dp-row"><div class="small">App-versie <span id="appVer"></span> <span class="muted" id="updMsg"></span></div><button class="btn sm" type="button" id="updBtn">Zoek update</button></div>
     <div class="small" id="loadMsg" role="status"></div>
     <div class="small" id="stWarn"></div>
     <details class="dp-more" id="dpEst"><summary>Werkelijk en geschat</summary><div class="small" id="stEst"></div></details>
     <details class="dp-more"><summary>Meer</summary>
-      <div class="dp-row"><div><b>Externe data</b> <span class="tiny muted">optioneel, alleen reserve</span><div class="small" id="stExt"></div></div><label class="btn sm" for="fileExt">Kiezen</label></div>
-      <div class="dp-row"><div class="small">Versie <span id="appVer"></span> <span class="muted" id="updMsg"></span></div><button class="btn sm" type="button" id="updBtn">Zoek update</button></div>
+      <div class="dp-row"><div><b>Externe data</b> <span class="tiny muted">niet nodig; alleen reserve als CBS of Wikipedia niet bereikbaar is</span><div class="small" id="stExt"></div></div><label class="btn sm" for="fileExt">Kiezen</label></div>
       <div class="dp-row"><div class="small muted">Wis de gegevens van dit toestel</div><button class="btn sm" type="button" id="forgetBtn">Vergeet</button></div>
     </details>
     <input type="file" id="fileMain" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
@@ -3657,7 +3657,6 @@ function updateStatus() {
   const dd = t => new Date(t).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
   const parts = [];
   parts.push(DATA ? `Overzicht ${dd(DATA.loadedAt)}` : 'Overzicht ontbreekt');
-  if (EXT && !EXT.virtual) parts.push(`Extern ${dd(EXT.loadedAt)}`);
   if (LIVE && LIVE.fetchedAt) parts.push(`CBS ${dd(LIVE.fetchedAt)}`);
   $('#srcLabel').textContent = !DATA && (!EXT || EXT.virtual) ? 'Nog geen gegevens geladen' : parts.join(' · ');
   const d8 = t => new Date(t).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
@@ -3864,7 +3863,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-25 21:20';
+const APP_VERSION = '2026-11-25 21:35';
 $('#appVer').textContent = APP_VERSION;
 async function checkUpdate(manual) {
   try {
