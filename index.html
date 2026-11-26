@@ -184,10 +184,17 @@ b.ctr .odo-s > span { display: block; height: 1.15em; }
 .tile.ringt { grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; align-items: center; }
 .tile.ringt > span, .tile.ringt > b { grid-column: 1; }
 .tile.ringt > em { grid-column: 1 / -1; }
-.tile.ringt .ring { grid-column: 2; grid-row: 1 / span 2; width: 48px; height: 48px; }
-.tile.ringt b { font-size: 20px; }
+.tile.ringt .ring { grid-column: 2; grid-row: 1 / span 2; width: 44px; height: 44px; }
+.tile.ringt b { font-size: clamp(16px, 4.9vw, 20px); white-space: nowrap; }
+.tile.ringt { column-gap: 6px; }
 .tile.ringt em.more, .tile.ringt .more { color: var(--ink-3); font-weight: 400; }
 .tile.ringt { position: relative; }
+.tile.hero.green { background: linear-gradient(135deg, #0f3b31 0%, #17634d 100%); }
+.tile.hero .up { color: #9ff0c8; font-weight: 600; }
+.split .o, .split-leg .dot.o { background: #9ff0c8; } .split .p, .split-leg .dot.p { background: #f6c76b; }
+.split .o { border-radius: 999px 0 0 999px; } .split .p { border-radius: 0 999px 999px 0; }
+.hbar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; gap: 2px; margin: 6px 0 2px; background: var(--soft); }
+.hbar i { display: block; height: 100%; } .hbar .o { background: var(--s3); } .hbar .h { background: var(--s2); opacity: .75; }
 /* uitklapbare tegels: een klein pijltje achter de naam, dat omdraait als de details open zijn */
 .tile .cv { font-style: normal; font-size: 11px; color: var(--ink-3); display: inline-block; margin-left: 3px; transition: transform .15s; }
 .tile.hero .cv { color: rgba(255, 255, 255, .8); }
@@ -1948,14 +1955,17 @@ function renderKpis(onlyKpis) {
     </div><div class="tiles3${wmlTile ? ' four' : ''}">${uurTiles}</div>
     ${toel(`${uurNote} Per uur: gedeeld door 165 uur per maand × deeltijdfactor (38 uur per week is voltijd). Reiskosten en andere vergoedingen tellen niet mee.${modUur ? ` Modaal: ${eur(MODAAL[modY])} bruto per jaar (CPB), voltijd${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : UUR_MODE === 'cao' ? ', maandloon zonder vakantiegeld ÷ 165' : ''}.` : ''}${wmlUur ? ` Minimumloon: € ${NUM2.format(LIVE.wml[wmlD])} bruto per uur voor 21 jaar en ouder (Wikipedia)${UUR_MODE === 'cao' ? '' : ', plus 8% vakantiegeld'}${UUR_MODE === 'net' ? ', netto zonder pensioenpremie' : ''}.` : ''}`, 'Toelichting', 'grid-column:1/-1;margin-top:-6px')}` : '') + `
     <h2 style="grid-column:1/-1;padding:10px 2px 0">${NU ? 'Vermogen vandaag <span class="tiny muted" style="font-weight:400">schatting</span>' : cur ? `Vermogen op 1 januari ${cur.year}` : 'Vermogen'}</h2>
-    <div class="tile" style="grid-column:1/-1"><span>Netto vermogen</span><b class="ctr" id="netLive">${cur ? (NU ? eur2(cur.net) : eur(cur.net)) : '–'}</b><em>${(() => {
+    <div class="tile hero green" style="grid-column:1/-1"><span>Netto vermogen</span><b class="ctr" id="netLive">${cur ? (NU ? eur2(cur.net) : eur(cur.net)) : '–'}</b><em>${(() => {
       if (!NU || !NU.v0 || NU.v0.net == null) return 'overwaarde + spaargeld';
       const d = NU.net - NU.v0.net, pd = NU.pd.net;
       LIVE_CTRS = { netLive: { base: NU.net, t0: NU.t, pd }, owLive: { base: NU.woz - NU.hyp, t0: NU.t, pd: NU.pd.ow, plain: true }, spLive: { base: NU.spaar, t0: NU.t, pd: NU.pd.sp, plain: true } };
-      return `<span class="${d >= 0 ? 'pos' : 'neg'}">${d >= 0 ? '+' : '−'} ${eur(Math.abs(Math.round(d / 1000) * 1000))}</span> sinds 1 januari (${eur(NU.v0.net)})${pd != null ? ` · groeit nu ± ${eur(Math.round(pd / 10) * 10)} per dag` : ''}`;
-    })()}</em></div>
-    <div class="tile"><span>Overwaarde huis</span><b id="owLive">${cur ? eur(cur.woz - cur.hyp) : '–'}</b><em>${wozTxt}</em></div>
-    <div class="tile"><span>Spaargeld</span><b id="spLive">${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `buffer van ${NUM2.format(buf)} maanden uitgaven` : ''}</em></div>${NU ? toel(`Huis: ${esc(NU.wozHow)}. Hypotheek: ${esc(NU.hypHow)}. Spaargeld: ${esc(NU.spHow)}. Buffer: spaargeld gedeeld door de maanduitgaven (vuistregel: 3 à 6 maanden).`, 'Hoe geschat', 'grid-column:1/-1;margin-top:-6px') : ''}${(() => { try { return milTile(miljoen()); } catch (e) { console.error(e); return ''; } })()}`;
+      return `<span class="up">${d >= 0 ? '+' : '−'} ${eur(Math.abs(Math.round(d / 1000) * 1000))}</span> sinds 1 januari (${eur(NU.v0.net)})${pd != null ? ` · groeit nu ± ${eur(Math.round(pd / 10) * 10)} per dag` : ''}`;
+    })()}</em>${cur && cur.net > 0 ? (() => { const ow = Math.max(0, cur.woz - cur.hyp), sp = Math.max(0, cur.spaar), T = ow + sp || 1;
+      return `<div class="split" aria-hidden="true"><i class="o" style="width:${(ow / T * 100).toFixed(1)}%"></i><i class="p" style="width:${(sp / T * 100).toFixed(1)}%"></i></div>
+      <div class="split-leg"><span><i class="dot o"></i>overwaarde ${PCT0.format(ow / T)}</span><span><i class="dot p"></i>spaargeld ${PCT0.format(sp / T)}</span></div>`; })() : ''}</div>
+    <div class="tile"><span>Overwaarde huis</span><b id="owLive">${cur ? eur(cur.woz - cur.hyp) : '–'}</b>${cur && cur.woz > 0 ? `<div class="hbar" aria-hidden="true"><i class="o" style="width:${(Math.max(0, 1 - cur.hyp / cur.woz) * 100).toFixed(1)}%"></i><i class="h" style="width:${(Math.min(1, cur.hyp / cur.woz) * 100).toFixed(1)}%"></i></div>` : ''}<em>${wozTxt}</em></div>
+    <div class="tile ringt"><span>Spaargeld</span>${buf != null ? (() => { const r = 19, c = 2 * Math.PI * r, f = Math.min(1, buf / 6);
+      return `<svg class="ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="${r}" fill="none" stroke="var(--soft)" stroke-width="6"/><circle cx="24" cy="24" r="${r}" fill="none" stroke="var(--s3)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(c * f).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 24 24)"/><text x="24" y="28" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">${buf}</text></svg>`; })() : ''}<b id="spLive">${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `${buf} maanden uitgaven als buffer` : ''}</em></div>${NU ? toel(`Huis: ${esc(NU.wozHow)}. Hypotheek: ${esc(NU.hypHow)}. Spaargeld: ${esc(NU.spHow)}. Buffer: spaargeld gedeeld door de maanduitgaven (vuistregel: 3 à 6 maanden).`, 'Hoe geschat', 'grid-column:1/-1;margin-top:-6px') : ''}${(() => { try { return milTile(miljoen()); } catch (e) { console.error(e); return ''; } })()}`;
   if (onlyKpis) return;
   renderFlow();
 }
@@ -3955,7 +3965,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 18:10';
+const APP_VERSION = '2026-11-26 18:30';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
