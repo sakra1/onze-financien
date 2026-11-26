@@ -341,6 +341,7 @@ section[data-view].active { display: grid; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 .extbtn{display:block;margin-top:10px;padding:9px 12px;border-radius:10px;background:var(--soft);color:var(--ink);font-weight:600;text-decoration:none;text-align:center}
 .extbtn:active{opacity:.7}
+.controls.sq .chip i { width: 10px; height: 10px; border-radius: 3px; }
 </style>
 </head>
 <body>
@@ -630,7 +631,7 @@ section[data-view].active { display: grid; }
       </div>
       <div class="tiles" id="k4Tiles"></div>
       <h3>Opbouw bruto maandsalaris per fte</h3>
-      <div class="legend" id="k4Legend"></div>
+      <div class="controls sq" id="k4Legend"></div>
       <div class="chart" id="k4Chart"></div>
       <details class="table"><summary>Toon maandsalarissen als tabel</summary><div class="tablewrap" id="k4Table"></div></details>
       <div class="note">Maandloon per fte = startsalaris + promotie + cao. Daarboven de eju en het vakantiegeld per maand, onder de as wat de inflatie wegneemt.
@@ -2876,7 +2877,7 @@ function barChart(host, cats, series, opts) {
   host._hide = hideB;
 }
 
-const KUI = { k1: { S: true, E: true, I: true, M: true }, k2: { I: true, S: true, E: false }, k3: { S: true, E: true }, k5: { S: true, E: true, T: true, K: true }, k6: { c: true, p: true }, k7: { p: true, n: true, r: true, c: true }, range: 10, person: 'S', eju: true };
+const KUI = { k4: { st: true, pr: true, ca: true, ej: true, vu: true, inf: true }, k1: { S: true, E: true, I: true, M: true }, k2: { I: true, S: true, E: false }, k3: { S: true, E: true }, k5: { S: true, E: true, T: true, K: true }, k6: { c: true, p: true }, k7: { p: true, n: true, r: true, c: true }, range: 10, person: 'S', eju: true };
 /* ===== carrière-analyse, zoals in het notebook (cel "COMPUTE PROMOTION FACTOR") ===== */
 function careerSeries(who) {
   const H = DATA.hist;
@@ -2962,17 +2963,19 @@ function renderCareer() {
     tot[y] = r.base + r.EJ + vu[y];
     inf[y] = r.I ? -tot[y] * (1 - 1 / r.I) : null;
   }
-  barChart($('#k4Chart'), cats, [
-    { name: 'Startsalaris', color: '--ink-3', on: true, values: st },
-    { name: 'Promotie', color: '--s3', on: true, values: pr },
-    { name: 'Cao maandloon', color: '--s1', on: true, values: ca },
-    { name: 'Cao eju', color: '--s1d', on: true, values: ej },
-    { name: 'Vakantiegeld', color: '--s4', on: true, values: vu },
-    { name: 'Weg door inflatie', color: '--bad', on: true, values: inf }
-  ], { stack: true, label: 'opbouw maandsalaris per fte', fmt: eur, yFmt: compactEur, progCat: y => by[y].prog, height: 280,
+  const k4S = [
+    { k: 'st', name: 'Startsalaris', color: '--ink-3', on: true, values: st },
+    { k: 'pr', name: 'Promotie', color: '--s3', on: true, values: pr },
+    { k: 'ca', name: 'Cao maandloon', color: '--s1', on: true, values: ca },
+    { k: 'ej', name: 'Cao eju', color: '--s1d', on: true, values: ej },
+    { k: 'vu', name: 'Vakantiegeld', color: '--s4', on: true, values: vu },
+    { k: 'inf', name: 'Weg door inflatie', color: '--bad', on: true, values: inf }
+  ];
+  k4S.forEach(x => x.on = KUI.k4[x.k]);
+  barChart($('#k4Chart'), cats, k4S, { stack: true, label: 'opbouw maandsalaris per fte', fmt: eur, yFmt: compactEur, progCat: y => by[y].prog, height: 280,
        tipExtra: y => `<div class="r"><span><b>Per maand incl. eju en vak.geld</b></span><span><b>${eur(tot[y])}</b></span></div>` +
          (by[y].I ? `<div class="r"><span>in prijzen van ${y0}</span><span>${eur(tot[y] / by[y].I)}</span></div>` : '') });
-  $('#k4Legend').innerHTML = [['Startsalaris', '--ink-3'], ['Promotie', '--s3'], ['Cao maandloon', '--s1'], ['Cao eju', '--s1d'], ['Vakantiegeld', '--s4'], ['Inflatie (onder de as)', '--bad']].map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
+  chips($('#k4Legend'), k4S.map(x => [x.k, x.k === 'inf' ? 'Inflatie (onder de as)' : x.name, x.color]), KUI.k4, renderCareer);
 
   const nowR = rows.filter(r => !r.prog).pop() || rows[rows.length - 1];
   const kNow = nowR.base - S0 - nowR.PE;
@@ -4038,7 +4041,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 20:40';
+const APP_VERSION = '2026-11-26 20:50';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
