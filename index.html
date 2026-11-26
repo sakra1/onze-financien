@@ -349,9 +349,10 @@ section.swiping .pinned-row { visibility: hidden; }
 .stickyctl-spacer.on { display: block; }
 .nlmap { position: relative; }
 .nlmap svg { display: block; width: 100%; height: auto; max-height: 460px; margin: 0 auto; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-.nlmap path.pv { stroke: var(--card); stroke-width: 1.2; stroke-linejoin: round; cursor: pointer; }
-.nlmap path.pv.sel { stroke: var(--s4); stroke-width: 2.4; }
-.nlmap path.pv.own { stroke: var(--ink); stroke-width: 2.4; }
+.nlmap path.pv { stroke: var(--card); stroke-width: 1; stroke-linejoin: round; cursor: pointer; }
+.nlmap path.ring { fill: none; pointer-events: none; stroke-linejoin: round; }
+.nlmap path.ring.own { stroke: var(--ink); stroke-width: 2.4; }
+.nlmap path.ring.sel { stroke: var(--s4); stroke-width: 2.4; }
 .nlmap text { font-size: 11px; fill: var(--ink); paint-order: stroke; stroke: var(--card); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; font-weight: 600; }
 .nlmap .tip { position: absolute; display: none; }
 .maplegend { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); }
@@ -3102,7 +3103,7 @@ function wmlYear(y) {
 }
 const NUI = { range: 10, n1: { I: true, C: true, H: true }, n2: { C: true, I: true, M: true, W: true }, n3: { C: true, M: true, K: true, W: true }, n4: { P: true, M: true, W: true } };
 // ===== Kaart: huizenprijzen per provincie (CBS/Kadaster), grenzen van cartomap (CBS/PDOK, vereenvoudigd) =====
-const GEO_KEY = 'of-geo-pv-v1', GEO_URL = 'https://cartomap.github.io/nl/wgs84/provincie_2023.geojson';
+const GEO_KEY = 'of-geo-pv-v2', GEO_URL = 'https://cartomap.github.io/nl/wgs84/provincie_2023.geojson';
 let GEO = null, GEO_BUSY = false, MAP_Y = 1, MAP_SEL = null;
 // projecteer (lengte, breedte) naar een plat vlak en vereenvoudig (Douglas-Peucker), zodat er alleen kleine paden overblijven
 function geoBuild(gj) {
@@ -3130,7 +3131,7 @@ function geoBuild(gj) {
   for (const f of feats) {
     const code = String(f.properties.statcode).trim(); let d = '', big = null, bigA = 0;
     for (const pg of polys(f)) for (const ring of pg) {
-      const pts = dp(ring.map(P), 0.35); if (pts.length < 4 || area(pts) < 2) continue;
+      const pts = dp(ring.map(P), 0.2); if (pts.length < 4 || area(pts) < 2) continue;
       d += 'M' + pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join('L') + 'Z';
       const a = area(pts); if (a > bigA) { bigA = a; big = pts; }
     }
@@ -3179,11 +3180,11 @@ function renderMap() {
     const codes = Object.keys(GEO.pv);
     host.innerHTML = `<svg viewBox="-4 -4 ${GEO.w + 8} ${GEO.h + 8}" role="img" aria-label="kaart van Nederland met de prijsstijging per provincie">${codes.map(c => {
       const g = GEO.pv[c], x = M.vals[c], isOwn = own && g.name.toLowerCase() === own;
-      return `<path class="pv${isOwn ? ' own' : ''}${MAP_SEL === c ? ' sel' : ''}" data-pv="${c}" d="${g.d}" fill="${x ? 'var(--s1)' : 'var(--soft)'}" fill-opacity="${x ? op(x.v) : 1}"/>`;
-    }).join('')}${codes.map(c => { const g = GEO.pv[c], x = M.vals[c]; return x ? `<text x="${g.cx}" y="${g.cy + 4}" text-anchor="middle">${signedPct(x.v).replace(/,\d%$/, '%')}</text>` : ''; }).join('')}</svg><div class="tip"></div>`;
+      return `<path class="pv" data-pv="${c}" d="${g.d}" fill="${x ? 'var(--s1)' : 'var(--soft)'}" fill-opacity="${x ? op(x.v) : 1}"/>`;
+    }).join('')}${(() => { const oc = codes.find(c => own && GEO.pv[c].name.toLowerCase() === own); return oc ? `<path class="ring own" d="${GEO.pv[oc].d}"/>` : ''; })()}<path class="ring sel" d=""/>${codes.map(c => { const g = GEO.pv[c], x = M.vals[c]; return x ? `<text x="${g.cx}" y="${g.cy + 4}" text-anchor="middle">${signedPct(x.v).replace(/,\d%$/, '%')}</text>` : ''; }).join('')}</svg><div class="tip"></div>`;
     const svg = host.querySelector('svg'), tip = host.querySelector('.tip');
     const show = c => {
-      MAP_SEL = c; svg.querySelectorAll('path.pv').forEach(p => p.classList.toggle('sel', p.dataset.pv === c));
+      MAP_SEL = c; svg.querySelector('path.ring.sel').setAttribute('d', c ? GEO.pv[c].d : '');
       if (!c) { tip.style.display = 'none'; return; }
       const g = GEO.pv[c], x = M.vals[c], rk = Object.entries(M.vals).sort((a, b) => b[1].v - a[1].v).findIndex(([k]) => k === c) + 1;
       tip.innerHTML = `<div class="t">${esc(g.name)}</div>${x ? `<div class="r"><span>in ${MAP_Y === 1 ? '1 jaar' : MAP_Y + ' jaar'}</span><span><b>${signedPct(x.v)}</b></span></div><div class="r"><span>plaats</span><span>${rk} van ${Object.keys(M.vals).length}</span></div>` : '<div class="r"><span>geen cijfers</span></div>'}`;
@@ -4214,7 +4215,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 22:40';
+const APP_VERSION = '2026-11-26 22:50';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
