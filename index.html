@@ -3974,7 +3974,10 @@ window.addEventListener('hashchange', route);
   const clear = el => { if (el) { el.style.cssText = el.dataset.css || ''; delete el.dataset.css; el.classList.remove('peek'); } };
   function prepNeighbor(cur, nb) {
     if (!nb || nb.classList.contains('peek')) return;
-    const r = cur.getBoundingClientRect(), top = Math.max(0, $('main').getBoundingClientRect().top + 14);
+    // plek waar het nieuwe tabblad straks echt staat (na het wisselen staat de pagina bovenaan): zonder de verschuiving van het huidige tabblad
+    const m = $('main'), mr = m.getBoundingClientRect(), cs = getComputedStyle(m);
+    const r = { left: mr.left + parseFloat(cs.paddingLeft), width: m.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) };
+    const top = cur.getBoundingClientRect().top + window.scrollY;
     nb.dataset.css = nb.style.cssText; nb.classList.add('peek');
     Object.assign(nb.style, { display: 'grid', position: 'fixed', top: top + 'px', left: r.left + 'px', width: r.width + 'px', height: (window.innerHeight - top) + 'px', overflow: 'hidden', zIndex: 5, pointerEvents: 'none', transition: 'none', background: 'var(--bg)', alignContent: 'start' });
   }
@@ -4032,7 +4035,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 20:10';
+const APP_VERSION = '2026-11-26 20:20';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
