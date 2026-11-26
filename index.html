@@ -972,7 +972,7 @@ function deriveBN() {
     const last = rows[rows.length - 1];
     const x = { ...(DATA.bn[w] || {}) };
     if (last) {
-      x.f = last[k.f]; x.full = last[k.b] / last[k.f]; x.toelage = last[k.t] || 0;
+      x.f = last[k.f]; x.full = last[k.b] / last[k.f]; x.toelage = last[k.t] || 0; x.lastD = last.d;
       // ABP-grondslag: salaris per fte in januari van dit jaar
       const jan = rows.find(r => { const d = new Date(r.d); return d.getUTCFullYear() === THIS_YEAR && d.getUTCMonth() === 0; });
       x.grondFull = jan ? abpGrond(jan[k.b], jan[k.f]) : abpGrond(x.full * x.f, x.f);
@@ -1271,6 +1271,8 @@ function incomeSeries() {
     { key: 'T', name: 'Samen', color: '--s3', points: UI.incOn.T ? pts.T : [] }
   ];
 }
+const MAANDEN = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+const maandJaar = d => { const t = new Date(d); return `${MAANDEN[t.getUTCMonth()]} ${t.getUTCFullYear()}`; };
 const MONTHS = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
 function renderIncome() {
   const ser = incomeSeries();
@@ -2028,7 +2030,7 @@ function renderBN() {
   const P = bnP(BN_YEAR), who = UI.person, x = UI.bn[who], base = UI.bnBase[who];
   const r = calcNet(withUitk(x, who, BN_YEAR, base), P), r0 = calcNet(withUitk(base, who, BN_YEAR), P);
   const future = BN_YEAR > THIS_YEAR, J = BN_PER === 'j';
-  $('#bnNetLbl').textContent = J ? `Netto per jaar ${BN_YEAR}` : `Netto per maand${future ? ` (januari ${BN_YEAR})` : ''}`;
+  $('#bnNetLbl').textContent = J ? `Netto per jaar ${BN_YEAR}` : `Netto per maand · ${future ? `januari ${BN_YEAR}` : base.lastD ? `salaris ${maandJaar(base.lastD)}` : 'nu'}`;
   $('#bnNet').textContent = J ? eur(r.jaarNet) : eur2(r.netto);
   const d = J ? r.jaarNet - r0.jaarNet : r.netto - r0.netto, per = J ? 'per jaar' : 'per maand';
   const dEl = $('#bnDelta');
@@ -2097,9 +2099,14 @@ function renderBN() {
     // controle tegen de salarisstrook: de laatste gewone maand uit salaris geschiedenis
     const c = !future && DATA.bn[who] && DATA.bn[who].check;
     if (c) {
-      const cy = new Date(c.d).getUTCFullYear(), mon = `${MONTHS[new Date(c.d).getUTCMonth()]} ${cy}`;
+      const cy = new Date(c.d).getUTCFullYear(), mon = maandJaar(c.d);
       const appN = calcNet({ ...DATA.bn[who], full: c.full, f: c.f, toelage: c.toelage }, bnP(cy)).netto, diff = appN - c.net;
       head = Math.abs(diff) < 1 ? `Klopt met de salarisstrook van ${mon} (${eur2(c.net)}).` : `Salarisstrook ${mon}: ${eur2(c.net)} netto, de app rekent ${eur2(appN)} (${signed(diff)}).`;
+      const lastD = DATA.bn[who].lastD;
+      if (lastD && lastD > c.d) {
+        const lm = new Date(lastD).getUTCMonth(), why = lm === 4 ? 'vakantiegeld' : lm === 10 ? 'de eindejaarsuitkering' : 'een extra uitbetaling';
+        head += ` De strook van ${maandJaar(lastD)} is geen gewone maand (daarin zit ${why}); die telt daarom niet mee voor deze controle.`;
+      }
       if (Math.abs(diff) >= 1) expl.push(['Verschil met de strook', 'kleine verschillen komen door vergoedingen of inhoudingen die per maand wisselen, zoals reiskosten.']);
     }
     expl.push(['Jaarinkomen ABP', '12 × het salaris van januari (omgerekend naar voltijd) × (1 + vakantiegeld + eindejaarsuitkering), plus de vaste toelage van januari en de extra looncomponent uit bruto-netto. Daarover berekent het ABP de pensioenpremies.']);
@@ -4074,7 +4081,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 21:35';
+const APP_VERSION = '2026-11-26 21:45';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
