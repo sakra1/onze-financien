@@ -576,11 +576,13 @@ section.swiping .pinned-row { visibility: hidden; }
         <div class="note" id="bnNote"></div>
       </div>
 
+
+      <details class="card bn-wa" id="bnWa"><summary><h3>Wat als…</h3><span class="tiny muted" id="bnWaHint">salaris, fte, toelage en reisdagen aanpassen</span></summary><div id="bnInputs"></div></details>
+
       <div class="card" id="bnChanges" style="display:none"></div>
 
       <details class="card bn-wa" id="ibCard" style="display:none"><summary><h3 id="ibTitle">Inkomstenbelasting</h3><span class="small" id="ibSum"></span></summary><div id="ibBody"></div></details>
 
-      <details class="card bn-wa" id="bnWa"><summary><h3>Wat als…</h3><span class="tiny muted" id="bnWaHint">salaris, fte, toelage en reisdagen aanpassen</span></summary><div id="bnInputs"></div></details>
 
     </div>
   </section>
@@ -2114,6 +2116,11 @@ function renderBN() {
   const nEl = $('#bnNote'), wasOpen = !!nEl.querySelector('details[open]');
   nEl.innerHTML = (head ? `<div>${head}</div>` : '') + (expl.length ? `<details class="dp-more toel"${wasOpen ? ' open' : ''}><summary>Toelichting</summary>${expl.map(([k, v]) => `<div style="margin-top:4px"><b style="font-weight:600">${k}</b>: ${v}</div>`).join('')}</details>` : '');
   nEl.style.display = head || expl.length ? '' : 'none';
+  const wr = $('#waRes');
+  if (wr) {
+    const dm = r.netto - r0.netto, dj = r.jaarNet - r0.jaarNet, c = v => Math.abs(v) < 0.5 ? 'muted' : v > 0 ? 'pos' : 'neg';
+    wr.innerHTML = `<div class="small muted">Netto per maand</div><div><b class="num" style="font-size:20px">${eur(r.netto)}</b> <span class="${c(dm)} small">${Math.abs(dm) < 0.5 ? 'gelijk' : signed(dm)}</span></div><div class="tiny muted">per jaar ${eur(r.jaarNet)} <span class="${c(dj)}">${Math.abs(dj) < 1 ? '' : signed(dj)}</span></div>`;
+  }
   const hint = $('#bnWaHint'); if (hint) { hint.textContent = changed ? 'aangepast' : 'salaris, fte, toelage en reisdagen'; hint.className = 'tiny ' + (changed ? 'pos' : 'muted'); }
   renderChanges();
   renderIB();
@@ -2124,7 +2131,7 @@ function bnInputsHTML() {
   const f = (id, label, min, max, step, val, fmt) =>
     `<div class="field"><div class="lbl"><label for="${id}">${label}</label><output id="${id}-o">${fmt(val)}</output></div>
      <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"></div>`;
-  return `<div style="display:flex;justify-content:flex-end;margin:-4px 0 4px"><button class="btn sm" type="button" id="bnReset">Herstel</button></div>
+  return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:-4px 0 4px"><div class="wa-res" id="waRes"></div><button class="btn sm" type="button" id="bnReset">Herstel</button></div>
     ${f('in-full', 'Maandsalaris bij voltijd', lo, hi, 5, Math.round(x.full), v => eur(v))}
     ${f('in-f', 'Aanstelling (fte)', 0.5, 1, 0.01, x.f, v => NUM2.format(v))}
     ${f('in-toel', 'Vaste toelage per maand', 0, 1000, 10, x.toelage, v => eur(v))}
@@ -4082,7 +4089,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 21:50';
+const APP_VERSION = '2026-11-26 22:00';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
