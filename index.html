@@ -364,13 +364,6 @@ section[data-view].active { display: grid; }
       <div class="bars" id="mBars"></div>
       <details class="dp-more toel"><summary>Toelichting</summary><div class="tiny muted">Per maand, als deel van de totale inkomsten. De posten komen uit het tabblad in_uit, behalve de hypotheek: die rekent de app uit het aflossingsschema ("berekend"). Jaar-, kwartaal- en weekbedragen zijn omgerekend naar een maand.</div></details>
     </div>
-    <div class="card" id="bestCard" hidden>
-      <div class="card-head"><h2>Uitgaven vergeleken met Nederland</h2><span class="tiny">per maand</span></div>
-      <div class="legend" id="bestLegend"></div>
-      <div class="bars" id="bestBars"></div>
-      <div class="note" id="bestNote"></div>
-      <details class="dp-more toel"><summary>Toelichting</summary><div class="tiny muted" id="bestHow"></div></details>
-    </div>
     <div class="card" id="flowCard">
       <div class="card-head"><h2>Waar blijft elke euro?</h2>
         <div class="seg" role="group" aria-label="Bedragen per"><button type="button" data-flow="j" aria-pressed="true">Jaar</button><button type="button" data-flow="m" aria-pressed="false">Maand</button></div>
@@ -2329,67 +2322,6 @@ function inuitTotals() {
   const inn = E.inn.reduce((s, i) => s + i.amount * PER[i.per], 0);
   return { uit, in: inn, spaar: inn - uit };
 }
-// ===== uitgaven vergeleken met Nederland (CBS Budgetonderzoek) =====
-const COICOP = { '01': 'Voeding', '02': 'Alcohol en tabak', '03': 'Kleding en schoenen', '04': 'Wonen, water en energie', '05': 'Inrichting en apparaten', '06': 'Gezondheid', '07': 'Vervoer', '08': 'Communicatie', '09': 'Recreatie en cultuur', '10': 'Onderwijs', '11': 'Horeca', '12': 'Verzekeringen en diversen', '13': 'Lokale belastingen e.d.', '15': 'Goede doelen' };
-// posten uit in_uit naar CBS-hoofdgroep, op trefwoord (volgorde telt: verzekeringen en belastingen eerst)
-const BEST_RULES = [
-  ['skip', /hypotheek|aflossing|sparen|overlijdensrisico/],
-  ['15', /unhcr|goede doel|donatie|\bgift|kerk|collecte|unicef|artsen zonder/],
-  ['12', /verzekering|polis|ziektekosten|zorgverzeker/],
-  ['13', /belasting|\bozb\b|onroerende|riool|afval|waterschap|zuivering|watersysteem|motorrijtuig/],
-  ['08', /kpn|telefoon|internet|mobiel|bellen|\bsms\b|ziggo|odido|vodafone|t-mobile|simpel/],
-  ['07', /benzine|brandstof|tank|\bauto|anwb|wegenwacht|\bns\b|ns flex|\bov\b|trein|fiets|parkeer|lease/],
-  ['11', /uit eten|uitjes|restaurant|horeca|lunch|terras|afhaal/],
-  ['10', /school|studie|lyceum|college|ouderbijdrage|cursus|opleiding/],
-  ['03', /kleding|kleed|schoen/],
-  ['01', /boodschappen|supermarkt|voeding|bakker|slager|markt/],
-  ['12', /kapper|verzorging/],
-  ['06', /apotheek|tandarts|eigen risico|fysio|bril|huisarts/],
-  ['09', /vakantie|hobb|sport|contributie|bibliothe|loterij|netflix|spotify|disney|videoland|microsoft|365|krant|tijdschrift|kado|cadeau|museum|bioscoop|zakgeld|huisdier|dieren/],
-  ['04', /woning|huur|onderhoud|energie|elektric|electric|stroom|\bgas\b|drinkwater|water|warmtepomp|cv-|tuin|klus/],
-  ['05', /meubel|inrichting|apparat|witgoed/],
-  ['12', /kapper|verzorging|bank|credit|lidmaatschap|vereniging|\bnibi|abonnement/]
-];
-const bestCat = i => { const t = `${i.label} ${i.group || ''}`.toLowerCase(); for (const [c, re] of BEST_RULES) if (re.test(t)) return c; return null; };
-function renderBest() {
-  const card = $('#bestCard'), B = typeof LIVE !== 'undefined' && LIVE && LIVE.best;
-  if (!B || !UI.inuitEdits) { card.hidden = true; return; }
-  const by = Object.keys(B).map(Number).sort((a, b) => a - b), Y = by[by.length - 1], src = B[Y];
-  if (!src || !src.all) { card.hidden = true; return; }
-  // CBS-bedragen naar het prijspeil van het laatste volledige jaar met inflatie
-  let f = 1, toY = Y; for (let y = Y + 1; CPI[y] != null; y++) { f *= 1 + CPI[y] / 100; toY = y; }
-  // welke 10%-groep: op basis van jullie bruto huishoudinkomen (zoals de percentielgrafiek)
-  const A = yearAgg(), lastY = Object.keys(A).map(Number).filter(y => A[y] && A[y].n >= 12 && !A[y].prog).pop();
-  const pv = lastY != null && pctFor(lastY), pos = pv ? pctPos(A[lastY].tb, pv) : null;
-  const dec = pos != null ? Math.min(10, Math.max(1, Math.ceil(pos / 10))) : 10, dk = 'd' + dec;
-  const ours = {}, other = [];
-  for (const i of UI.inuitEdits.uit) {
-    const c = bestCat(i), m = i.amount * PER[i.per]; if (c === 'skip') continue;
-    if (c) ours[c] = (ours[c] || 0) + m; else other.push([i.label, m]);
-  }
-  const cats = Object.keys(COICOP).filter(c => (ours[c] || 0) > 0 || (src.all[c] || 0) > 0);
-  const nl = c => (src.all[c] || 0) * f / 12, dg = c => src[dk] && src[dk][c] != null ? src[dk][c] * f / 12 : null;
-  cats.sort((a, b) => Math.max(ours[b] || 0, dg(b) || 0) - Math.max(ours[a] || 0, dg(a) || 0));
-  const max = Math.max(1, ...cats.flatMap(c => [ours[c] || 0, nl(c), dg(c) || 0]));
-  const bar = (v, col) => `<div class="track" style="height:6px;margin-top:2px"><div class="fill" style="width:${Math.max(0, v) / max * 100}%;background:var(${col})"></div></div>`;
-  const decTxt = `${dec}e 10%-groep`;
-  $('#bestLegend').innerHTML = [['Wij', '--s1'], [`Huishoudens in de ${decTxt}`, '--s3'], ['Gemiddeld huishouden', '--ink-3']].map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
-  $('#bestBars').innerHTML = cats.map(c => {
-    const o = ours[c] || 0, d = dg(c), a = nl(c), flag = c === '04' ? ' *' : '';
-    const diff = d ? o / d - 1 : null;
-    return `<div class="bar"><div class="top"><span>${COICOP[c]}${flag}</span><span class="num">${eur(o)}${diff != null && Math.abs(diff) >= 0.15 && o > 0 ? ` <span class="tiny ${diff > 0 ? 'neg' : 'pos'}">${diff > 0 ? '+' : '−'}${PCT0.format(Math.abs(diff))}</span>` : ''}</span></div>
-      ${bar(o, '--s1')}${d != null ? bar(d, '--s3') : ''}${bar(a, '--ink-3')}
-      <div class="tiny muted" style="display:flex;justify-content:space-between"><span>${decTxt}: ${d != null ? eur(d) : '–'}</span><span>gemiddeld: ${eur(a)}</span></div></div>`;
-  }).join('');
-  const tO = cats.reduce((s, c) => s + (ours[c] || 0), 0), tD = cats.reduce((s, c) => s + (dg(c) || 0), 0), tA = cats.reduce((s, c) => s + nl(c), 0);
-  $('#bestNote').innerHTML = `Samen ${eur(tO)} per maand, tegen ${eur(tD)} in de ${decTxt} en ${eur(tA)} gemiddeld.` + (other.length ? ` Niet ingedeeld: ${other.map(([l, m]) => `${esc(l)} (${eur(m)})`).join(', ')}.` : '');
-  $('#bestHow').innerHTML = `Bron: CBS Budgetonderzoek ${Y} (tabel Bestedingen huishoudens; hoofdgroepen), omgerekend naar prijzen van ${toY} met de inflatie (${f >= 1 ? '+' : '−'}${PCT1.format(Math.abs(f - 1))}). Het volgende onderzoek is van 2026; nieuwe cijfers verwacht eind 2027. ` +
-    `Jullie ${decTxt} volgt uit jullie bruto huishoudinkomen van ${lastY ?? '–'} (percentiel ${pos != null ? 'p' + Math.round(pos) : '–'}); CBS deelt in op besteedbaar inkomen, dus dit is een benadering. ` +
-    `De posten uit in_uit zijn op trefwoord ingedeeld; hypotheek (rente en aflossing), sparen en de overlijdensrisicoverzekering tellen niet mee. ` +
-    `* Wonen is slecht vergelijkbaar: CBS rekent voor huiseigenaren met een geschatte huurwaarde, hier staan alleen energie, water en onderhoud. ` +
-    `Let ook op: in 2020 gaven huishoudens door corona minder uit aan horeca, vakanties en vervoer, en een gemiddeld huishouden is kleiner dan een gezin.`;
-  card.hidden = false;
-}
 function renderMaandSummary() {
   const t = inuitTotals();
   const o = DATA.inuit;
@@ -2403,7 +2335,6 @@ function renderMaandSummary() {
     <div class="tile tap" role="button" tabindex="0" data-det="uit" aria-controls="mDetUit"><span>Uitgaven</span><i class="chev" aria-hidden="true">▾ details</i><b>${eur(t.uit)}</b><em>${PCT1.format(t.in ? t.uit / t.in : 0)} van de inkomsten</em></div>
     <div class="tile"><span>Sparen (begroting)</span><b>${eur(t.spaar)}</b><em>${PCT1.format(t.in ? t.spaar / t.in : 0)} van de inkomsten${(r => r && r.svEst != null ? `<br><span class="exp" title="${r.year}, op basis van de werkelijke uitgaven in ${DATA.proj && DATA.proj.anchor}">verwacht ${eur(r.svEst / 12)}</span>` : '')((DATA.vermRaw || []).find(r => r.year === THIS_YEAR))}</em></div>`;
   applyDet();
-  try { renderBest(); } catch (e) { console.error(e); }
   // één overzicht: per groep een balk; tik op een groep om de losse posten te zien
   const groups = {};
   for (const i of UI.inuitEdits.uit) groups[i.group] = (groups[i.group] || 0) + i.amount * PER[i.per];
@@ -3607,30 +3538,9 @@ const LIVE_SOURCES = {
     }
     if (!Object.keys(modaal).length) throw new Error('Wikipedia: geen bedragen');
     return { modaal };
-  },
-  // bestedingen van huishoudens per hoofdgroep (COICOP), alle huishoudens en per 10%-groep besteedbaar inkomen (Budgetonderzoek 2015, 2020)
-  async best() {
-    const T = '85419NED', get = async u => { const r = await fetch(`${CBS_API}${T}/${u}${u.includes('?') ? '&' : '?'}$format=json`, { cache: 'no-store' }); if (!r.ok) throw new Error(`${T}: HTTP ${r.status}`); return (await r.json()).value || []; };
-    const props = await get('DataProperties');
-    const dims = props.filter(p => /Dimension/.test(p.Type) && p.Key !== 'Perioden').map(p => p.Key);
-    const topic = props.find(p => p.Type === 'Topic'); if (!topic) throw new Error('bestedingen: geen onderwerp');
-    const mult = /1\s?000/.test(topic.Unit || '') ? 1000 : 1;
-    const title = {}; for (const d of dims) title[d] = Object.fromEntries((await get(d)).map(x => [String(x.Key).trim(), String(x.Title).trim()]));
-    const catD = dims.find(d => /besteding/i.test(d)) || dims[0], grpD = dims.find(d => d !== catD);
-    const rows = await cbsRows(T, null, null), out = {};
-    for (const r of rows) {
-      const y = +String(r.Perioden).slice(0, 4), v = numNL(r[topic.Key]); if (!y || v == null) continue;
-      const ck = String(r[catD]).trim(), ct = title[catD][ck] || ck, m = (ck + ' ' + ct).match(/(\d{2})0000/);
-      const code = m ? m[1] : null; if (!code) continue;
-      const gt = grpD ? (title[grpD][String(r[grpD]).trim()] || '') : 'Particuliere huishoudens', dm = gt.match(/(\d+)e 10%/);
-      const g = dm ? 'd' + dm[1] : /particuliere|totaal/i.test(gt) ? 'all' : null; if (!g) continue;
-      ((out[y] = out[y] || {})[g] = out[y][g] || {})[code] = v * mult;
-    }
-    if (!Object.keys(out).length) throw new Error('bestedingen: geen cijfers');
-    return { best: out };
   }
 };
-const LIVE_NAMES = { cpi: 'inflatie (CBS)', kk: 'koopkracht (CBS)', pct: 'percentielen (CBS)', modaal: 'modaal (Wikipedia)', wml: 'minimumloon (Wikipedia)', huis: 'huizenprijzen (CBS)', best: 'bestedingen (CBS)' };
+const LIVE_NAMES = { cpi: 'inflatie (CBS)', kk: 'koopkracht (CBS)', pct: 'percentielen (CBS)', modaal: 'modaal (Wikipedia)', wml: 'minimumloon (Wikipedia)', huis: 'huizenprijzen (CBS)' };
 let LIVE_BUSY = false, LIVE_FAIL = false;
 async function fetchLive() {
   if (LIVE_BUSY) return; LIVE_BUSY = true;
@@ -3973,7 +3883,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 07:30';
+const APP_VERSION = '2026-11-26 07:35';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
