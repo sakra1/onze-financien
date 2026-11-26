@@ -3900,6 +3900,8 @@ $$('[data-bnper]').forEach(b => b.addEventListener('click', () => { BN_PER = b.d
 let HDR_H = null;
 const setHdr = () => { const h = document.querySelector('header.top'); if (!h) return; const v = h.getBoundingClientRect().height; if (v === HDR_H) return; HDR_H = v; document.documentElement.style.setProperty('--hdr', v + 'px'); };
 setHdr(); window.addEventListener('resize', setHdr);
+try { new ResizeObserver(setHdr).observe(document.querySelector('header.top')); } catch (e) { }
+window.addEventListener('load', setHdr); window.addEventListener('pageshow', setHdr);
 
 const VIEWS = ['nu', 'nederland', 'inkomen', 'carriere', 'vermogen'];
 // oude bladwijzers blijven werken
@@ -3942,18 +3944,19 @@ function pinRow(card, row) {
   let on = false, tick = 0;
   const upd = () => {
     tick = 0;
-    const hdr = HDR_H || 64, cr = card.getBoundingClientRect(), active = !FS && card.offsetParent && card.closest('section.active');
+    // onderkant van de kop live meten: op de iPhone wordt de veilige zone bovenin soms pas na het starten toegepast
+    const hb = document.querySelector('header.top'), hdr = hb ? hb.getBoundingClientRect().bottom : 64, cr = card.getBoundingClientRect(), active = !FS && card.offsetParent && card.closest('section.active');
     const ref = on ? sp : row, h = row.getBoundingClientRect().height, top = ref.getBoundingClientRect().top;
     const want = !!active && top < hdr - 1 && cr.bottom > hdr + h + 16;
     if (want !== on) {
       on = want;
-      if (on) { sp.style.height = h + 'px'; row.style.left = (cr.left + card.clientLeft) + 'px'; row.style.width = card.clientWidth + 'px'; }
-      else { row.style.left = row.style.width = ''; }
+      if (on) { sp.style.height = h + 'px'; row.style.top = (hdr - 1) + 'px'; row.style.left = (cr.left + card.clientLeft) + 'px'; row.style.width = card.clientWidth + 'px'; }
+      else { row.style.left = row.style.width = row.style.top = ''; }
       sp.classList.toggle('on', on); row.classList.toggle('pinned', on);
-    } else if (on) { const l = (cr.left + card.clientLeft) + 'px'; if (row.style.left !== l) row.style.left = l; }
+    } else if (on) { const l = (cr.left + card.clientLeft) + 'px', t = (hdr - 1) + 'px'; if (row.style.left !== l) row.style.left = l; if (row.style.top !== t) row.style.top = t; }
   };
   const q = () => { if (!tick) tick = requestAnimationFrame(upd); };
-  window.addEventListener('scroll', q, { passive: true }); window.addEventListener('resize', q); window.addEventListener('hashchange', () => setTimeout(q, 50));
+  document.addEventListener('scroll', q, { passive: true, capture: true }); window.addEventListener('touchmove', q, { passive: true }); window.addEventListener('touchend', () => setTimeout(q, 60), { passive: true }); window.addEventListener('resize', q); window.addEventListener('hashchange', () => setTimeout(q, 50));
 }
 function initChartTools() {
   if (!$('#fsOverlay')) {
@@ -4071,7 +4074,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 21:25';
+const APP_VERSION = '2026-11-26 21:35';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
