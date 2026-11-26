@@ -1094,12 +1094,13 @@ function lineChart(host, series, opts) {
   const vis = series.filter(s => s.points.length);
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H, role: 'img', 'aria-label': opts.label || 'grafiek' }, host);
   const tip = document.createElement('div'); tip.className = 'tip'; host.appendChild(tip);
-  if (!vis.length) {
+  const bands = opts.bands || [];
+  if (!vis.length && !bands.length) {
     const t = el('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle' }, svg); t.textContent = 'Geen reeks gekozen';
     return;
   }
-  const xs = [...new Set(vis.flatMap(s => s.points.map(p => p.x)))].sort((a, b) => a - b);
-  const bands = opts.bands || [];
+  // x-as: punten van de lijnen én van de vlakken, zodat de vlakken hun volle breedte houden als een lijn uit staat
+  const xs = [...new Set(vis.flatMap(s => s.points.map(p => p.x)).concat(bands.flatMap(b => [...b.lo.keys()].filter(x => b.hi.has(x)))))].sort((a, b) => a - b);
   const bandVals = bands.flatMap(b => [...b.lo.values(), ...b.hi.values()]);
   let yMin = Math.min(...vis.flatMap(s => s.points.map(p => p.y)), ...bandVals);
   let yMax = Math.max(...vis.flatMap(s => s.points.map(p => p.y)), ...bandVals);
@@ -1141,7 +1142,7 @@ function lineChart(host, series, opts) {
   }
   if (opts.refLine != null && opts.refLine >= y0 && opts.refLine <= y1) el('line', { x1: m.l, x2: W - m.r, y1: Y(opts.refLine), y2: Y(opts.refLine), stroke: cssVar('--ink-2'), 'stroke-width': 1 }, svg);
   // prognosezone: licht vlak vanaf het eerste prognosepunt, met label
-  const progXs = vis.flatMap(s => s.dashedAll ? [] : s.points.filter(p => p.prog).map(p => p.x));
+  const progXs = vis.flatMap(s => s.dashedAll ? [] : s.points.filter(p => p.prog).map(p => p.x)).concat(opts.progX != null && xs.includes(opts.progX) ? [opts.progX] : []);
   if (progXs.length && !opts.divider) {
     const firstX = Math.min(...progXs);
     const prev = xs.filter(x => x < firstX).pop();
@@ -3010,7 +3011,7 @@ function renderCareer() {
   ];
   const fx = v => NUM2.format(Math.round(v * 100) / 100) + '×';
   lineChart($('#k7Chart'), defs.map(([k, name, color, fn, dash]) => ({ name, color, dashedAll: dash, points: KUI.k7[k] ? f(k, fn) : [] })), {
-    label: 'groeifactoren', log: true, yMinFix: lowF, refLine: 1, bands: k7Bands, bandSep: true, halo: true, noDots: true, height: 260, yFmt: v => NUM2.format(v) + '×', tipFmt: fx, xFmt: String, tipTitle: String,
+    label: 'groeifactoren', progX: (rows.find(r => r.prog) || {}).year, log: true, yMinFix: lowF, refLine: 1, bands: k7Bands, bandSep: true, halo: true, noDots: true, height: 260, yFmt: v => NUM2.format(v) + '×', tipFmt: fx, xFmt: String, tipTitle: String,
     tipExtra: y => { const r = by[y]; return r ? `<div class="r"><span>promotie P</span><span>${fx(r.P)}</span></div><div class="r"><span>cao C</span><span>${fx(r.C)}</span></div><div class="r"><span>eju E</span><span>${fx(r.E)}</span></div>` + (r.I ? `<div class="r"><span>inflatie</span><span>${fx(r.I)}</span></div>` : '') : ''; } });
   $('#k7Legend').innerHTML = [['Promotie P', '--s3'], ['Cao maandloon C', '--s1'], ['Cao eju E', '--s1d'], ['Inflatie (onder de 1)', '--bad']].map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
   chips($('#k7Chips'), defs.map(([k, n, c, , d]) => [k, n, c, d]), KUI.k7, renderKoopkracht);
@@ -4041,7 +4042,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 20:50';
+const APP_VERSION = '2026-11-26 20:55';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
