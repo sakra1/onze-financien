@@ -356,11 +356,13 @@ section[data-view].active { display: grid; }
     <div class="tiles" id="mTiles"></div>
     <div class="card" id="mDetIn" hidden>
       <div class="card-head"><h2>Alle inkomsten</h2><span class="num" id="inTotal"></span></div>
+      <div class="controls"><div class="seg sortseg" role="group" aria-label="Volgorde"><button type="button" data-sort="xls" aria-pressed="true">Volgorde Excel</button><button type="button" data-sort="amt" aria-pressed="false">Op bedrag</button></div></div>
       <div id="mIncome"></div>
       <details class="dp-more toel"><summary>Toelichting</summary><div class="tiny muted">Per maand gemiddeld. Alle inkomsten rekent de app zelf uit ("berekend"): lonen, vakantiegeld, eindejaarsuitkering en DCA zoals in Inkomen → Loon en belasting, de belastingteruggaaf zoals bij Inkomstenbelasting, en de kinderbijslag uit de parameter kinderbijslag. Uit het tabblad in_uit komen alleen de namen van de posten; een post die de app niet herkent, neemt hij over uit in_uit.</div></details>
     </div>
     <div class="card" id="mDetUit" hidden>
       <div class="card-head"><h2>Waar gaat het geld heen?</h2><span class="tiny">tik voor de posten</span></div>
+      <div class="controls"><div class="seg sortseg" role="group" aria-label="Volgorde"><button type="button" data-sort="xls" aria-pressed="true">Volgorde Excel</button><button type="button" data-sort="amt" aria-pressed="false">Op bedrag</button></div></div>
       <div class="bars" id="mBars"></div>
       <details class="dp-more toel"><summary>Toelichting</summary><div class="tiny muted">Per maand, als deel van de totale inkomsten. De posten komen uit het tabblad in_uit, behalve de hypotheek: die rekent de app uit het aflossingsschema ("berekend"). Jaar-, kwartaal- en weekbedragen zijn omgerekend naar een maand.</div></details>
     </div>
@@ -2338,7 +2340,8 @@ function renderMaandSummary() {
   // één overzicht: per groep een balk; tik op een groep om de losse posten te zien
   const groups = {};
   for (const i of UI.inuitEdits.uit) groups[i.group] = (groups[i.group] || 0) + i.amount * PER[i.per];
-  const list = Object.entries(groups).sort((a, b) => b[1] - a[1]);
+  // volgorde: zoals in de Excel (inhoudelijk) of op bedrag
+  const list = Object.entries(groups); if (SORT_AMT) list.sort((a, b) => b[1] - a[1]);
   list.push(['Sparen', t.spaar]);
   const max = Math.max(...list.map(g => g[1]), 1);
   const open = new Set($$('#mBars details[open]').map(d => d.dataset.g));
@@ -2347,6 +2350,7 @@ function renderMaandSummary() {
   $('#mBars').innerHTML = list.map(([g, v]) => {
     if (g === 'Sparen') return barHtml(g, v);
     const items = UI.inuitEdits.uit.map((i, idx) => [i, idx]).filter(([i]) => i.group === g);
+    if (SORT_AMT) items.sort((a, b) => b[0].amount * PER[b[0].per] - a[0].amount * PER[a[0].per]);
     return `<details class="gbar" data-g="${esc(g)}"${open.has(g) ? ' open' : ''}><summary>${barHtml(g, v)}</summary>
       <div class="items">${items.map(([i, idx]) => itemRow(i, idx, 'uit')).join('')}</div></details>`;
   }).join('');
@@ -2494,11 +2498,20 @@ function itemRow(item, idx, kind) {
   return `<div class="item"><span title="${item.app ? esc(item.app) : ''}">${esc(item.label)}${sub ? `<span class="tiny muted" style="display:block" id="pm-${kind}-${idx}">${sub}</span>` : ''}</span>
     <span class="amt num">${pm < 0 ? '−' : ''}${eur2(Math.abs(pm))}</span></div>`;
 }
+let SORT_AMT = false; try { SORT_AMT = localStorage.getItem('of-sort') === 'amt'; } catch (e) { }
+function syncSort() { $$('.sortseg [data-sort]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.sort === 'amt') === SORT_AMT))); }
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.sortseg [data-sort]'); if (!b) return;
+  SORT_AMT = b.dataset.sort === 'amt'; try { localStorage.setItem('of-sort', SORT_AMT ? 'amt' : 'xls'); } catch (x) { }
+  syncSort(); renderMaand();
+});
 function renderMaand() {
+  syncSort();
   const E = UI.inuitEdits;
   const order = [];
   E.uit.forEach((i, idx) => { if (!order.includes(i.group)) order.push(i.group); });
-  $('#mIncome').innerHTML = `<div class="items">${E.inn.map((i, idx) => itemRow(i, idx, 'inn')).join('')}</div>`;
+  const inn = E.inn.map((i, idx) => [i, idx]); if (SORT_AMT) inn.sort((a, b) => b[0].amount * PER[b[0].per] - a[0].amount * PER[a[0].per]);
+  $('#mIncome').innerHTML = `<div class="items">${inn.map(([i, idx]) => itemRow(i, idx, 'inn')).join('')}</div>`;
   for (const inp of $$('#mIncome input')) {
     inp.addEventListener('input', () => {
       const it = E[inp.dataset.kind][+inp.dataset.idx];
@@ -3884,7 +3897,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 08:25';
+const APP_VERSION = '2026-11-26 08:35';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
