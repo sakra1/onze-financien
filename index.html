@@ -3159,7 +3159,7 @@ async function geoLoad(lvl, year) {
   GEO_BUSY[lvl] = false;
   if ($('section[data-view="nederland"].active')) renderMap();
 }
-const ownGemeente = () => { const p = EXT && EXT.params || {}; const v = p.woongemeente || p.gemeente || p.woningregio; return v ? String(v).trim().toLowerCase() : ''; };
+const ownGemeente = () => { const p = { ...((EXT && EXT.params) || {}), ...(typeof paramsFor === 'function' ? paramsFor(THIS_YEAR) : {}) }; const v = p.woongemeente || p.gemeente || p.woningregio; return v ? String(v).trim().toLowerCase() : ''; };
 function renderMap() {
   const host = $('#nlMap'); if (!host) return;
   const G = LIVE && LIVE.gem;
@@ -3201,7 +3201,7 @@ function renderMap() {
   const near = ownC ? vals.slice(Math.max(10, rank[ownC] - 4), rank[ownC] + 3) : [];
   const gap = '<tr><td colspan="3" class="muted">…</td></tr>';
   $('#mapTable').innerHTML = `<table class="compact"><thead><tr><th></th><th>Gemeente</th><th>Gemiddeld</th></tr></thead><tbody>${vals.slice(0, 10).map(row).join('')}${near.length ? gap + near.map(row).join('') : ''}${gap}${vals.slice(-3).filter(([c]) => !near.some(([d]) => d === c)).map(row).join('')}</tbody></table>`;
-  const ownTxt = ownC && G.v[ownC] ? ` Dikke rand: ${esc(gm.f[ownC].name)}, plaats ${rank[ownC]} van ${N} met gemiddeld ${eur(G.v[ownC])}${ourWoz ? `; jullie huis is nu volgens de WOZ-schatting ${x10(ourWoz / G.v[ownC])}× dat gemiddelde` : ''}.` : ' Zet in externe_data bij parameters een regel <b>woongemeente</b> om jullie gemeente te markeren.';
+  const ownTxt = ownC && G.v[ownC] ? ` Dikke rand: ${esc(gm.f[ownC].name)}, plaats ${rank[ownC]} van ${N} met gemiddeld ${eur(G.v[ownC])}${ourWoz ? `; jullie huis is nu volgens de WOZ-schatting ${x10(ourWoz / G.v[ownC])}× dat gemiddelde` : ''}.` : ' Zet in financieel_overzicht op het tabblad parameters een regel <b>woongemeente</b> om jullie gemeente te markeren.';
   $('#mapNote').innerHTML = `Gemiddelde verkoopprijs van bestaande koopwoningen in ${G.year} (CBS en Kadaster), alle woningtypen samen. Zes klassen met elk ongeveer evenveel gemeenten; lijnen = provinciegrenzen.${ownTxt} Tik op een gemeente voor het bedrag.`;
 }
 function renderNederland() {
@@ -4226,7 +4226,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 23:10';
+const APP_VERSION = '2026-11-26 23:15';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
