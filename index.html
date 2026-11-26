@@ -169,6 +169,22 @@ b.ctr .odo-s > span { display: block; height: 1.15em; }
 .tile.tap .chev { font-style: normal; position: absolute; top: 12px; right: 12px; font-size: 12px; color: var(--ink-3); transition: transform .15s; }
 .tile.tap[aria-expanded="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 .tile.tap[aria-expanded="true"] .chev { transform: rotate(180deg); }
+/* Nu: blikvanger-tegel en tegels met een ring */
+.tile.hero { background: linear-gradient(135deg, #14324f 0%, #1f4d7a 100%); border-color: transparent; color: #fff; padding: 14px; }
+.tile.hero span, .tile.hero em, .tile.hero .chev { color: rgba(255, 255, 255, .78); }
+.tile.hero b { font-size: 30px; color: #fff; }
+.tile.hero[aria-expanded="true"] { box-shadow: 0 0 0 2px #8fb8e6 inset; }
+.split { display: flex; height: 10px; border-radius: 999px; overflow: hidden; margin: 10px 0 4px; background: rgba(255, 255, 255, .15); gap: 2px; }
+.split i { display: block; height: 100%; }
+.split .u { background: #8fb8e6; border-radius: 999px 0 0 999px; }
+.split .s { background: #3ecf8e; border-radius: 0 999px 999px 0; }
+.split-leg { display: flex; justify-content: space-between; font-size: 12px; color: rgba(255, 255, 255, .85); }
+.split-leg .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
+.split-leg .dot.u { background: #8fb8e6; } .split-leg .dot.s { background: #3ecf8e; }
+.tile.ringt { grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 10px; }
+.tile.ringt > div { display: grid; gap: 2px; min-width: 0; }
+.tile.ringt .ring { width: 48px; height: 48px; }
+.tile.ringt b { font-size: 19px; }
 .mdet { display: grid; gap: 10px; }
 #flowChart text { paint-order: stroke; stroke: var(--card); stroke-width: 3px; stroke-linejoin: round; }
 #flowChart .flowlab { font-size: 11px; font-weight: 600; fill: var(--ink); }
@@ -2332,10 +2348,19 @@ function renderMaandSummary() {
     in: o.inn.reduce((s, i) => s + i.amount * PER[i.per], 0)
   };
   const dS = t.spaar - (orig.in - orig.uit);
+  // bovenste tegels: inkomsten als blikvanger met de verdeling uitgaven/sparen, daaronder twee tegels met een ring
+  const pU = t.in ? Math.max(0, t.uit / t.in) : 0, pS = t.in ? Math.max(0, t.spaar / t.in) : 0;
+  const netSal = UI.inuitEdits.inn.filter(i => /netto\s*salaris/i.test(i.label)).reduce((a, i) => a + i.amount * PER[i.per], 0);
+  const ring = (p, col) => { const r = 19, c = 2 * Math.PI * r, f = Math.min(1, Math.max(0, p));
+    return `<svg class="ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="${r}" fill="none" stroke="var(--soft)" stroke-width="6"/><circle cx="24" cy="24" r="${r}" fill="none" stroke="var(${col})" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(c * f).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 24 24)"/><text x="24" y="28" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">${Math.round(p * 100)}%</text></svg>`; };
+  const svR = (DATA.vermRaw || []).find(r => r.year === THIS_YEAR);
   $('#mTiles').innerHTML = `
-    <div class="tile tap" style="grid-column:1/-1" role="button" tabindex="0" data-det="in" aria-controls="mDetIn"><span>Inkomsten per maand</span><i class="chev" aria-hidden="true">▾ details</i><b>${eur(t.in)}</b><em>gemiddeld, incl. vakantiegeld e.d.${(() => { const n = UI.inuitEdits.inn.filter(i => /netto\s*salaris/i.test(i.label)).reduce((a, i) => a + i.amount * PER[i.per], 0); return n ? `; waarvan netto salaris ${eur(n)}` : ''; })()}</em></div>
-    <div class="tile tap" role="button" tabindex="0" data-det="uit" aria-controls="mDetUit"><span>Uitgaven</span><i class="chev" aria-hidden="true">▾ details</i><b>${eur(t.uit)}</b><em>${PCT1.format(t.in ? t.uit / t.in : 0)} van de inkomsten</em></div>
-    <div class="tile"><span>Sparen (begroting)</span><b>${eur(t.spaar)}</b><em>${PCT1.format(t.in ? t.spaar / t.in : 0)} van de inkomsten${(r => r && r.svEst != null ? `<br><span class="exp" title="${r.year}, op basis van de werkelijke uitgaven in ${DATA.proj && DATA.proj.anchor}">verwacht ${eur(r.svEst / 12)}</span>` : '')((DATA.vermRaw || []).find(r => r.year === THIS_YEAR))}</em></div>`;
+    <div class="tile tap hero" style="grid-column:1/-1" role="button" tabindex="0" data-det="in" aria-controls="mDetIn"><span>Inkomsten per maand</span><i class="chev" aria-hidden="true">▾ details</i><b>${eur(t.in)}</b>
+      <em>gemiddeld, incl. vakantiegeld e.d.${netSal ? `; waarvan netto salaris ${eur(netSal)}` : ''}</em>
+      <div class="split" aria-hidden="true"><i class="u" style="width:${(Math.min(1, pU) * 100).toFixed(1)}%"></i><i class="s" style="width:${(Math.min(1, pS) * 100).toFixed(1)}%"></i></div>
+      <div class="split-leg"><span><i class="dot u"></i>uitgaven ${PCT0.format(pU)}</span><span><i class="dot s"></i>sparen ${PCT0.format(pS)}</span></div></div>
+    <div class="tile tap ringt" role="button" tabindex="0" data-det="uit" aria-controls="mDetUit">${ring(pU, '--s1')}<div><span>Uitgaven</span><b>${eur(t.uit)}</b><em>van de inkomsten</em></div><i class="chev" aria-hidden="true">▾</i></div>
+    <div class="tile ringt">${ring(pS, '--s3')}<div><span>Sparen</span><b>${eur(t.spaar)}</b><em>begroting${svR && svR.svEst != null ? `<br><span class="exp" title="${svR.year}, op basis van de werkelijke uitgaven in ${DATA.proj && DATA.proj.anchor}">verwacht ${eur(svR.svEst / 12)}</span>` : ''}</em></div></div>`;
   applyDet();
   // één overzicht: per groep een balk; tik op een groep om de losse posten te zien
   const groups = {};
@@ -3897,7 +3922,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 08:35';
+const APP_VERSION = '2026-11-26 17:20';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
