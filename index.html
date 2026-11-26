@@ -136,7 +136,7 @@ table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: upper
 .millegend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--ink-2); margin-top: 2px; }
 .millegend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; border: 1.5px solid var(--s1); }
 .millegend i.s { background: var(--ink-2); border-color: var(--ink-2); } .millegend i.o { background: var(--card); border-color: var(--ink-2); }
-.bnbar { position: sticky; top: var(--hdr, 64px); z-index: 4; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 8px 2px; margin: -4px 0 8px; background: var(--bg); }
+.bnbar { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 8px 2px; margin: -4px 0 8px; background: var(--bg); }
 .bn-wa > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .bn-wa > summary::-webkit-details-marker { display: none; }
 .bn-wa > summary h3 { margin: 0; }
@@ -343,9 +343,9 @@ section[data-view].active { display: grid; }
 .extbtn:active{opacity:.7}
 .controls.sq .chip i { width: 10px; height: 10px; border-radius: 3px; }
 .controls.stickyctl { flex-wrap: nowrap; justify-content: space-between; background: var(--card); margin: -4px -16px 0; padding: 6px 16px; }
-.controls.stickyctl.pinned { position: fixed; top: calc(var(--hdr, 64px) - 1px); z-index: 4; margin: 0; box-shadow: 0 1px 0 var(--line); }
-section.swiping .controls.stickyctl.pinned { visibility: hidden; }
-.stickyctl-spacer { display: none; margin-top: -4px; }
+.pinned-row { position: fixed !important; top: calc(var(--hdr, 64px) - 1px); z-index: 4; margin: 0 !important; box-shadow: 0 1px 0 var(--line); }
+section.swiping .pinned-row { visibility: hidden; }
+.stickyctl-spacer { display: none; }
 .stickyctl-spacer.on { display: block; }
 </style>
 </head>
@@ -3952,20 +3952,21 @@ function pinRow(card, row) {
   const upd = () => {
     tick = 0;
     // onderkant van de kop live meten: op de iPhone wordt de veilige zone bovenin soms pas na het starten toegepast
-    const hb = document.querySelector('header.top'), hdr = hb ? hb.getBoundingClientRect().bottom : 64, cr = card.getBoundingClientRect(), active = !FS && card.offsetParent && card.closest('section.active');
+    const hb = document.querySelector('header.top'), hdr = hb ? hb.getBoundingClientRect().bottom : 64, cr = card.getBoundingClientRect(), active = !FS && card.offsetParent && card.closest('section.active') && !card.closest('#fsOverlay');
     const ref = on ? sp : row, h = row.getBoundingClientRect().height, top = ref.getBoundingClientRect().top;
     const want = !!active && top < hdr - 1 && cr.bottom > hdr + h + 16;
     if (want !== on) {
       on = want;
-      if (on) { sp.style.height = h + 'px'; row.style.top = (hdr - 1) + 'px'; row.style.left = (cr.left + card.clientLeft) + 'px'; row.style.width = card.clientWidth + 'px'; }
+      if (on) { sp.style.margin = getComputedStyle(row).margin; sp.style.height = h + 'px'; row.style.top = (hdr - 1) + 'px'; row.style.left = (cr.left + card.clientLeft) + 'px'; row.style.width = card.clientWidth + 'px'; }
       else { row.style.left = row.style.width = row.style.top = ''; }
-      sp.classList.toggle('on', on); row.classList.toggle('pinned', on);
+      sp.classList.toggle('on', on); row.classList.toggle('pinned', on); row.classList.toggle('pinned-row', on);
     } else if (on) { const l = (cr.left + card.clientLeft) + 'px', t = (hdr - 1) + 'px'; if (row.style.left !== l) row.style.left = l; if (row.style.top !== t) row.style.top = t; }
   };
   const q = () => { if (!tick) tick = requestAnimationFrame(upd); };
-  document.addEventListener('scroll', q, { passive: true, capture: true }); window.addEventListener('touchmove', q, { passive: true }); window.addEventListener('touchend', () => setTimeout(q, 60), { passive: true }); window.addEventListener('resize', q); window.addEventListener('hashchange', () => setTimeout(q, 50));
+  document.addEventListener('scroll', q, { passive: true, capture: true }); window.addEventListener('touchmove', q, { passive: true }); window.addEventListener('touchend', () => setTimeout(q, 60), { passive: true }); window.addEventListener('resize', q); window.addEventListener('hashchange', () => setTimeout(q, 50)); document.addEventListener('click', () => setTimeout(q, 0), true);
 }
 function initChartTools() {
+  for (const bar of $$('.bnbar')) if (!bar.dataset.pin) { bar.dataset.pin = '1'; pinRow(bar.parentElement, bar); }
   if (!$('#fsOverlay')) {
     const ov = document.createElement('div'); ov.id = 'fsOverlay'; ov.hidden = true;
     ov.innerHTML = '<div class="fs-bar"><button type="button" class="fs-close">Sluiten ✕</button></div><div class="fs-body"></div>';
@@ -4081,7 +4082,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 21:45';
+const APP_VERSION = '2026-11-26 21:50';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
