@@ -342,8 +342,11 @@ section[data-view].active { display: grid; }
 .extbtn{display:block;margin-top:10px;padding:9px 12px;border-radius:10px;background:var(--soft);color:var(--ink);font-weight:600;text-decoration:none;text-align:center}
 .extbtn:active{opacity:.7}
 .controls.sq .chip i { width: 10px; height: 10px; border-radius: 3px; }
-.controls.stickyctl { position: sticky; top: calc(var(--hdr, 64px) - 1px); z-index: 3; transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden; flex-wrap: nowrap; justify-content: space-between; background: var(--card); margin: -4px -16px 0; padding: 6px 16px; }
-#fsOverlay .controls.stickyctl { top: 0; }
+.controls.stickyctl { flex-wrap: nowrap; justify-content: space-between; background: var(--card); margin: -4px -16px 0; padding: 6px 16px; }
+.controls.stickyctl.pinned { position: fixed; top: calc(var(--hdr, 64px) - 1px); z-index: 4; margin: 0; box-shadow: 0 1px 0 var(--line); }
+section.swiping .controls.stickyctl.pinned { visibility: hidden; }
+.stickyctl-spacer { display: none; }
+.stickyctl-spacer.on { display: block; }
 </style>
 </head>
 <body>
@@ -3927,11 +3930,30 @@ function fsOpen(card) {
   const ov = $('#fsOverlay'), ph = document.createComment('fs'); card.before(ph); FS = { card, ph };
   ov.querySelector('.fs-body').appendChild(card); ov.hidden = false; document.body.style.overflow = 'hidden'; ov.scrollTop = 0;
   try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); } catch (e) { }
-  renderCharts();
+  renderCharts(); window.dispatchEvent(new Event('scroll'));
 }
 function fsClose() {
   if (!FS) return; FS.ph.replaceWith(FS.card); FS = null;
-  $('#fsOverlay').hidden = true; document.body.style.overflow = ''; renderCharts();
+  $('#fsOverlay').hidden = true; document.body.style.overflow = ''; renderCharts(); window.dispatchEvent(new Event('scroll'));
+}
+// Vaste keuzeregel: geen CSS-sticky (trilt in iOS Safari binnen de kaart), maar position: fixed zolang de kaart onder de kop doorschuift
+function pinRow(card, row) {
+  const sp = document.createElement('div'); sp.className = 'stickyctl-spacer'; row.after(sp);
+  let on = false, tick = 0;
+  const upd = () => {
+    tick = 0;
+    const hdr = HDR_H || 64, cr = card.getBoundingClientRect(), active = !FS && card.offsetParent && card.closest('section.active');
+    const ref = on ? sp : row, h = row.offsetHeight, top = ref.getBoundingClientRect().top;
+    const want = !!active && top < hdr && cr.bottom > hdr + h + 16;
+    if (want !== on) {
+      on = want;
+      if (on) { sp.style.height = h + 'px'; row.style.left = (cr.left + card.clientLeft) + 'px'; row.style.width = card.clientWidth + 'px'; }
+      else { row.style.left = row.style.width = ''; }
+      sp.classList.toggle('on', on); row.classList.toggle('pinned', on);
+    } else if (on) { const l = (cr.left + card.clientLeft) + 'px'; if (row.style.left !== l) row.style.left = l; }
+  };
+  const q = () => { if (!tick) tick = requestAnimationFrame(upd); };
+  window.addEventListener('scroll', q, { passive: true }); window.addEventListener('resize', q); window.addEventListener('hashchange', () => setTimeout(q, 50));
 }
 function initChartTools() {
   if (!$('#fsOverlay')) {
@@ -3955,6 +3977,7 @@ function initChartTools() {
       const ps = head.querySelector('.seg[aria-label="Persoon"]');
       if (ps) { row.insertBefore(ps, seg); row.classList.add('stickyctl'); }
       head.after(row);
+      if (ps) pinRow(card, row);
     }
   }
 }
@@ -4048,7 +4071,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 21:10';
+const APP_VERSION = '2026-11-26 21:20';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
