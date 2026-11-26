@@ -181,10 +181,12 @@ b.ctr .odo-s > span { display: block; height: 1.15em; }
 .split-leg { display: flex; justify-content: space-between; font-size: 12px; color: rgba(255, 255, 255, .85); }
 .split-leg .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
 .split-leg .dot.u { background: #8fb8e6; } .split-leg .dot.s { background: #3ecf8e; }
-.tile.ringt { grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 10px; }
-.tile.ringt > div { display: grid; gap: 2px; min-width: 0; }
-.tile.ringt .ring { width: 48px; height: 48px; }
-.tile.ringt b { font-size: 19px; }
+.tile.ringt { grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; align-items: center; }
+.tile.ringt > span, .tile.ringt > b { grid-column: 1; }
+.tile.ringt > em { grid-column: 1 / -1; }
+.tile.ringt .ring { grid-column: 2; grid-row: 1 / span 2; width: 48px; height: 48px; }
+.tile.ringt b { font-size: 20px; }
+.tile.ringt em.more { color: var(--ink-3); }
 .mdet { display: grid; gap: 10px; }
 #flowChart text { paint-order: stroke; stroke: var(--card); stroke-width: 3px; stroke-linejoin: round; }
 #flowChart .flowlab { font-size: 11px; font-weight: 600; fill: var(--ink); }
@@ -2359,8 +2361,8 @@ function renderMaandSummary() {
       <em>gemiddeld, incl. vakantiegeld e.d.${netSal ? `; waarvan netto salaris ${eur(netSal)}` : ''}</em>
       <div class="split" aria-hidden="true"><i class="u" style="width:${(Math.min(1, pU) * 100).toFixed(1)}%"></i><i class="s" style="width:${(Math.min(1, pS) * 100).toFixed(1)}%"></i></div>
       <div class="split-leg"><span><i class="dot u"></i>uitgaven</span><span><i class="dot s"></i>sparen</span></div></div>
-    <div class="tile tap ringt" role="button" tabindex="0" data-det="uit" aria-controls="mDetUit">${ring(pU, '--s1')}<div><span>Uitgaven</span><b>${eur(t.uit)}</b><em>van de inkomsten</em></div><i class="chev" aria-hidden="true">▾</i></div>
-    <div class="tile ringt">${ring(pS, '--s3')}<div><span>Sparen</span><b>${eur(t.spaar)}</b><em>begroting${svR && svR.svEst != null ? `<br><span class="exp" title="${svR.year}, op basis van de werkelijke uitgaven in ${DATA.proj && DATA.proj.anchor}">verwacht ${eur(svR.svEst / 12)}</span>` : ''}</em></div></div>`;
+    <div class="tile tap ringt" role="button" tabindex="0" data-det="uit" aria-controls="mDetUit"><span>Uitgaven</span>${ring(pU, '--s1')}<b>${eur(t.uit)}</b><em class="more">▾ details</em></div>
+    <div class="tile ringt"><span>Sparen</span>${ring(pS, '--s3')}<b>${eur(t.spaar)}</b><em>${svR && svR.svEst != null ? `<span class="exp" title="Begroting ${eur(t.spaar)}; verwacht voor ${svR.year} op basis van de werkelijke uitgaven in ${DATA.proj && DATA.proj.anchor}">verwacht ${eur(svR.svEst / 12)}</span>` : 'begroting'}</em></div>`;
   applyDet();
   // één overzicht: per groep een balk; tik op een groep om de losse posten te zien
   const groups = {};
@@ -3922,7 +3924,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 17:25';
+const APP_VERSION = '2026-11-26 17:30';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
