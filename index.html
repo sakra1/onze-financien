@@ -65,7 +65,7 @@ button, input, select { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
 
 header.top {
-  position: sticky; top: 0; z-index: 5; background: var(--accent); color: var(--accent-ink);
+  position: sticky; top: 0; z-index: 5; background: var(--accent); color: var(--accent-ink); transform: translateZ(0);
   padding: calc(12px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
   display: flex; align-items: center; gap: 12px;
 }
@@ -342,7 +342,7 @@ section[data-view].active { display: grid; }
 .extbtn{display:block;margin-top:10px;padding:9px 12px;border-radius:10px;background:var(--soft);color:var(--ink);font-weight:600;text-decoration:none;text-align:center}
 .extbtn:active{opacity:.7}
 .controls.sq .chip i { width: 10px; height: 10px; border-radius: 3px; }
-.controls.stickyctl { position: sticky; top: var(--hdr, 64px); z-index: 3; flex-wrap: nowrap; justify-content: space-between; background: var(--card); margin: -4px -16px 0; padding: 6px 16px; }
+.controls.stickyctl { position: sticky; top: calc(var(--hdr, 64px) - 1px); z-index: 3; transform: translateZ(0); -webkit-backface-visibility: hidden; backface-visibility: hidden; flex-wrap: nowrap; justify-content: space-between; background: var(--card); margin: -4px -16px 0; padding: 6px 16px; }
 #fsOverlay .controls.stickyctl { top: 0; }
 </style>
 </head>
@@ -3894,7 +3894,8 @@ $$('[data-range]').forEach(b => b.addEventListener('click', () => { UI.range = +
 $$('[data-person]').forEach(b => b.addEventListener('click', () => { UI.person = b.dataset.person; setPressed('[data-person]', 'data-person', UI.person); renderBNInputs(); renderBN(); }));
 $$('[data-opwho]').forEach(b => b.addEventListener('click', () => { GUI.opWho = b.dataset.opwho; setPressed('[data-opwho]', 'data-opwho', GUI.opWho); renderOpbouw(); }));
 $$('[data-bnper]').forEach(b => b.addEventListener('click', () => { BN_PER = b.dataset.bnper; setPressed('[data-bnper]', 'data-bnper', BN_PER); renderBN(); }));
-const setHdr = () => { const h = document.querySelector('header.top'); if (h) document.documentElement.style.setProperty('--hdr', h.offsetHeight + 'px'); };
+let HDR_H = null;
+const setHdr = () => { const h = document.querySelector('header.top'); if (!h) return; const v = h.getBoundingClientRect().height; if (v === HDR_H) return; HDR_H = v; document.documentElement.style.setProperty('--hdr', v + 'px'); };
 setHdr(); window.addEventListener('resize', setHdr);
 
 const VIEWS = ['nu', 'nederland', 'inkomen', 'carriere', 'vermogen'];
@@ -4047,7 +4048,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 21:05';
+const APP_VERSION = '2026-11-26 21:10';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
