@@ -342,6 +342,8 @@ section[data-view].active { display: grid; }
 .extbtn{display:block;margin-top:10px;padding:9px 12px;border-radius:10px;background:var(--soft);color:var(--ink);font-weight:600;text-decoration:none;text-align:center}
 .extbtn:active{opacity:.7}
 .controls.sq .chip i { width: 10px; height: 10px; border-radius: 3px; }
+.controls.stickyctl { position: sticky; top: var(--hdr, 64px); z-index: 3; flex-wrap: nowrap; justify-content: space-between; background: var(--card); margin: -4px -16px 0; padding: 6px 16px; }
+#fsOverlay .controls.stickyctl { top: 0; }
 </style>
 </head>
 <body>
@@ -3948,6 +3950,9 @@ function initChartTools() {
       seg.addEventListener('click', e => { const t = e.target.closest('[data-rg]'); if (!t) return; card.dataset.range = t.dataset.rg === '0' ? '' : t.dataset.rg;
         seg.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === t))); renderCharts(); });
       const row = document.createElement('div'); row.className = 'controls'; row.appendChild(seg);
+      // keuze voor persoon (Carrière) op dezelfde regel, en die regel blijft zichtbaar tijdens het scrollen door de kaart
+      const ps = head.querySelector('.seg[aria-label="Persoon"]');
+      if (ps) { row.insertBefore(ps, seg); row.classList.add('stickyctl'); }
       head.after(row);
     }
   }
@@ -4042,7 +4047,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 21:00';
+const APP_VERSION = '2026-11-26 21:05';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
