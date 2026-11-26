@@ -345,7 +345,7 @@ section[data-view].active { display: grid; }
 .controls.stickyctl { flex-wrap: nowrap; justify-content: space-between; background: var(--card); margin: -4px -16px 0; padding: 6px 16px; }
 .controls.stickyctl.pinned { position: fixed; top: calc(var(--hdr, 64px) - 1px); z-index: 4; margin: 0; box-shadow: 0 1px 0 var(--line); }
 section.swiping .controls.stickyctl.pinned { visibility: hidden; }
-.stickyctl-spacer { display: none; }
+.stickyctl-spacer { display: none; margin-top: -4px; }
 .stickyctl-spacer.on { display: block; }
 </style>
 </head>
@@ -3943,8 +3943,8 @@ function pinRow(card, row) {
   const upd = () => {
     tick = 0;
     const hdr = HDR_H || 64, cr = card.getBoundingClientRect(), active = !FS && card.offsetParent && card.closest('section.active');
-    const ref = on ? sp : row, h = row.offsetHeight, top = ref.getBoundingClientRect().top;
-    const want = !!active && top < hdr && cr.bottom > hdr + h + 16;
+    const ref = on ? sp : row, h = row.getBoundingClientRect().height, top = ref.getBoundingClientRect().top;
+    const want = !!active && top < hdr - 1 && cr.bottom > hdr + h + 16;
     if (want !== on) {
       on = want;
       if (on) { sp.style.height = h + 'px'; row.style.left = (cr.left + card.clientLeft) + 'px'; row.style.width = card.clientWidth + 'px'; }
@@ -4071,7 +4071,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 21:20';
+const APP_VERSION = '2026-11-26 21:25';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
