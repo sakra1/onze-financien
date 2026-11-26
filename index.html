@@ -26,7 +26,7 @@
   --accent: #14324f;
   --accent-ink: #ffffff;
   --soft: #e8eef5;
-  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s1d: #1d4f8f;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s1d: #1d4f8f; --s5: #c44a9c;
   --good: #0f7b4a; --bad: #b3261e;
   --font-display: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
   --font-body: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
@@ -37,7 +37,7 @@
     color-scheme: dark;
     --bg: #0f151b; --card: #18212a; --ink: #eef2f6; --ink-2: #b4bfca; --ink-3: #8794a1;
     --line: #2a3541; --accent: #8fb8e6; --accent-ink: #0f151b; --soft: #22303d;
-    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s1d: #2459a0;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s1d: #2459a0; --s5: #d965b2;
     --good: #4cc38a; --bad: #ff8a80;
   }
 }
@@ -45,7 +45,7 @@
   color-scheme: dark;
   --bg: #0f151b; --card: #18212a; --ink: #eef2f6; --ink-2: #b4bfca; --ink-3: #8794a1;
   --line: #2a3541; --accent: #8fb8e6; --accent-ink: #0f151b; --soft: #22303d;
-  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s1d: #2459a0;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s1d: #2459a0; --s5: #d965b2;
   --good: #4cc38a; --bad: #ff8a80;
 }
 * { box-sizing: border-box; }
@@ -2968,7 +2968,7 @@ function renderCareer() {
     { k: 'st', name: 'Startsalaris', color: '--ink-3', on: true, values: st },
     { k: 'pr', name: 'Promotie', color: '--s3', on: true, values: pr },
     { k: 'ca', name: 'Cao maandloon', color: '--s1', on: true, values: ca },
-    { k: 'ej', name: 'Cao eju', color: '--s1d', on: true, values: ej },
+    { k: 'ej', name: 'Cao eju', color: '--s5', on: true, values: ej },
     { k: 'vu', name: 'Vakantiegeld', color: '--s4', on: true, values: vu },
     { k: 'inf', name: 'Weg door inflatie', color: '--bad', on: true, values: inf }
   ];
@@ -3007,13 +3007,13 @@ function renderCareer() {
     { lo: lv.infl, hi: mk(r => r.I ? 1 : null), color: '--bad', opacity: 0.4 },
     { lo: lv.one, hi: lv.p, color: '--s3', opacity: 0.45 },
     { lo: lv.p, hi: lv.pc, color: '--s1', opacity: 0.4 },
-    { lo: lv.pc, hi: lv.pce, color: '--s1d', opacity: 0.7 }
+    { lo: lv.pc, hi: lv.pce, color: '--s5', opacity: 0.5 }
   ];
   const fx = v => NUM2.format(Math.round(v * 100) / 100) + '×';
   lineChart($('#k7Chart'), defs.map(([k, name, color, fn, dash]) => ({ name, color, dashedAll: dash, points: KUI.k7[k] ? f(k, fn) : [] })), {
     label: 'groeifactoren', progX: (rows.find(r => r.prog) || {}).year, log: true, yMinFix: lowF, refLine: 1, bands: k7Bands, bandSep: true, halo: true, noDots: true, height: 260, yFmt: v => NUM2.format(v) + '×', tipFmt: fx, xFmt: String, tipTitle: String,
     tipExtra: y => { const r = by[y]; return r ? `<div class="r"><span>promotie P</span><span>${fx(r.P)}</span></div><div class="r"><span>cao C</span><span>${fx(r.C)}</span></div><div class="r"><span>eju E</span><span>${fx(r.E)}</span></div>` + (r.I ? `<div class="r"><span>inflatie</span><span>${fx(r.I)}</span></div>` : '') : ''; } });
-  $('#k7Legend').innerHTML = [['Promotie P', '--s3'], ['Cao maandloon C', '--s1'], ['Cao eju E', '--s1d'], ['Inflatie (onder de 1)', '--bad']].map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
+  $('#k7Legend').innerHTML = [['Promotie P', '--s3'], ['Cao maandloon C', '--s1'], ['Cao eju E', '--s5'], ['Inflatie (onder de 1)', '--bad']].map(([n, c]) => `<span style="--c:var(${c})">${n}</span>`).join('');
   chips($('#k7Chips'), defs.map(([k, n, c, , d]) => [k, n, c, d]), KUI.k7, renderKoopkracht);
 
   // jaar-op-jaar: promotie en cao (cel 24 van het notebook)
@@ -4042,7 +4042,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 20:55';
+const APP_VERSION = '2026-11-26 21:00';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
