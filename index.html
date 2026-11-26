@@ -579,6 +579,7 @@ section[data-view].active { display: grid; }
 
   <!-- ============ CARRIÈRE ============ -->
   <section data-view="carriere" aria-label="Carrière, cao en inflatie">
+    <div class="tiny" style="padding:0 2px">Alle lonen op dit tabblad zijn bruto: vóór belasting en premies. Wat jullie netto overhouden staat onder Inkomen.</div>
     <div class="controls jump" aria-label="Spring naar">
       <button type="button" class="chip" data-jump="sec-cao">Cao en inflatie</button>
       <button type="button" class="chip" data-jump="sec-reeel">Reëel</button>
@@ -626,7 +627,7 @@ section[data-view].active { display: grid; }
         </div>
       </div>
       <div class="tiles" id="k4Tiles"></div>
-      <h3>Opbouw maandsalaris per fte</h3>
+      <h3>Opbouw bruto maandsalaris per fte</h3>
       <div class="legend" id="k4Legend"></div>
       <div class="chart" id="k4Chart"></div>
       <details class="table"><summary>Toon maandsalarissen als tabel</summary><div class="tablewrap" id="k4Table"></div></details>
@@ -4035,7 +4036,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 20:20';
+const APP_VERSION = '2026-11-26 20:25';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
