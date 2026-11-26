@@ -188,8 +188,7 @@ b.ctr .odo-s > span { display: block; height: 1.15em; }
 .tile.ringt b { font-size: 20px; }
 .tile.ringt em.more, .tile.ringt .more { color: var(--ink-3); font-weight: 400; }
 .tile.ringt { position: relative; }
-.tile.ringt em.row { display: block; padding-right: 16px; }
-.tile.ringt em.row > .more:last-child { position: absolute; right: 12px; bottom: 11px; }
+.tile.ringt em.row { display: block; }
 .tile.ringt em.row .exp { font-weight: 500; color: var(--ink-2); }
 .sp-t { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
 .sp-t td:first-child, .sp-t th:first-child { width: 46%; }
@@ -2375,8 +2374,8 @@ function renderMaandSummary() {
       <em>gemiddeld, incl. vakantiegeld e.d.${netSal ? `; waarvan netto salaris ${eur(netSal)}` : ''}</em>
       <div class="split" aria-hidden="true"><i class="u" style="width:${(Math.min(1, pU) * 100).toFixed(1)}%"></i><i class="s" style="width:${(Math.min(1, pS) * 100).toFixed(1)}%"></i></div>
       <div class="split-leg"><span><i class="dot u"></i>uitgaven</span><span><i class="dot s"></i>sparen</span></div></div>
-    <div class="tile tap ringt" role="button" tabindex="0" data-det="uit" aria-controls="mDetUit"><span>Uitgaven</span>${ring(pU, '--s1')}<b>${eur(t.uit)}</b><em class="row"><span class="more">details</span><span class="more">▾</span></em></div>
-    <div class="tile tap ringt" role="button" tabindex="0" data-det="sp" aria-controls="mDetSp"><span>Sparen</span>${ring(pS, '--s3')}<b>${eur(t.spaar)}</b><em class="row">${svR && svR.svEst != null ? `<span class="exp" title="gemiddeld ${svR.year}">⟨${svR.year}⟩ ${eur(svR.svEst / 12)}</span><span class="more">▾</span>` : 'begroting'}</em></div>`;
+    <div class="tile tap ringt" role="button" tabindex="0" data-det="uit" aria-controls="mDetUit"><span>Uitgaven</span>${ring(pU, '--s1')}<b>${eur(t.uit)}</b><em class="row"><span class="more">details</span></em></div>
+    <div class="tile tap ringt" role="button" tabindex="0" data-det="sp" aria-controls="mDetSp"><span>Sparen</span>${ring(pS, '--s3')}<b>${eur(t.spaar)}</b><em class="row">${svR && svR.svEst != null ? `<span class="exp">gemiddeld ${svR.year}: ${eur(svR.svEst / 12)}</span>` : 'begroting'}</em></div>`;
   // uitklap: waarom het verwachte sparen afwijkt van de begroting
   if (svR && svR.svEst != null) {
     const hypB = UI.inuitEdits.uit.filter(i => /hypotheek/i.test(i.label)).reduce((a, i) => a + i.amount * PER[i.per], 0);
@@ -3952,7 +3951,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 18:00';
+const APP_VERSION = '2026-11-26 18:05';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
