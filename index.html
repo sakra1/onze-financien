@@ -272,7 +272,7 @@ details.group > summary::before { content: "▸"; color: var(--ink-3); margin-ri
 details.group[open] > summary::before { transform: rotate(90deg); }
 details.group > summary .name { flex: 1; }
 .items { padding: 0 14px 10px; display: grid; gap: 6px; }
-.item { display: grid; grid-template-columns: minmax(0, 1fr) auto 76px; gap: 4px 8px; align-items: center; font-size: 14px; padding: 6px 0; border-top: 1px solid var(--line); }
+.item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; align-items: center; font-size: 14px; padding: 6px 0; border-top: 1px solid var(--line); }
 .item .edit { display: flex; align-items: center; gap: 6px; }
 .item input { width: 92px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); text-align: right; }
 .item input.changed { border-color: var(--s2); }
@@ -2489,9 +2489,10 @@ function itemRow(item, idx, kind) {
   const pm = item.amount * PER[item.per];
   const xd = item.app && Math.abs(item.xls * PER[item.xlsPer] - pm) >= 0.5 ? ` (Excel ${eur(item.xls)})` : '';
   const xm = item.app && item.app.match(/vanaf \w+ €\s?[\d.]+/), extra = xm ? ' · ' + xm[0] : '';
-  return `<div class="item"><span title="${item.app ? esc(item.app) : ''}">${esc(item.label)}${item.app ? `<span class="tiny muted" style="display:block">berekend${xd}${extra}</span>` : ''}</span>
-    <span class="amt num">${item.amount < 0 ? '−' : ''}${eur2(Math.abs(item.amount))}</span><span class="per">per ${item.per}</span>
-    ${item.per !== 'maand' ? `<span class="pm" id="pm-${kind}-${idx}">${eur2(pm)} per maand</span>` : ''}</div>`;
+  // hoofdbedrag altijd per maand, recht onder elkaar; het oorspronkelijke jaar-/week-/kwartaalbedrag klein eronder
+  const sub = [item.per !== 'maand' ? `${item.amount < 0 ? '−' : ''}${eur2(Math.abs(item.amount))} per ${item.per}` : '', item.app ? `berekend${xd}${extra}` : ''].filter(Boolean).join(' · ');
+  return `<div class="item"><span title="${item.app ? esc(item.app) : ''}">${esc(item.label)}${sub ? `<span class="tiny muted" style="display:block" id="pm-${kind}-${idx}">${sub}</span>` : ''}</span>
+    <span class="amt num">${pm < 0 ? '−' : ''}${eur2(Math.abs(pm))}</span></div>`;
 }
 function renderMaand() {
   const E = UI.inuitEdits;
@@ -3883,7 +3884,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 07:35';
+const APP_VERSION = '2026-11-26 08:25';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
