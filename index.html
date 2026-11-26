@@ -3961,42 +3961,57 @@ function renderAll() {
   renderCharts();
 }
 window.addEventListener('hashchange', route);
-// ===== vegen naar het vorige of volgende tabblad =====
+// ===== vegen naar het vorige of volgende tabblad, met het buurtabblad al in beeld =====
 // niet op grafieken, knoppen, invoervelden of tabellen die zelf horizontaal scrollen, en niet vanaf de schermranden (iOS: terug)
 (() => {
   const TABS = () => $$('nav.tabs a').map(a => a.dataset.tab);
   const SKIP = '.chart, #flowChart, input, select, textarea, button, a, .seg, .tablewrap, .chips, .controls, #dataPanel, #fsOverlay, #lockScreen, .tip, [data-noswipe]';
-  let st = null;
   const view = () => $('section[data-view].active');
+  let st = null;
+  const clear = el => { if (el) { el.style.cssText = el.dataset.css || ''; delete el.dataset.css; el.classList.remove('peek'); } };
+  function prepNeighbor(cur, nb) {
+    if (!nb || nb.classList.contains('peek')) return;
+    const r = cur.getBoundingClientRect(), top = Math.max(0, $('main').getBoundingClientRect().top + 14);
+    nb.dataset.css = nb.style.cssText; nb.classList.add('peek');
+    Object.assign(nb.style, { display: 'grid', position: 'fixed', top: top + 'px', left: r.left + 'px', width: r.width + 'px', height: (window.innerHeight - top) + 'px', overflow: 'hidden', zIndex: 5, pointerEvents: 'none', transition: 'none', background: 'var(--bg)', alignContent: 'start' });
+  }
+  function setPos(dx) {
+    const W = window.innerWidth, cur = st.cur, nb = dx < 0 ? st.next : st.prev, other = dx < 0 ? st.prev : st.next;
+    clear(other);
+    cur.style.transition = 'none'; cur.style.transform = `translateX(${nb ? dx : dx * 0.15}px)`;
+    if (nb) { prepNeighbor(cur, nb); nb.style.transform = `translateX(${dx < 0 ? W + dx : -W + dx}px)`; }
+  }
   document.addEventListener('touchstart', e => {
     st = null;
-    if (e.touches.length !== 1) return;
+    if (e.touches.length !== 1 || FS || document.documentElement.classList.contains('locked')) return;
     const t = e.touches[0], el = e.target;
-    if (FS || document.documentElement.classList.contains('locked') || (el.closest && el.closest(SKIP))) return;
-    if (t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
-    st = { x: t.clientX, y: t.clientY, t: Date.now(), dir: null };
+    if ((el.closest && el.closest(SKIP)) || t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
+    const cur = view(); if (!cur) return;
+    const tabs = TABS(), i = tabs.indexOf(cur.dataset.view);
+    const sec = k => (k >= 0 && k < tabs.length) ? $(`section[data-view="${tabs[k]}"]`) : null;
+    st = { x: t.clientX, y: t.clientY, dir: null, cur, prev: sec(i - 1), next: sec(i + 1), i, tabs };
   }, { passive: true });
   document.addEventListener('touchmove', e => {
     if (!st) return;
     const t = e.touches[0], dx = t.clientX - st.x, dy = t.clientY - st.y;
     if (!st.dir && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) st.dir = Math.abs(dx) > Math.abs(dy) * 1.5 ? 'h' : 'v';
-    if (st.dir !== 'h') return;
-    const tabs = TABS(), i = tabs.indexOf(view()?.dataset.view), edge = (dx > 0 && i <= 0) || (dx < 0 && i >= tabs.length - 1);
-    const v = view(); if (v) { v.style.transition = 'none'; v.style.transform = `translateX(${dx * (edge ? 0.12 : 0.35)}px)`; v.style.opacity = String(1 - Math.min(0.35, Math.abs(dx) / 900)); }
+    if (st.dir === 'h') setPos(dx);
   }, { passive: true });
-  document.addEventListener('touchend', e => {
-    if (!st) return;
-    const t = e.changedTouches[0], dx = t.clientX - st.x, dy = t.clientY - st.y, v = view(), dir = st.dir; st = null;
-    const reset = () => { if (v) { v.style.transition = 'transform .18s ease, opacity .18s ease'; v.style.transform = ''; v.style.opacity = ''; } };
-    if (dir !== 'h' || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return reset();
-    const tabs = TABS(), i = tabs.indexOf(v?.dataset.view), j = i + (dx < 0 ? 1 : -1);
-    if (i < 0 || j < 0 || j >= tabs.length) return reset();
-    if (v) { v.style.transition = ''; v.style.transform = ''; v.style.opacity = ''; }
-    location.hash = '#' + tabs[j];
-    requestAnimationFrame(() => { const n = view(); if (!n) return; n.style.transition = 'none'; n.style.transform = `translateX(${dx < 0 ? 40 : -40}px)`; n.style.opacity = '0.4';
-      requestAnimationFrame(() => { n.style.transition = 'transform .2s ease, opacity .2s ease'; n.style.transform = ''; n.style.opacity = ''; }); });
-  }, { passive: true });
-  document.addEventListener('touchcancel', () => { const v = view(); st = null; if (v) { v.style.transform = ''; v.style.opacity = ''; } }, { passive: true });
+  function end(dx, dy) {
+    const s = st; st = null; if (!s || s.dir !== 'h') return;
+    const W = window.innerWidth, nb = dx < 0 ? s.next : s.prev, go = nb && Math.abs(dx) > Math.min(110, W * 0.25) && Math.abs(dx) > Math.abs(dy) * 2;
+    const ease = 'transform .22s cubic-bezier(.2,.7,.3,1)';
+    s.cur.style.transition = ease; if (nb) nb.style.transition = ease;
+    if (go) {
+      s.cur.style.transform = `translateX(${dx < 0 ? -W : W}px)`; nb.style.transform = 'translateX(0)';
+      setTimeout(() => { clear(s.prev); clear(s.next); s.cur.style.transition = 'none'; s.cur.style.transform = ''; location.hash = '#' + nb.dataset.view; }, 230);
+    } else {
+      s.cur.style.transform = ''; if (nb) nb.style.transform = `translateX(${dx < 0 ? W : -W}px)`;
+      setTimeout(() => { clear(s.prev); clear(s.next); s.cur.style.transition = ''; }, 240);
+    }
+  }
+  document.addEventListener('touchend', e => { if (!st) return; const t = e.changedTouches[0]; end(t.clientX - st.x, t.clientY - st.y); }, { passive: true });
+  document.addEventListener('touchcancel', () => { if (st) end(0, 0); }, { passive: true });
 })();
 let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(renderCharts, 120); });
 new MutationObserver(renderCharts).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
@@ -4005,7 +4020,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 19:40';
+const APP_VERSION = '2026-11-26 19:55';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
