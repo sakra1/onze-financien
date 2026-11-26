@@ -339,6 +339,8 @@ section[data-view] { display: none; gap: 14px; }
 section[data-view].active { display: grid; }
 .note { font-size: 12px; color: var(--ink-3); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+.extbtn{display:block;margin-top:10px;padding:9px 12px;border-radius:10px;background:var(--soft);color:var(--ink);font-weight:600;text-decoration:none;text-align:center}
+.extbtn:active{opacity:.7}
 </style>
 </head>
 <body>
@@ -1972,7 +1974,7 @@ function renderKpis(onlyKpis) {
       <div class="split-leg"><span><i class="dot o"></i>overwaarde ${PCT0.format(ow / T)}</span><span><i class="dot p"></i>spaargeld ${PCT0.format(sp / T)}</span></div>`; })() : ''}</div>
     <div class="tile"><span>Overwaarde huis</span><b id="owLive">${cur ? eur(cur.woz - cur.hyp) : '–'}</b>${cur && cur.woz > 0 ? `<div class="hbar" aria-hidden="true"><i class="o" style="width:${(Math.max(0, 1 - cur.hyp / cur.woz) * 100).toFixed(1)}%"></i><i class="h" style="width:${(Math.min(1, cur.hyp / cur.woz) * 100).toFixed(1)}%"></i></div>` : ''}<em>${wozTxt}</em></div>
     <div class="tile ringt"><span>Spaargeld</span>${buf != null ? (() => { const r = 19, c = 2 * Math.PI * r, f = Math.min(1, buf / 6);
-      return `<svg class="ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="${r}" fill="none" stroke="var(--soft)" stroke-width="6"/><circle cx="24" cy="24" r="${r}" fill="none" stroke="var(--s3)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(c * f).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 24 24)"/>${buf >= 6 ? `<path d="M16 24.5l5.5 5.5L32 19" fill="none" stroke="var(--s3)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>` : `<text x="24" y="28" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">${Math.round(f * 100)}%</text>`}</svg>`; })() : ''}<b id="spLive">${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `${buf} maanden uitgaven als buffer${buf >= 6 ? '' : ' (doel 6)'}` : ''}</em></div>${NU ? toel(`Huis: ${esc(NU.wozHow)}. Hypotheek: ${esc(NU.hypHow)}. Spaargeld: ${esc(NU.spHow)}. Buffer: spaargeld gedeeld door de maanduitgaven (vuistregel: 3 à 6 maanden); de ring is vol met een vinkje vanaf 6 maanden.`, 'Hoe geschat', 'grid-column:1/-1;margin-top:-6px') : ''}`;
+      return `<svg class="ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="${r}" fill="none" stroke="var(--soft)" stroke-width="6"/><circle cx="24" cy="24" r="${r}" fill="none" stroke="var(--s3)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(c * f).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 24 24)"/>${buf >= 6 ? `<path d="M16 24.5l5.5 5.5L32 19" fill="none" stroke="var(--s3)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>` : `<text x="24" y="28" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">${Math.round(f * 100)}%</text>`}</svg>`; })() : ''}<b id="spLive">${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `${buf} maanden uitgaven als buffer${buf >= 6 ? '' : ' (doel 6)'}` : ''}</em></div>${NU ? toel(`Huis: ${esc(NU.wozHow)}. Hypotheek: ${esc(NU.hypHow)}. Spaargeld: ${esc(NU.spHow)}. Buffer: spaargeld gedeeld door de maanduitgaven (vuistregel: 3 à 6 maanden); de ring is vol met een vinkje vanaf 6 maanden.<a class="extbtn" href="https://www.wozwaardeloket.nl/" target="_blank" rel="noopener noreferrer">Officiële WOZ-waarde opzoeken ↗</a>`, 'Hoe geschat', 'grid-column:1/-1;margin-top:-6px') : ''}`;
   if (onlyKpis) return;
   renderFlow();
 }
@@ -4036,7 +4038,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 20:35';
+const APP_VERSION = '2026-11-26 20:40';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
