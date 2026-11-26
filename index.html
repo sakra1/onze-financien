@@ -3961,6 +3961,43 @@ function renderAll() {
   renderCharts();
 }
 window.addEventListener('hashchange', route);
+// ===== vegen naar het vorige of volgende tabblad =====
+// niet op grafieken, knoppen, invoervelden of tabellen die zelf horizontaal scrollen, en niet vanaf de schermranden (iOS: terug)
+(() => {
+  const TABS = () => $$('nav.tabs a').map(a => a.dataset.tab);
+  const SKIP = '.chart, #flowChart, input, select, textarea, button, a, .seg, .tablewrap, .chips, .controls, #dataPanel, #fsOverlay, #lockScreen, .tip, [data-noswipe]';
+  let st = null;
+  const view = () => $('section[data-view].active');
+  document.addEventListener('touchstart', e => {
+    st = null;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0], el = e.target;
+    if (FS || document.documentElement.classList.contains('locked') || (el.closest && el.closest(SKIP))) return;
+    if (t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
+    st = { x: t.clientX, y: t.clientY, t: Date.now(), dir: null };
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!st) return;
+    const t = e.touches[0], dx = t.clientX - st.x, dy = t.clientY - st.y;
+    if (!st.dir && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) st.dir = Math.abs(dx) > Math.abs(dy) * 1.5 ? 'h' : 'v';
+    if (st.dir !== 'h') return;
+    const tabs = TABS(), i = tabs.indexOf(view()?.dataset.view), edge = (dx > 0 && i <= 0) || (dx < 0 && i >= tabs.length - 1);
+    const v = view(); if (v) { v.style.transition = 'none'; v.style.transform = `translateX(${dx * (edge ? 0.12 : 0.35)}px)`; v.style.opacity = String(1 - Math.min(0.35, Math.abs(dx) / 900)); }
+  }, { passive: true });
+  document.addEventListener('touchend', e => {
+    if (!st) return;
+    const t = e.changedTouches[0], dx = t.clientX - st.x, dy = t.clientY - st.y, v = view(), dir = st.dir; st = null;
+    const reset = () => { if (v) { v.style.transition = 'transform .18s ease, opacity .18s ease'; v.style.transform = ''; v.style.opacity = ''; } };
+    if (dir !== 'h' || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return reset();
+    const tabs = TABS(), i = tabs.indexOf(v?.dataset.view), j = i + (dx < 0 ? 1 : -1);
+    if (i < 0 || j < 0 || j >= tabs.length) return reset();
+    if (v) { v.style.transition = ''; v.style.transform = ''; v.style.opacity = ''; }
+    location.hash = '#' + tabs[j];
+    requestAnimationFrame(() => { const n = view(); if (!n) return; n.style.transition = 'none'; n.style.transform = `translateX(${dx < 0 ? 40 : -40}px)`; n.style.opacity = '0.4';
+      requestAnimationFrame(() => { n.style.transition = 'transform .2s ease, opacity .2s ease'; n.style.transform = ''; n.style.opacity = ''; }); });
+  }, { passive: true });
+  document.addEventListener('touchcancel', () => { const v = view(); st = null; if (v) { v.style.transform = ''; v.style.opacity = ''; } }, { passive: true });
+})();
 let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(renderCharts, 120); });
 new MutationObserver(renderCharts).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderCharts); } catch (e) { }
@@ -3968,7 +4005,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 18:50';
+const APP_VERSION = '2026-11-26 19:40';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
