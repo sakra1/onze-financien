@@ -2358,7 +2358,7 @@ function renderMaandSummary() {
     <div class="tile tap hero" style="grid-column:1/-1" role="button" tabindex="0" data-det="in" aria-controls="mDetIn"><span>Inkomsten per maand</span><i class="chev" aria-hidden="true">▾ details</i><b>${eur(t.in)}</b>
       <em>gemiddeld, incl. vakantiegeld e.d.${netSal ? `; waarvan netto salaris ${eur(netSal)}` : ''}</em>
       <div class="split" aria-hidden="true"><i class="u" style="width:${(Math.min(1, pU) * 100).toFixed(1)}%"></i><i class="s" style="width:${(Math.min(1, pS) * 100).toFixed(1)}%"></i></div>
-      <div class="split-leg"><span><i class="dot u"></i>uitgaven ${PCT0.format(pU)}</span><span><i class="dot s"></i>sparen ${PCT0.format(pS)}</span></div></div>
+      <div class="split-leg"><span><i class="dot u"></i>uitgaven</span><span><i class="dot s"></i>sparen</span></div></div>
     <div class="tile tap ringt" role="button" tabindex="0" data-det="uit" aria-controls="mDetUit">${ring(pU, '--s1')}<div><span>Uitgaven</span><b>${eur(t.uit)}</b><em>van de inkomsten</em></div><i class="chev" aria-hidden="true">▾</i></div>
     <div class="tile ringt">${ring(pS, '--s3')}<div><span>Sparen</span><b>${eur(t.spaar)}</b><em>begroting${svR && svR.svEst != null ? `<br><span class="exp" title="${svR.year}, op basis van de werkelijke uitgaven in ${DATA.proj && DATA.proj.anchor}">verwacht ${eur(svR.svEst / 12)}</span>` : ''}</em></div></div>`;
   applyDet();
@@ -3922,7 +3922,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 17:20';
+const APP_VERSION = '2026-11-26 17:25';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
