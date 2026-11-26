@@ -347,6 +347,15 @@ section[data-view].active { display: grid; }
 section.swiping .pinned-row { visibility: hidden; }
 .stickyctl-spacer { display: none; }
 .stickyctl-spacer.on { display: block; }
+/* opbouw-animatie van grafieken (uit te zetten onder Gegevens) */
+svg rect.bar { transform-box: view-box; }
+.a-wait rect.bar { transform: scaleY(0); }
+.a-go rect.bar { animation: barUp .75s cubic-bezier(.2,.8,.2,1) both; animation-delay: var(--d, 0ms); }
+@keyframes barUp { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+svg.lc.a-wait { clip-path: inset(0 100% 0 0); }
+svg.lc.a-go { animation: wipe 1s cubic-bezier(.3,.7,.3,1) both; }
+@keyframes wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@media (prefers-reduced-motion: reduce) { .a-wait rect.bar { transform: none; } svg.lc.a-wait { clip-path: none; } .a-go rect.bar, svg.lc.a-go { animation: none; } }
 </style>
 </head>
 <body>
@@ -375,6 +384,7 @@ section.swiping .pinned-row { visibility: hidden; }
     <div class="dp-row"><div><b>Financieel overzicht</b> <span class="small" id="stMain"></span></div><label class="btn primary sm" for="fileMain">Kiezen</label></div>
     <div class="dp-row"><div><b>CBS en Wikipedia</b> <span class="small" id="stLive"></span></div><button class="btn sm" type="button" id="liveBtn">Ververs</button></div>
     <label class="small dp-chk"><input type="checkbox" id="rememberChk"> Onthoud op dit toestel</label>
+    <div class="dp-row"><div><b>Grafieken laten opbouwen</b> <span class="small muted">bij het openen van een tabblad</span></div><button class="btn sm" type="button" id="animBtn">Uitzetten</button></div>
     <div class="dp-row"><div><b>Face ID</b> <span class="small" id="stLock"></span></div><button class="btn sm" type="button" id="lockBtn">Aanzetten</button></div>
     <div class="dp-row"><div class="small">App-versie <span id="appVer"></span> <span class="muted" id="updMsg"></span></div><button class="btn sm" type="button" id="updBtn">Zoek update</button></div>
     <div class="small" id="loadMsg" role="status"></div>
@@ -1099,7 +1109,7 @@ function lineChart(host, series, opts) {
   const W = Math.max(280, host.clientWidth || 320), H = fsH(host, opts.height || 230);
   const m = { l: 52, r: 12, t: 10, b: 26 };
   const vis = series.filter(s => s.points.length);
-  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H, role: 'img', 'aria-label': opts.label || 'grafiek' }, host);
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H, role: 'img', 'aria-label': opts.label || 'grafiek', class: 'lc' }, host); animPrep(host, svg);
   const tip = document.createElement('div'); tip.className = 'tip'; host.appendChild(tip);
   const bands = opts.bands || [];
   if (!vis.length && !bands.length) {
@@ -2825,7 +2835,7 @@ function barChart(host, cats, series, opts) {
   const fmt = opts.fmt || (v => NUM2.format(v) + '%'), yFmt = opts.yFmt || (v => NUM2.format(v) + '%');
   const m = { l: opts.yFmt ? 52 : 40, r: 8, t: 10, b: 26 };
   const vis = series.filter(s => s.on);
-  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H, role: 'img', 'aria-label': opts.label || 'staafgrafiek' }, host);
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, height: H, role: 'img', 'aria-label': opts.label || 'staafgrafiek' }, host); animPrep(host, svg);
   const tip = document.createElement('div'); tip.className = 'tip'; host.appendChild(tip);
   let lo = 0, hi = 0;
   for (const c of cats) {
@@ -2858,7 +2868,8 @@ function barChart(host, cats, series, opts) {
       else { a = Math.min(0, v); b = Math.max(0, v); }
       const yTop = Y(b), yBot = Y(a);
       el('rect', { x: opts.stack ? x0 : x0 + j * (bw + gap), y: yTop, width: bw, height: Math.max(1, yBot - yTop), rx: Math.min(2, bw / 2),
-        fill: cssVar(s.color), opacity: op, stroke: opts.stack ? card : 'none', 'stroke-width': opts.stack ? 1 : 0 }, svg);
+        fill: cssVar(s.color), opacity: op, stroke: opts.stack ? card : 'none', 'stroke-width': opts.stack ? 1 : 0,
+        class: 'bar', style: `transform-origin: 0 ${Y(0).toFixed(1)}px; --d: ${Math.min(450, i * 12)}ms` }, svg);
     });
     if (Number.isInteger(c) ? c % stepYb === 0 : i % stepL === 0) { const tx = el('text', { x: m.l + i * band + band / 2, y: H - 6, 'text-anchor': 'middle' }, svg); tx.textContent = String(c); }
   });
@@ -3927,13 +3938,36 @@ function setSub(v) {
   SUBS[sec.dataset.view] = v;
   for (const b of sec.querySelectorAll('[data-sub]')) b.setAttribute('aria-pressed', String(b.dataset.sub === v));
   for (const x of sec.querySelectorAll('[data-subview]')) x.classList.toggle('active', x.dataset.subview === v);
-  if (sec.classList.contains('active')) { renderCharts(); window.scrollTo(0, 0); }
+  if (sec.classList.contains('active')) { animArm(d); renderCharts(); window.scrollTo(0, 0); }
 }
+// ===== Grafieken laten opbouwen: alleen bij het openen van een tabblad, en pas als de grafiek in beeld komt =====
+const ANIM_KEY = 'of-anim';
+const animOn = () => { try { return localStorage.getItem(ANIM_KEY) !== '0'; } catch (e) { return true; } };
+const ANIM_IO = 'IntersectionObserver' in window ? new IntersectionObserver(es => {
+  for (const e of es) if (e.isIntersecting && e.intersectionRatio >= 0.3) {
+    const h = e.target; ANIM_IO.unobserve(h); h.dataset.anim = 'done';
+    const svg = h.querySelector('svg.a-wait'); if (svg) { svg.classList.remove('a-wait'); svg.classList.add('a-go'); }
+  }
+}, { threshold: [0.3] }) : null;
+function animPrep(host, svg) {
+  if (!ANIM_IO || !animOn() || host.dataset.anim !== 'wait' || FS) return;
+  svg.classList.add('a-wait'); ANIM_IO.unobserve(host); ANIM_IO.observe(host);
+}
+// markeer de grafieken van een tabblad als 'nog op te bouwen'; skipVisible: wat nu al in beeld staat (na vegen) niet opnieuw
+function animArm(sec, skipVisible) {
+  if (!sec || !animOn()) return;
+  for (const h of sec.querySelectorAll('.chart')) {
+    if (skipVisible) { const b = h.getBoundingClientRect(); if (b.bottom > 0 && b.top < window.innerHeight) { h.dataset.anim = 'done'; continue; } }
+    h.dataset.anim = 'wait';
+  }
+}
+let SWIPE_ARRIVE = false;
 function route() {
   let v = location.hash.slice(1);
   if (ALIAS[v]) { const [to, sub] = ALIAS[v]; v = to; if (sub) setSub(sub); }
   if (!VIEWS.includes(v)) v = 'nu';
   for (const s of $$('section[data-view]')) s.classList.toggle('active', s.dataset.view === v);
+  animArm($(`section[data-view="${v}"]`), SWIPE_ARRIVE); SWIPE_ARRIVE = false;
   $$('nav.tabs a').forEach(a => { if (a.dataset.tab === v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   renderCharts();
   window.scrollTo(0, 0);
@@ -4073,7 +4107,7 @@ window.addEventListener('hashchange', route);
     s.cur.style.transition = ease; if (nb) nb.style.transition = ease;
     if (go) {
       s.cur.style.transform = `translate3d(${dx < 0 ? -W : W}px,0,0)`; nb.style.transform = 'translate3d(0,0,0)';
-      setTimeout(() => { clear(s.prev); clear(s.next); s.cur.classList.remove('swiping'); s.cur.style.transition = 'none'; s.cur.style.transform = ''; location.hash = '#' + nb.dataset.view; }, dur + 10);
+      setTimeout(() => { clear(s.prev); clear(s.next); s.cur.classList.remove('swiping'); s.cur.style.transition = 'none'; s.cur.style.transform = ''; SWIPE_ARRIVE = true; location.hash = '#' + nb.dataset.view; }, dur + 10);
     } else {
       s.cur.style.transform = 'translate3d(0,0,0)'; if (nb) nb.style.transform = `translate3d(${dx < 0 ? W : -W}px,0,0)`;
       setTimeout(() => { clear(s.prev); clear(s.next); s.cur.classList.remove('swiping'); s.cur.style.transition = ''; s.cur.style.transform = ''; }, dur + 20);
@@ -4089,7 +4123,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-26 22:00';
+const APP_VERSION = '2026-11-26 22:15';
 $('#appVer').textContent = APP_VERSION;
 // ===== Face ID-slot (passkey op dit toestel, zonder server) =====
 const LOCK_ON = 'of-lock-on', LOCK_ID = 'of-lock-id', LOCK_AFTER = 5 * 60 * 1000;
@@ -4166,6 +4200,8 @@ async function checkUpdate(manual) {
     } else if (manual) $('#updMsg').textContent = 'Je hebt de nieuwste versie.';
   } catch (e) { if (manual) $('#updMsg').textContent = 'Geen verbinding met GitHub.'; }
 }
+{ const ab = $('#animBtn'), lab = () => { ab.textContent = animOn() ? 'Uitzetten' : 'Aanzetten'; };
+  lab(); ab.addEventListener('click', () => { try { localStorage.setItem(ANIM_KEY, animOn() ? '0' : '1'); } catch (e) { } lab(); }); }
 $('#updBtn').addEventListener('click', () => { $('#updMsg').textContent = 'Bezig met zoeken…'; checkUpdate(true); });
 if (location.protocol === 'https:') checkUpdate(false);
 
