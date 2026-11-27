@@ -423,7 +423,7 @@ section.swiping .pinned-row { visibility: hidden; }
       <details class="dp-more toel"><summary>Toelichting</summary><div class="tiny muted">Per maand gemiddeld. Alle inkomsten rekent de app zelf uit ("berekend"): lonen, vakantiegeld, eindejaarsuitkering en DCA zoals in Inkomen → Loon en belasting, de belastingteruggaaf zoals bij Inkomstenbelasting, en de kinderbijslag uit de parameter kinderbijslag. Uit het tabblad in_uit komen alleen de namen van de posten; een post die de app niet herkent, neemt hij over uit in_uit.</div></details>
     </div>
     <div class="card" id="mDetSp" hidden>
-      <div class="card-head"><h2>Sparen: nu en gemiddeld dit jaar</h2><span class="tiny">per maand</span></div>
+      <div class="card-head"><h2>Sparen: begroot en verwacht</h2><span class="tiny">per maand</span></div>
       <div id="spDet" style="padding:0 14px 12px"></div>
     </div>
     <div class="card" id="mDetUit" hidden>
@@ -2448,20 +2448,20 @@ function renderMaandSummary() {
       <div class="split" aria-hidden="true"><i class="u" style="width:${(Math.min(1, pU) * 100).toFixed(1)}%"></i><i class="s" style="width:${(Math.min(1, pS) * 100).toFixed(1)}%"></i></div>
       <div class="split-leg"><span><i class="dot u"></i>uitgaven</span><span><i class="dot s"></i>sparen</span></div></div>
     <div class="tile tap ringt" role="button" tabindex="0" data-det="uit" aria-controls="mDetUit"><span>Uitgaven <i class="cv" aria-hidden="true">▾</i></span>${ring(pU, '--s1')}<b>${eur(t.uit)}</b><em class="row"><span class="more">begroting per maand</span></em></div>
-    <div class="tile tap ringt" role="button" tabindex="0" data-det="sp" aria-controls="mDetSp"><span>Sparen <i class="cv" aria-hidden="true">▾</i></span>${ring(pS, '--s3')}<b>${eur(t.spaar)}</b><em class="row">${svR && svR.svEst != null ? `<span class="exp">gemiddeld ${svR.year}: ${eur(svR.svEst / 12)}</span>` : 'begroting'}</em></div>`;
+    <div class="tile tap ringt" role="button" tabindex="0" data-det="sp" aria-controls="mDetSp"><span>Sparen <i class="cv" aria-hidden="true">▾</i></span>${ring(pS, '--s3')}<b>${eur(t.spaar)}</b><em class="row">${svR && svR.svEst != null ? `<span class="exp">verwacht ${svR.year}: ${eur(svR.svEst / 12)}</span>` : 'begroting'}</em></div>`;
   // uitklap: waarom het verwachte sparen afwijkt van de begroting
   if (svR && svR.svEst != null) {
     const hypB = UI.inuitEdits.uit.filter(i => /hypotheek/i.test(i.label)).reduce((a, i) => a + i.amount * PER[i.per], 0);
     const anc = DATA.proj && DATA.proj.anchor, m = v => v / 12;
     const rows = [
-      ['', 'Nu', `⟨${svR.year}⟩`],
+      ['', 'Begroting', `Verwacht ${svR.year}`],
       ['Inkomsten', eur(t.in), eur(m(svR.svTn) + m(svR.svKb || 0))],
       ['Overige uitgaven', '−' + eur(t.uit - hypB), '−' + eur(m(svR.svBase))],
       ['Hypotheek', '−' + eur(hypB), '−' + eur(m((svR.rente || 0) + (svR.aflossing || 0)))],
       ['Sparen', eur(t.spaar), eur(m(svR.svEst))]
     ];
     $('#spDet').innerHTML = `<table class="sp-t">${rows.map((r, i) => `<tr class="${i === 0 ? 'h' : i === rows.length - 1 ? 'tot' : ''}">${r.map((c, j) => `<${i === 0 ? 'th' : 'td'}${j ? ' class="num"' : ''}>${c}</${i === 0 ? 'th' : 'td'}>`).join('')}</tr>`).join('')}</table>
-      <div class="tiny muted" style="margin-top:8px"><b>Nu:</b> de begroting uit in_uit, met de inkomsten en de hypotheek van nu (${eur(hypB)} per maand). <b>⟨${svR.year}⟩</b>, gemiddeld ${svR.year}: wat er over het hele jaar naar verwachting overblijft, per maand. De overige uitgaven zijn wat jullie in ${anc} werkelijk uitgaven (netto inkomen min gespaard, rente en aflossing), plus inflatie; de hypotheek is wat jullie in ${svR.year} echt aan rente en aflossing betalen${svR.extra ? ' (vóór de extra aflossing nog de oude maandlast)' : ''}.</div>`;
+      <div class="tiny muted" style="margin-top:8px"><b>Begroting:</b> de posten uit in_uit, met de hypotheek van nu. <b>Verwacht ${svR.year}:</b> gemiddeld per maand over het hele jaar. Overige uitgaven zijn daar wat jullie in ${anc} werkelijk uitgaven, plus inflatie; dat is meestal meer dan begroot (vakanties, reparaties en andere losse uitgaven). De hypotheek is het jaargemiddelde${svR.extra ? ', met vóór de extra aflossing nog de oude maandlast' : ''}.</div>`;
   }
   applyDet();
   // één overzicht: per groep een balk; tik op een groep om de losse posten te zien
@@ -4118,7 +4118,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-27 11:25';
+const APP_VERSION = '2026-11-27 11:35';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
