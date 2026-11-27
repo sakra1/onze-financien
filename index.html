@@ -1909,8 +1909,7 @@ function groeiTile(pd) {
   const pos = parts.filter(([, , v]) => v > 0), T = pos.reduce((a, [, , v]) => a + v, 0) || 1;
   return `<div class="tile groei" style="grid-column:1/-1"><span>Groei per dag</span><b>${sg(pd.net)}</b>
     <div class="gbar" aria-hidden="true">${pos.map(([k, , v]) => `<i class="${k}" style="width:${(v / T * 100).toFixed(1)}%"></i>`).join('')}</div>
-    <div class="gleg">${parts.map(([k, n, v]) => `<span><i class="dot ${k}"></i>${n} <b>${sg(v)}</b></span>`).join('')}</div>
-    <em>samen: overwaarde ${sg(pd.ow)} · spaargeld ${sg(pd.sp)}</em></div>`;
+    <div class="gleg">${parts.map(([k, n, v]) => `<span><i class="dot ${k}"></i>${n} <b>${sg(v)}</b></span>`).join('')}</div></div>`;
 }
 const toel = (html, sum = 'Toelichting', style = '') => `<details class="dp-more toel"${style ? ` style="${style}"` : ''}><summary>${sum}</summary><div class="tiny muted">${html}</div></details>`;
 // live teller: het geschatte vermogen loopt door met de groei per dag
@@ -4109,7 +4108,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-27 11:05';
+const APP_VERSION = '2026-11-27 11:10';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
