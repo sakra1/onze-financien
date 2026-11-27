@@ -182,6 +182,7 @@ b.ctr .odo-s > span { display: block; height: 1.15em; }
 .split .u { background: #8fb8e6; border-radius: 999px 0 0 999px; }
 .split .s { background: #3ecf8e; border-radius: 0 999px 999px 0; }
 .split-leg { display: flex; justify-content: space-between; font-size: 12px; color: rgba(255, 255, 255, .85); }
+.split-leg small.pdl { display: block; padding-left: 13px; opacity: .75; font-size: 11px; }
 .split-leg .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
 .split-leg .dot.u { background: #8fb8e6; } .split-leg .dot.s { background: #3ecf8e; }
 .tile.ringt { grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; align-items: center; }
@@ -1892,6 +1893,8 @@ function vermNu(at) {
   const pd = { woz: pdWoz, hyp: -pdHyp, ow: pdWoz + pdHyp, sp: pdSp, net: pdWoz + pdHyp + pdSp };
   return { t: now, pd, woz, hyp, spaar, net: woz - hyp + spaar, v0, wozHow: h ? `WOZ ${eur(h.woz)} (1 jan ${h.year}) ${pct >= 0 ? '+' : '−'}${PCT1.format(Math.abs(pct))} via CBS-index${ext ? ', doorgetrokken tot vandaag' : ''}` : 'WOZ per 1 januari', hypHow, spHow };
 }
+// groei per dag van een onderdeel, klein onder de legenda van het vermogen
+const pdTxt = v => v == null || !isFinite(v) ? '' : `<small class="pdl">${v >= 0 ? '+' : '−'} ${eur(Math.abs(Math.round(v / 10) * 10))} per dag</small>`;
 const toel = (html, sum = 'Toelichting', style = '') => `<details class="dp-more toel"${style ? ` style="${style}"` : ''}><summary>${sum}</summary><div class="tiny muted">${html}</div></details>`;
 // live teller: het geschatte vermogen loopt door met de groei per dag
 let LIVE_CTRS = {}; // id → { base, t0, pd }
@@ -1982,7 +1985,7 @@ function renderKpis(onlyKpis) {
       return `<span class="up">${d >= 0 ? '+' : '−'} ${eur(Math.abs(Math.round(d / 1000) * 1000))}</span> sinds 1 januari (${eur(NU.v0.net)})${pd != null ? ` · groeit nu ± ${eur(Math.round(pd / 10) * 10)} per dag` : ''}`;
     })()}</em>${cur && cur.net > 0 ? (() => { const ow = Math.max(0, cur.woz - cur.hyp), sp = Math.max(0, cur.spaar), T = ow + sp || 1;
       return `<div class="split" aria-hidden="true"><i class="o" style="width:${(ow / T * 100).toFixed(1)}%"></i><i class="p" style="width:${(sp / T * 100).toFixed(1)}%"></i></div>
-      <div class="split-leg"><span><i class="dot o"></i>overwaarde ${PCT0.format(ow / T)}</span><span><i class="dot p"></i>spaargeld ${PCT0.format(sp / T)}</span></div>`; })() : ''}</div>
+      <div class="split-leg"><span><i class="dot o"></i>overwaarde ${PCT0.format(ow / T)}${pdTxt(NU && NU.pd.ow)}</span><span style="text-align:right"><i class="dot p"></i>spaargeld ${PCT0.format(sp / T)}${pdTxt(NU && NU.pd.sp)}</span></div>`; })() : ''}</div>
     <div class="tile"><span>Overwaarde huis</span><b id="owLive">${cur ? eur(cur.woz - cur.hyp) : '–'}</b>${cur && cur.woz > 0 ? `<div class="hbar" aria-hidden="true"><i class="o" style="width:${(Math.max(0, 1 - cur.hyp / cur.woz) * 100).toFixed(1)}%"></i><i class="h" style="width:${(Math.min(1, cur.hyp / cur.woz) * 100).toFixed(1)}%"></i></div>` : ''}<em>${wozTxt}</em></div>
     <div class="tile ringt"><span>Spaargeld</span>${buf != null ? (() => { const r = 19, c = 2 * Math.PI * r, f = Math.min(1, buf / 6);
       return `<svg class="ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="${r}" fill="none" stroke="var(--soft)" stroke-width="6"/><circle cx="24" cy="24" r="${r}" fill="none" stroke="var(--s3)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(c * f).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 24 24)"/>${buf >= 6 ? `<path d="M16 24.5l5.5 5.5L32 19" fill="none" stroke="var(--s3)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>` : `<text x="24" y="28" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">${Math.round(f * 100)}%</text>`}</svg>`; })() : ''}<b id="spLive">${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `${buf} maanden uitgaven als buffer${buf >= 6 ? '' : ' (doel 6)'}` : ''}</em></div>${NU ? toel(`Huis: ${esc(NU.wozHow)}. Hypotheek: ${esc(NU.hypHow)}. Spaargeld: ${esc(NU.spHow)}. Buffer: spaargeld gedeeld door de maanduitgaven (vuistregel: 3 à 6 maanden); de ring is vol met een vinkje vanaf 6 maanden.<a class="extbtn" href="https://www.wozwaardeloket.nl/" target="_blank" rel="noopener noreferrer">Officiële WOZ-waarde opzoeken ↗</a>`, 'Hoe geschat', 'grid-column:1/-1;margin-top:-6px') : ''}`;
@@ -4089,7 +4092,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-27 10:40';
+const APP_VERSION = '2026-11-27 10:50';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
