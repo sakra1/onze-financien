@@ -1891,7 +1891,7 @@ function vermNu(at) {
     spHow = `stand ${new Date(dNu).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} uit parameters, plus verwacht sparen sindsdien`;
   } else if (sv != null && v0.spaar != null) {
     spaar = v0.spaar + sv * frac - (extraDone ? raw.extra : 0) - (raw.invest || 0) * frac + (raw.giften || 0) * frac;
-    spHow = `1 januari plus ${PCT1.format(frac)} van het verwachte spaarvermogen ${eur(sv)}`;
+    spHow = `1 januari plus ${PCT1.format(frac)} van het verwachte spaarvermogen ${eur(sv)}${raw.invest ? ` min de investeringen` : ''}${extraDone && raw.extra ? `, min de extra aflossing` : ''}`;
   }
   // huis: CBS-index tot de laatste maand, daarna tot vandaag doorgetrokken met de stijging van het afgelopen jaar (zoals de prognose per 1 januari)
   const h = huisSchatting(), H = h ? huisIdx() : null;
@@ -1902,6 +1902,7 @@ function vermNu(at) {
   const pdWoz = h && H && H.g != null ? woz * Math.log(1 + H.g) / 365.25 : 0;
   const pdSp = sv != null ? (sv - (raw.invest || 0) + (raw.giften || 0)) / 365.25 : 0;
   const pd = { woz: pdWoz, hyp: -pdHyp, ow: pdWoz + pdHyp, sp: pdSp, net: pdWoz + pdHyp + pdSp };
+  pd.how = `waarde huis = de huizenprijsstijging van ${h && H && H.g != null ? `${PCT1.format(H.g)} per jaar (CBS-index)` : '0% (nog geen CBS-index)'}; aflossing = de gewone maandaflossing (${eur(Math.round(pdHyp * 365.25 / 12))}) omgerekend naar een dag; spaargeld = het verwachte spaarvermogen voor ${Y} (${eur(sv || 0)})${raw.invest ? ` min de investeringen (${eur(raw.invest)})` : ''}${raw.giften ? ` plus giften (${eur(raw.giften)})` : ''}, gedeeld door 365. Eenmalige verschuivingen, zoals een extra aflossing, tellen niet mee`;
   return { t: now, pd, woz, hyp, spaar, net: woz - hyp + spaar, v0, wozHow: h ? `WOZ ${eur(h.woz)} (1 jan ${h.year}) ${pct >= 0 ? '+' : '−'}${PCT1.format(Math.abs(pct))} via CBS-index${ext ? ', doorgetrokken tot vandaag' : ''}` : 'WOZ per 1 januari', hypHow, spHow };
 }
 // tegel 'groei per dag': waardestijging huis + aflossing (samen de overwaarde) + sparen
@@ -1910,7 +1911,7 @@ function groeiTile(pd) {
   // hele euro's, en de totalen uit de afgeronde delen, zodat de optelsommen kloppen
   const sg = v => `${v >= 0 ? '+' : '−'} ${eur(Math.abs(v))}`, R = v => isFinite(v) ? Math.round(v) : 0;
   const w = R(pd.woz), a = R(-pd.hyp), sp = R(pd.sp); pd = { ow: w + a, sp, net: w + a + sp };
-  const parts = [['w', 'waarde huis', w], ['a', 'aflossing', a], ['s', 'sparen', sp]].filter(([, , v]) => v !== 0);
+  const parts = [['w', 'waarde huis', w], ['a', 'aflossing', a], ['s', 'spaargeld', sp]].filter(([, , v]) => v !== 0);
   const pos = parts.filter(([, , v]) => v > 0), T = pos.reduce((a, [, , v]) => a + v, 0) || 1;
   // ring: elk positief deel een boog, met een klein gaatje ertussen
   const R0 = 30, C = 2 * Math.PI * R0, gap = pos.length > 1 ? 3 : 0; let off = 0;
@@ -2013,7 +2014,7 @@ function renderKpis(onlyKpis) {
       <div class="split-leg"><span><i class="dot o"></i>overwaarde ${PCT0.format(ow / T)}</span><span><i class="dot p"></i>spaargeld ${PCT0.format(sp / T)}</span></div>`; })() : ''}</div>
     <div class="tile"><span>Overwaarde huis</span><b id="owLive">${cur ? eur(cur.woz - cur.hyp) : '–'}</b>${cur && cur.woz > 0 ? `<div class="hbar" aria-hidden="true"><i class="o" style="width:${(Math.max(0, 1 - cur.hyp / cur.woz) * 100).toFixed(1)}%"></i><i class="h" style="width:${(Math.min(1, cur.hyp / cur.woz) * 100).toFixed(1)}%"></i></div>` : ''}<em>${wozTxt}</em></div>
     <div class="tile ringt"><span>Spaargeld</span>${buf != null ? (() => { const r = 19, c = 2 * Math.PI * r, f = Math.min(1, buf / 6);
-      return `<svg class="ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="${r}" fill="none" stroke="var(--soft)" stroke-width="6"/><circle cx="24" cy="24" r="${r}" fill="none" stroke="var(--s3)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(c * f).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 24 24)"/>${buf >= 6 ? `<path d="M16 24.5l5.5 5.5L32 19" fill="none" stroke="var(--s3)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>` : `<text x="24" y="28" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">${Math.round(f * 100)}%</text>`}</svg>`; })() : ''}<b id="spLive">${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `${buf} maanden uitgaven als buffer${buf >= 6 ? '' : ' (doel 6)'}` : ''}</em></div>${NU ? groeiTile(NU.pd) : ''}${NU ? toel(`Huis: ${esc(NU.wozHow)}. Hypotheek: ${esc(NU.hypHow)}. Spaargeld: ${esc(NU.spHow)}. Buffer: spaargeld gedeeld door de maanduitgaven (vuistregel: 3 à 6 maanden); de ring is vol met een vinkje vanaf 6 maanden.<a class="extbtn" href="https://www.wozwaardeloket.nl/" target="_blank" rel="noopener noreferrer">Officiële WOZ-waarde opzoeken ↗</a>`, 'Hoe geschat', 'grid-column:1/-1;margin-top:-6px') : ''}`;
+      return `<svg class="ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="${r}" fill="none" stroke="var(--soft)" stroke-width="6"/><circle cx="24" cy="24" r="${r}" fill="none" stroke="var(--s3)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(c * f).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 24 24)"/>${buf >= 6 ? `<path d="M16 24.5l5.5 5.5L32 19" fill="none" stroke="var(--s3)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>` : `<text x="24" y="28" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">${Math.round(f * 100)}%</text>`}</svg>`; })() : ''}<b id="spLive">${cur ? eur(cur.spaar) : '–'}</b><em>${buf != null ? `${buf} maanden uitgaven als buffer${buf >= 6 ? '' : ' (doel 6)'}` : ''}</em></div>${NU ? groeiTile(NU.pd) : ''}${NU ? toel(`Huis: ${esc(NU.wozHow)}. Hypotheek: ${esc(NU.hypHow)}. Spaargeld: ${esc(NU.spHow)}. Groei per dag: ${esc(NU.pd.how)}. Buffer: spaargeld gedeeld door de maanduitgaven (vuistregel: 3 à 6 maanden); de ring is vol met een vinkje vanaf 6 maanden.<a class="extbtn" href="https://www.wozwaardeloket.nl/" target="_blank" rel="noopener noreferrer">Officiële WOZ-waarde opzoeken ↗</a>`, 'Hoe geschat', 'grid-column:1/-1;margin-top:-6px') : ''}`;
   if (onlyKpis) return;
   renderFlow();
 }
@@ -4117,7 +4118,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-27 11:15';
+const APP_VERSION = '2026-11-27 11:25';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
