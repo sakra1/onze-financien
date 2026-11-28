@@ -144,7 +144,11 @@ table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: upper
 .bn-wa[open] > summary h3::before { content: '▾ '; }
 .bn-wa[open] > summary { margin-bottom: 10px; }
 #ibCard > summary { flex-wrap: wrap; }
-#ibCard .ibseg { flex-basis: 100%; margin-top: 8px; }
+#ibCard .ibseg { flex-basis: 100%; margin-top: 8px; display: flex; }
+#ibCard .ibseg button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.25; padding: 6px 4px; font-size: 12px; }
+#ibCard .ibseg button b { font-size: 14px; }
+#ibCard .ibseg button i { font-style: normal; font-size: 11px; color: var(--ink-3); }
+#ibCard .ibseg button span { font-size: 12px; font-weight: 600; }
 .chg-tease { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
 .chgt { width: 100%; border-collapse: collapse; font-size: 13px; }
 .chgt th, .chgt td { padding: 5px 4px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
@@ -2341,8 +2345,8 @@ function ibNet(Y) {
 // Van januari t/m april staat vorig jaar voorgeselecteerd: dan doe je de aangifte daarover.
 const ibHasPar = Y => !!(DATA && DATA.parY && Object.values(DATA.parY).some(o => o && o[Y] != null && o[Y] !== ''));
 let IB_YEAR = null;
-// knoppen staan in de kop van het uitklapblok: niet open- of dichtklappen bij een tik op een jaar
-document.addEventListener('click', e => { const b = e.target.closest('[data-ibyear]'); if (!b) return; e.preventDefault(); IB_YEAR = +b.dataset.ibyear; renderIB(); });
+// jaarknoppen in de kop: een ander jaar kiezen klapt het blok open met dat jaar; nog eens op hetzelfde jaar klapt het dicht
+document.addEventListener('click', e => { const b = e.target.closest('[data-ibyear]'); if (!b) return; e.preventDefault(); const d = b.closest('details'); const same = IB_YEAR === +b.dataset.ibyear; IB_YEAR = +b.dataset.ibyear; if (d) d.open = same ? !d.open : true; renderIB(); });
 function ibYears() { return (ibHasPar(THIS_YEAR - 1) ? [THIS_YEAR - 1] : []).concat([THIS_YEAR, THIS_YEAR + 1]); }
 function renderIB() {
   const ysIB = ibYears();
@@ -2360,9 +2364,12 @@ function renderIB() {
   const row = (lab, f, cls = '') => `<tr class="${cls}"><td>${lab}</td>${W.map(w => `<td>${f(I.p[w])}</td>`).join('')}</tr>`;
   const anyHil = W.some(w => I.p[w].hil > 0.5), anyTa = W.some(w => I.p[w].ta > 0.5), anyAhk = W.some(w => I.p[w].ahk > 0.5);
   const proj = W.some(w => I.p[w].proj);
-  $('#ibSum').innerHTML = res(tot);
+  $('#ibSum').innerHTML = '';
   $('#ibTitle').textContent = 'Inkomstenbelasting';
-  $('#ibYearSeg').innerHTML = ysIB.map(y => `<button type="button" data-ibyear="${y}" aria-pressed="${y === IB_YEAR}">${y}${y < THIS_YEAR ? ' aangifte' : y > THIS_YEAR ? ' schatting' : ''}</button>`).join('');
+  // per jaar meteen de uitkomst in de knop: zo vergelijk je de jaren zonder te wisselen
+  const resTxt = v => v == null ? '–' : `${v >= 0.5 ? 'terug' : v <= -0.5 ? 'bijbetalen' : ''} ${eur(Math.abs(v))}`.trim();
+  $('#ibYearSeg').innerHTML = ysIB.map(y => { let v = null; try { v = y === IB_YEAR ? tot : ibNet(y); } catch (e) { }
+    return `<button type="button" data-ibyear="${y}" aria-pressed="${y === IB_YEAR}"><b>${y}</b><i>${y < THIS_YEAR ? 'aangifte' : y > THIS_YEAR ? 'schatting' : 'dit jaar'}</i><span class="${v >= 0.5 ? 'pos' : v <= -0.5 ? 'neg' : 'muted'}">${resTxt(v)}</span></button>`; }).join('');
   $('#ibBody').innerHTML = `<div class="tablewrap"><table class="chgt"><thead><tr><th></th>${W.map(w => `<th>${nm[w]}</th>`).join('')}</tr></thead><tbody>
     ${row('Fiscaal loon', p => eur(p.werk))}
     ${row(`Eigenwoningforfait`, p => eur(p.ewf))}
@@ -4157,7 +4164,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-28 13:35';
+const APP_VERSION = '2026-11-28 13:45';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
