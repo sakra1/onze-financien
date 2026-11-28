@@ -3570,7 +3570,7 @@ function parseExt(wb, fileName) {
   return ext;
 }
 const REQUIRED_PARAMS = ['vakantiegeld_pct', 'eju_pct', 'ewf_pct', 'hillen_pct', 'hillen_afbouw', 'belastingjaar', 'box3_vrijstelling', 'box3_tarief', 'box3_forfait_bank',
-  'ak_grens1', 'ak_pct1', 'ak_grens2', 'ak_basis2', 'ak_pct2', 'ak_basis3', 'ak_pct3', 'referentiejaar_macro', 'referentiejaar_samen'];
+  'referentiejaar_macro', 'referentiejaar_samen'];  // ak_grens1 t/m ak_pct3 zijn optioneel (vaste opbouw 2026 in de app)
 function missingParams() { return EXT ? REQUIRED_PARAMS.filter(k => EXT.params[k] == null) : REQUIRED_PARAMS.slice(); }
 /* ================= openbare cijfers direct bij de bron (CBS en Wikipedia) =================
    Zelfde bronnen en bewerkingen als het notebook (cel 1, 6–9, 11–12). De laatst opgehaalde versie
@@ -4121,7 +4121,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-28 10:25';
+const APP_VERSION = '2026-11-28 10:30';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
