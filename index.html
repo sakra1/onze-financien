@@ -1028,12 +1028,15 @@ function box1(y, P) {
   return a + b + c;
 }
 function ahk(y, P) { return y <= P.ahkStart ? P.ahkMax : Math.max(0, P.ahkMax - (y - P.ahkStart) * P.ahkAfb); }
+// opbouw van de arbeidskorting (Belastingdienst 2026): alleen nodig bij een jaarinkomen onder de start van de afbouw.
+// Staan ak_grens1 t/m ak_pct3 in de parameters, dan gaan die voor; anders deze vaste waarden.
+const AK_OPBOUW = { akG1: 11965, akP1: 0.08324, akG2: 25845, akB2: 996, akP2: 0.31009, akB3: 5300, akP3: 0.0195 };
 function ak(y, P) {
-  // opbouw onder de start van de afbouw: stappen uit externe_data.xlsx (parameters)
   if (y <= 0) return 0;
-  if (y < P.akG1) return P.akP1 * y;
-  if (y < P.akG2) return P.akB2 + P.akP2 * (y - P.akG1);
-  if (y < P.akStart) return Math.min(P.akMax, P.akB3 + P.akP3 * (y - P.akG2));
+  const o = k => typeof P[k] === 'number' && isFinite(P[k]) ? P[k] : AK_OPBOUW[k];
+  if (y < o('akG1')) return o('akP1') * y;
+  if (y < o('akG2')) return o('akB2') + o('akP2') * (y - o('akG1'));
+  if (y < P.akStart) return Math.min(P.akMax, o('akB3') + o('akP3') * (y - o('akG2')));
   return Math.max(0, P.akMax - (y - P.akStart) * P.akAfb);
 }
 function heffing(y, P) { return Math.max(0, box1(y, P) - ahk(y, P) - ak(y, P)); }
@@ -1532,7 +1535,7 @@ function recomputeVerm() {
   safe('controle', () => {
     const P = DATA.bn && DATA.bn.P; if (!P) return;
     const need = { b1: 'schijf1_grens', r1: 'schijf1_tarief', b2: 'schijf2_grens', r2: 'schijf2_tarief', r3: 'schijf3_tarief', ahkMax: 'ahk_max', ahkStart: 'ahk_start_afbouw', ahkAfb: 'ahk_afbouw_pct',
-      akMax: 'ak_max', akStart: 'ak_start_afbouw', akAfb: 'ak_afbouw_pct', akG1: 'ak_grens1', akP1: 'ak_pct1', akG2: 'ak_grens2', akB2: 'ak_basis2', akP2: 'ak_pct2', akB3: 'ak_basis3', akP3: 'ak_pct3',
+      akMax: 'ak_max', akStart: 'ak_start_afbouw', akAfb: 'ak_afbouw_pct',
       frOP: 'abp_franchise_op', pOP: 'abp_premie_op', frAOP: 'abp_franchise_aop', pAOP: 'abp_premie_aop', pAOV: 'aov_premie', vu: 'vakantiegeld_pct', eju: 'eju_pct' };
     const miss = Object.keys(need).filter(k => typeof P[k] !== 'number' || !isFinite(P[k])).map(k => need[k]);
     if (miss.length) CALC_ERR.push(`voor de nettoberekening ontbreekt in het tabblad parameters: ${miss.join(', ')}`);
@@ -4118,7 +4121,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-27 11:35';
+const APP_VERSION = '2026-11-28 10:20';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
