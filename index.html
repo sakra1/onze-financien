@@ -2044,8 +2044,13 @@ function renderKpis(onlyKpis) {
 // bruto-netto voor dit jaar of (geschat) volgend jaar
 let BN_YEAR = THIS_YEAR;
 function xForYear(w, Y) {
-  const x = DATA.bn[w]; if (!x || Y <= THIS_YEAR) return { ...x };
+  const x = DATA.bn[w]; if (!x || Y === THIS_YEAR) return { ...x };
   const k = w === 'S' ? { b: 'bs', f: 'fs', t: 'ts' } : { b: 'be', f: 'fe', t: 'te' };
+  if (Y < THIS_YEAR) {
+    // vorig jaar (tot de aangifte): salaris van de laatste maand, maar de ABP-grondslag en toelage van januari van dát jaar
+    const j0 = (DATA.hist || []).find(r => new Date(r.d).getUTCFullYear() === Y && new Date(r.d).getUTCMonth() === 0 && r[k.b] > 0 && r[k.f] > 0);
+    return j0 ? { ...x, grondFull: abpGrond(j0[k.b], j0[k.f]), toelGrond: j0[k.t] || 0 } : { ...x };
+  }
   // situatie per januari van dat jaar uit de salarisprognose (cao_nu, fte); ABP-grondslag = salaris per 1 januari
   const jan = (DATA.hist || []).find(r => new Date(r.d).getUTCFullYear() === Y && r[k.b] > 0 && r[k.f] > 0);
   if (!jan) return { ...x };
@@ -2389,7 +2394,9 @@ function renderChanges() {
 }
 function renderBNYearSeg() {
   const el = $('#bnYearSeg'); if (!el) return;
-  el.innerHTML = [THIS_YEAR, THIS_YEAR + 1].map(y => `<button type="button" data-bnyear="${y}" aria-pressed="${y === BN_YEAR}">${y}${y > THIS_YEAR ? ' (schatting)' : ''}</button>`).join('');
+  // tot 1 mei (aangifte) blijft ook vorig jaar te kiezen, voor de inkomstenbelasting van dat jaar
+  const ys = (TODAY.getUTCMonth() < 4 ? [THIS_YEAR - 1] : []).concat([THIS_YEAR, THIS_YEAR + 1]);
+  el.innerHTML = ys.map(y => `<button type="button" data-bnyear="${y}" aria-pressed="${y === BN_YEAR}">${y}${y > THIS_YEAR ? ' (schatting)' : y < THIS_YEAR ? ' (aangifte)' : ''}</button>`).join('');
   for (const b of el.querySelectorAll('[data-bnyear]')) b.addEventListener('click', () => {
     BN_YEAR = +b.dataset.bnyear; initBN(); renderBNYearSeg(); renderBNInputs(); renderBN();
   });
@@ -4140,7 +4147,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-28 11:15';
+const APP_VERSION = '2026-11-28 12:15';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
