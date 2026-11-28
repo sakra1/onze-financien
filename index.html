@@ -1644,7 +1644,8 @@ function renderSchattingen() {
     const body = [
       `<tr class="grp"><th colspan="${ys.length + 1}">Sparen</th></tr>`,
       row('Netto inkomen', y => sv(y) ? c(R(y).svTn, (DATA.hist || []).some(h => h.proj && new Date(h.d).getUTCFullYear() === y)) : c(null)),
-      row('− Uitgaven', y => sv(y) ? c(R(y).svBase, true) : c(null)),
+      // uitgaven = wat er overblijft, zodat de kolom altijd optelt (ook met een ingevuld spaargeld per 1-1 of minder kinderbijslag)
+      row('− Uitgaven', y => sv(y) ? c(R(y).svTn - R(y).svEst - (R(y).rente || 0) - (R(y).aflossing || 0), true) : c(null)),
       row('− Rente', y => c(R(y).rente, E(y).rente)),
       row('− Aflossing', y => c(R(y).aflossing, E(y).aflossing)),
       row('= Spaarvermogen', y => c(sv(y) ? R(y).svEst : null, sv(y)), 'sum'),
@@ -4139,7 +4140,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-28 11:10';
+const APP_VERSION = '2026-11-28 11:15';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
