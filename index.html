@@ -2335,10 +2335,18 @@ function ibNet(Y) {
   const { I } = ibBest(Y); if (!I || !Object.keys(I.p).length) return null;
   return Object.values(I.p).reduce((a, p) => a + p.eff, 0) - (I.box3 && I.box3.tax ? I.box3.tax : 0);
 }
+// eigen jaarkeuze voor de inkomstenbelasting: vorig jaar (als de parameters daarvoor er zijn), dit jaar en volgend jaar.
+// Van januari t/m april staat vorig jaar voorgeselecteerd: dan doe je de aangifte daarover.
+const ibHasPar = Y => !!(DATA && DATA.parY && Object.values(DATA.parY).some(o => o && o[Y] != null && o[Y] !== ''));
+let IB_YEAR = null;
+document.addEventListener('click', e => { const b = e.target.closest('[data-ibyear]'); if (!b) return; IB_YEAR = +b.dataset.ibyear; renderIB(); });
+function ibYears() { return (ibHasPar(THIS_YEAR - 1) ? [THIS_YEAR - 1] : []).concat([THIS_YEAR, THIS_YEAR + 1]); }
 function renderIB() {
+  const ysIB = ibYears();
+  if (IB_YEAR == null || !ysIB.includes(IB_YEAR)) IB_YEAR = TODAY.getUTCMonth() < 4 && ysIB[0] < THIS_YEAR ? ysIB[0] : THIS_YEAR;
   const el = $('#ibCard'); if (!el) return;
   let I = null, best = null;
-  try { ({ I, best } = ibBest(BN_YEAR)); } catch (e) { console.error(e); }
+  try { ({ I, best } = ibBest(IB_YEAR)); } catch (e) { console.error(e); }
   if (!I || !I.p.S && !I.p.E) { el.style.display = 'none'; return; }
   el.style.display = '';
   const W = ['S', 'E'].filter(w => I.p[w]), nm = { S: 'Sander', E: 'Ellen' };
@@ -2350,8 +2358,9 @@ function renderIB() {
   const anyHil = W.some(w => I.p[w].hil > 0.5), anyTa = W.some(w => I.p[w].ta > 0.5), anyAhk = W.some(w => I.p[w].ahk > 0.5);
   const proj = W.some(w => I.p[w].proj);
   $('#ibSum').innerHTML = res(tot);
-  $('#ibTitle').textContent = `Inkomstenbelasting ${I.Y}${BN_YEAR > THIS_YEAR ? ' (schatting)' : ''}`;
-  $('#ibBody').innerHTML = `<div class="tablewrap"><table class="chgt"><thead><tr><th></th>${W.map(w => `<th>${nm[w]}</th>`).join('')}</tr></thead><tbody>
+  $('#ibTitle').textContent = `Inkomstenbelasting ${I.Y}${IB_YEAR > THIS_YEAR ? ' (schatting)' : IB_YEAR < THIS_YEAR ? ' (aangifte)' : ''}`;
+  const ibSeg = `<div class="controls" style="margin:0 0 8px"><div class="seg" role="group" aria-label="Jaar van de aangifte" id="ibYearSeg">${ysIB.map(y => `<button type="button" data-ibyear="${y}" aria-pressed="${y === IB_YEAR}">${y}</button>`).join('')}</div></div>`;
+  $('#ibBody').innerHTML = ibSeg + `<div class="tablewrap"><table class="chgt"><thead><tr><th></th>${W.map(w => `<th>${nm[w]}</th>`).join('')}</tr></thead><tbody>
     ${row('Fiscaal loon', p => eur(p.werk))}
     ${row(`Eigenwoningforfait`, p => eur(p.ewf))}
     ${row(`Hypotheekrente`, p => e0(-p.rente))}
@@ -2394,9 +2403,7 @@ function renderChanges() {
 }
 function renderBNYearSeg() {
   const el = $('#bnYearSeg'); if (!el) return;
-  // tot 1 mei (aangifte) blijft ook vorig jaar te kiezen, voor de inkomstenbelasting van dat jaar
-  const ys = (TODAY.getUTCMonth() < 4 ? [THIS_YEAR - 1] : []).concat([THIS_YEAR, THIS_YEAR + 1]);
-  el.innerHTML = ys.map(y => `<button type="button" data-bnyear="${y}" aria-pressed="${y === BN_YEAR}">${y}${y > THIS_YEAR ? ' (schatting)' : y < THIS_YEAR ? ' (aangifte)' : ''}</button>`).join('');
+  el.innerHTML = [THIS_YEAR, THIS_YEAR + 1].map(y => `<button type="button" data-bnyear="${y}" aria-pressed="${y === BN_YEAR}">${y}${y > THIS_YEAR ? ' (schatting)' : ''}</button>`).join('');
   for (const b of el.querySelectorAll('[data-bnyear]')) b.addEventListener('click', () => {
     BN_YEAR = +b.dataset.bnyear; initBN(); renderBNYearSeg(); renderBNInputs(); renderBN();
   });
@@ -4147,7 +4154,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-28 12:15';
+const APP_VERSION = '2026-11-28 13:25';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
