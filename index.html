@@ -2151,7 +2151,7 @@ function renderBN() {
   const wr = $('#waRes');
   if (wr) {
     const dm = r.netto - r0.netto, dj = r.jaarNet - r0.jaarNet, c = v => Math.abs(v) < 0.5 ? 'muted' : v > 0 ? 'pos' : 'neg';
-    wr.innerHTML = `<div class="small muted">Netto per maand</div><div><b class="num" style="font-size:20px">${eur(r.netto)}</b> <span class="${c(dm)} small">${Math.abs(dm) < 0.5 ? 'gelijk' : signed(dm)}</span></div><div class="tiny muted">per jaar ${eur(r.jaarNet)} <span class="${c(dj)}">${Math.abs(dj) < 1 ? '' : signed(dj)}</span></div>`;
+    wr.innerHTML = `<div class="small muted">Netto per maand</div><div><b class="num" style="font-size:20px">${eur(r.netto)}</b> <span class="${c(dm)} small">${Math.abs(dm) < 0.5 ? 'gelijk' : signed(dm)}</span></div><div class="tiny muted">per jaar ${eur(r.jaarNet)} <span class="${c(dj)}">${Math.abs(dj) < 1 ? '' : signed(dj)}</span></div>${r.hlM * 12 < P.akStart && !(typeof P.akG1 === 'number') ? `<div class="tiny muted" style="margin-top:4px">ⓘ Bij dit inkomen telt de opbouw van de arbeidskorting mee. Die staat niet in de parameters, dus de app gebruikt de bedragen van 2026 (ak_grens1 t/m ak_pct3).</div>` : ''}`;
   }
   const hint = $('#bnWaHint'); if (hint) { hint.textContent = changed ? 'aangepast' : 'salaris, fte, toelage en reisdagen'; hint.className = 'tiny ' + (changed ? 'pos' : 'muted'); }
   renderChanges();
@@ -4121,7 +4121,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-28 10:20';
+const APP_VERSION = '2026-11-28 10:25';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
