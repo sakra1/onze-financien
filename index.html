@@ -1471,7 +1471,7 @@ function fillProjections() {
   }
   const raw = (DATA.vermRaw || []).slice().sort((a, b) => a.year - b.year);
   const F = ['hyp', 'rente', 'aflossing', 'spaar'];
-  for (const r of raw) { if (!r._xls) { r._xls = {}; for (const k of F) r._xls[k] = r[k]; } for (const k of F) r[k] = r._xls[k]; r.est = {}; }
+  for (const r of raw) { if (!r._xls) { r._xls = {}; for (const k of F) r._xls[k] = r[k]; } for (const k of F) r[k] = r._xls[k]; r.est = {}; r.hypOwn = false; for (const k of ['svEst', 'svOwn', 'svModel', 'svTn', 'svBase', 'svKb']) delete r[k]; }
   const by = {}; raw.forEach(r => by[r.year] = r);
   const lastAct = Math.max(-Infinity, ...raw.filter(r => r._xls.rente != null && r._xls.hyp != null).map(r => r.year));
   // een spaargeld van 0 na het laatste werkelijke jaar is een formule over lege cellen
@@ -1487,8 +1487,9 @@ function fillProjections() {
     for (const row of raw) {
       const prev = by[row.year - 1];
       // alleen jaren ná het laatste werkelijke jaar (rente ingevuld, uit de aangifte);
-      // een hypotheekbedrag daar is een formule of schatting in de Excel en wordt opnieuw berekend
+      // een hypotheekbedrag dat je daar zelf invult is een eigen schatting en gaat voor op het schema
       if (row.year <= lastAct || !prev || prev.hyp == null) continue;
+      const ownH = row._xls.hyp;
       let H = prev.hyp, n = Math.max(1, (eY - row.year) * 12 + eM), A = ann(H, n), R = 0, Af = 0;
       const extra = row.extra || 0;
       // maand: kolom "maand extra aflossing" in vermogen IB, anders de parameter, anders december
@@ -1497,10 +1498,17 @@ function fillProjections() {
         if (m === emY && extra > 0) { H = Math.max(0, H - extra); if (!keep) A = ann(H, n); }
         const i = H * r, a = Math.min(H, A - i); H -= a; R += i; Af += a; n = Math.max(1, n - 1);
       }
-      row.hyp = H; row.est.hyp = true;
-      if (row.rente == null) { row.rente = R; row.est.rente = true; }
-      if (row.aflossing == null) { row.aflossing = Af; row.est.aflossing = true; }
-      row.maandlast = A; row.hypHow = `annuïteit ${PCT1.format(rente)} vanaf ${eur(prev.hyp)} op 31-12-${prev.year}${extra > 0 ? `, extra aflossing ${eur(extra)} in ${MONTHS[emY - 1]}${keep ? ' (maandlast gelijk)' : ', daarna maandlast herberekend'}` : ''}; maandlast eind van het jaar ${eur(A)}`;
+      if (ownH != null) {
+        // eigen schatting: aflossing volgt uit het verschil (minus de extra aflossing), rente uit het schema
+        row.hyp = ownH; row.hypOwn = true;
+        if (row.rente == null) { row.rente = R; row.est.rente = true; }
+        if (row.aflossing == null) { row.aflossing = Math.max(0, prev.hyp - ownH - extra); row.est.aflossing = true; }
+      } else {
+        row.hyp = H; row.est.hyp = true;
+        if (row.rente == null) { row.rente = R; row.est.rente = true; }
+        if (row.aflossing == null) { row.aflossing = Af; row.est.aflossing = true; }
+      }
+      row.maandlast = A; row.hypHow = `annuïteit ${PCT1.format(rente)} vanaf ${eur(prev.hyp)} op 31-12-${prev.year}${extra > 0 ? `, extra aflossing ${eur(extra)} in ${MONTHS[emY - 1]}${keep ? ' (maandlast gelijk)' : ', daarna maandlast herberekend'}` : ''}; maandlast eind van het jaar ${eur(A)}${ownH != null ? `; stand 31-12 is jullie eigen schatting (${eur(ownH)}; volgens het schema ${eur(H)})` : ''}`;
     }
   }
   // spaargeld: spaarvermogen = netto inkomen − uitgaven − rente − aflossing;
@@ -4125,7 +4133,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-28 10:45';
+const APP_VERSION = '2026-11-28 10:55';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
