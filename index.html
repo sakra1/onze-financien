@@ -1055,7 +1055,8 @@ function calcNet(x, P) {
   const jaarABP = x.grondFull * 12 * (1 + P.vu + P.eju) + tP * (tG / f) * 12 * (1 + tV * P.vu + tE * P.eju) + x.extra;
   const op = Math.max(0, jaarABP - P.frOP) * P.pOP * f / 12;
   const aaop = Math.max(0, jaarABP - P.frAOP) * P.pAOP * f / 12;
-  const ipap = jaarABP * f * P.pAOV / 12;
+  // zonder franchise: AOV (IPAP) en, vanaf 2027 (nieuw ABP-stelsel), de risicopremie nabestaandenpensioen (abp_premie_np, optioneel)
+  const ipap = jaarABP * f * (P.pAOV + (P.pNP || 0)) / 12;
   const premies = op + aaop + ipap;
   const hlM = bruto + x.toelage - premies;
   const hlY = hlM * 12;
@@ -3789,7 +3790,7 @@ const PARAM_MAP = {
   ahk_max: 'ahkMax', ahk_start_afbouw: 'ahkStart', ahk_afbouw_pct: 'ahkAfb',
   ak_max: 'akMax', ak_start_afbouw: 'akStart', ak_afbouw_pct: 'akAfb',
   ak_grens1: 'akG1', ak_pct1: 'akP1', ak_grens2: 'akG2', ak_basis2: 'akB2', ak_pct2: 'akP2', ak_basis3: 'akB3', ak_pct3: 'akP3',
-  abp_franchise_op: 'frOP', abp_premie_op: 'pOP', abp_franchise_aop: 'frAOP', abp_premie_aop: 'pAOP', aov_premie: 'pAOV',
+  abp_franchise_op: 'frOP', abp_premie_op: 'pOP', abp_franchise_aop: 'frAOP', abp_premie_aop: 'pAOP', aov_premie: 'pAOV', abp_premie_np: 'pNP',
   vakantiegeld_pct: 'vu', eju_pct: 'eju', toelage_pensioengevend: 'toelPens', toelage_in_vakantiegeld: 'toelVu', toelage_in_eju: 'toelEju',
   dca: 'dca', dca_sport: 'dcaSport', km_vergoeding: 'kmRate', thuiswerk_vergoeding: 'thuisRate', km_woonwerk_retour: 'km',
   lhk_verrekening_schijf2: 'verr2', lhk_verrekening_schijf3: 'verr3'
@@ -4168,7 +4169,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-28 19:35';
+const APP_VERSION = '2026-11-28 19:55';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
