@@ -2241,8 +2241,8 @@ function paramChanges() {
   const y1 = ysU[ysU.length - 1], y0 = ysU[ysU.length - 2];
   const p0 = paramsFor(y0), p1 = paramsFor(y1);
   const meta = DATA.parMeta && DATA.parMeta.length ? DATA.parMeta : Object.keys(P).map(k => ({ k, desc: '', group: '' }));
-  const rows = meta.filter(m => p0[m.k] != null && p1[m.k] != null && String(p0[m.k]) !== String(p1[m.k]) && !(typeof p0[m.k] === 'number' && typeof p1[m.k] === 'number' && Math.abs(p0[m.k] - p1[m.k]) < 1e-9))
-    .map(m => ({ ...m, a: p0[m.k], b: p1[m.k] }));
+  const rows = meta.filter(m => (p0[m.k] != null || PARAM_NEW.has(m.k)) && p1[m.k] != null && String(p0[m.k] ?? 0) !== String(p1[m.k]) && !(typeof p0[m.k] === 'number' && typeof p1[m.k] === 'number' && Math.abs(p0[m.k] - p1[m.k]) < 1e-9))
+    .map(m => ({ ...m, a: p0[m.k] ?? 0, b: p1[m.k] }));
   const filled = Object.values(P).filter(o => o[y1] != null).length;
   // effect op het netto per maand: van de situatie in y0 (nu) naar januari y1, opgesplitst in stappen die samen het totaal vormen
   const eff = {};
@@ -2260,7 +2260,7 @@ function paramChanges() {
     if (Math.abs(x1.full - x0.full) > 0.5 || Math.abs(x1.f - x0.f) > 1e-6 || Math.abs((x1.toelage || 0) - (x0.toelage || 0)) > 0.5 || Math.abs((x1.vuSum || 0) - (x0.vuSum || 0)) > 1 || Math.abs((x1.ejuSum || 0) - (x0.ejuSum || 0)) > 1) add('Salaris, fte of toelage (ook in vakantiegeld en eindejaarsuitkering)', xg, B0, x1, B0);
     let sumP = 0, sumJ = 0;
     for (const m of rows) {
-      const key = PARAM_MAP[m.k]; if (!key || typeof m.b !== 'number') continue;
+      const key = PARAM_MAP[m.k]; if (!key || (typeof m.b !== 'number' && !PARAM_NEW.has(m.k))) continue;
       const P = { ...B0, [key]: B1[key] };
       const it = { k: m.k, label: m.desc || m.k.replace(/_/g, ' '), mnd: N(x1, P) - N(x1, B0), jaar: J(x1, P) - J(x1, B0) };
       sumP += it.mnd; sumJ += it.jaar; per.push(it);
@@ -3825,11 +3825,14 @@ function parseParamsSheet(aoa) {
   }
   return out;
 }
+// regels die pas later bestaan: vóór hun eerste jaar tellen ze niet mee (in plaats van de waarde van dat eerste jaar)
+const PARAM_NEW = new Set(['abp_premie_np']);
 function paramsFor(y) {
   const P = (DATA && DATA.parY) || {}, out = {};
   for (const k in P) {
     const ys = Object.keys(P[k]).map(Number).sort((a, b) => a - b);
-    const le = ys.filter(v => v <= y); out[k] = P[k][le.length ? le[le.length - 1] : ys[0]];
+    // geen waarde t/m dit jaar: neem het eerste jaar, behalve bij regels die pas vanaf een later jaar bestaan
+    const le = ys.filter(v => v <= y); out[k] = le.length ? P[k][le[le.length - 1]] : PARAM_NEW.has(k) ? undefined : P[k][ys[0]];
   }
   const all = Object.values(P).flatMap(o => Object.keys(o).map(Number)).filter(v => v > 0 && v <= y);
   if (all.length && out.belastingjaar == null) out.belastingjaar = Math.max(...all);
@@ -4169,7 +4172,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-28 19:55';
+const APP_VERSION = '2026-11-28 20:05';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
