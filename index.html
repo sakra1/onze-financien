@@ -2106,8 +2106,9 @@ function renderBN() {
     dEl.className = 'delta ' + (dy >= 0 ? 'pos' : 'neg');
   } else if (!changed) { dEl.textContent = ''; dEl.className = 'delta muted'; }
   else { dEl.textContent = `${signed(d)} ${per} door Wat als`; dEl.className = 'delta ' + (d > 0 ? 'pos' : 'neg'); }
-  const tot = r.bruto + r.toelage + r.verg;
-  const parts = [['Netto', r.netto, '--s1'], ['Pensioen en AOV', r.premies, '--s2'], ['Loonheffing', r.lhM, '--s4']];
+  // verdeling van het bruto: per maand een gewone maand; per jaar inclusief vakantiegeld, eindejaarsuitkering en DCA (die zwaarder belast worden)
+  let tot = r.bruto + r.toelage + r.verg, parts = [['Netto', r.netto, '--s1'], ['Pensioen en AOV', r.premies, '--s2'], ['Loonheffing', r.lhM, '--s4']];
+  if (J) { try { const Yb = yearFigures(who, r, r0, changed); tot = Yb.bruto + Yb.verg; parts = [['Netto', Yb.net, '--s1'], ['Pensioen en AOV', Yb.prem, '--s2'], ['Loonheffing', Yb.lh, '--s4']]; } catch (e) { } }
   $('#bnBar').innerHTML = parts.map(([, v, c]) => `<div style="--c:var(${c});flex:${Math.max(v, 0)}"></div>`).join('');
   $('#bnLegend').innerHTML = parts.map(([n, v, c]) => `<span style="--c:var(${c})">${n} ${PCT1.format(v / tot)}</span>`).join('');
   const dd = (a, b0) => Math.abs(a - b0) >= 1 ? ` <span class="${a - b0 > 0 ? 'pos' : 'neg'} small">(${signed(a - b0)})</span>` : '';
@@ -4165,7 +4166,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-28 17:05';
+const APP_VERSION = '2026-11-28 17:15';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
