@@ -1443,7 +1443,7 @@ function renderWerkelijk() {
   const raw = (DATA.vermRaw || []).slice().sort((a, b) => a.year - b.year);
   const hE = raw.filter(r => r.est && r.est.hyp).map(r => r.year), hR = raw.filter(r => r.hyp != null && !(r.est && r.est.hyp)).map(r => r.year);
   if (hR.length || hE.length) rows.push(['Hypotheek, rente, aflossing', hR.length ? `31-12-${Math.max(...hR)}` : '–', yr(hE), 'annuïteit uit tabblad hypotheek, extra aflossing in december']);
-  const sE = raw.filter(r => r.est && r.est.spaar).map(r => r.year), sR = raw.filter(r => r.spaar != null && !(r.est && r.est.spaar)).map(r => r.year);
+  const sE = raw.filter(r => r.est && r.est.spaar).map(r => r.year), sR = raw.filter(r => r.spaar != null && !(r.est && r.est.spaar) && r.year <= THIS_YEAR).map(r => r.year);
   if (sR.length || sE.length) rows.push(['Spaargeld', sR.length ? `1-1-${Math.max(...sR)}` : '–', sE.length ? (sE.length > 1 ? `1-1-${sE[0]} – 1-1-${sE[sE.length - 1]}` : `1-1-${sE[0]}`) : '–', 'netto inkomen − uitgaven (+ inflatie) − woonlasten − extra aflossing']);
   const svE = raw.filter(r => r.svEst != null).map(r => r.year);
   if (svE.length) rows.push(['Spaarvermogen', `${DATA.proj && DATA.proj.anchor || '–'}`, yr(svE), 'zie spaargeld']);
@@ -1515,13 +1515,16 @@ function fillProjections() {
   DATA.proj.anchor = anc.year; DATA.proj.base0 = base0;
   for (let y = anc.year + 1; ; y++) {
     const r0 = by[y], r1 = by[y + 1];
-    if (!r0 || !r1 || r0.spaar == null || r1.spaar != null || !A[y] || !A[y].tn || r0.rente == null) break;
+    // een ingevuld spaargeld per 1-1 van een jaar dat nog moet komen is een eigen schatting: die gaat voor, en daarna rekent de app verder
+    const own = r1 && r1.spaar != null && y >= THIS_YEAR;
+    if (!r0 || !r1 || r0.spaar == null || (r1.spaar != null && !own) || !A[y] || !A[y].tn || r0.rente == null) break;
     base *= 1 + (CPI[y] ?? CPI[CPI_LAST] ?? 2) / 100;
     // de uitgaven zijn afgeleid uit het ankerjaar, inclusief de kinderbijslag van toen; neem het verschil met dat jaar mee
     const kb0 = kbYear(anc.year), kbY = kbYear(y), kbD = kb0 != null && kbY != null ? kbY - kb0 : 0;
-    const sv = A[y].tn - base - r0.rente - (r0.aflossing || 0) + kbD;
-    r1.spaar = r0.spaar + sv - (r0.extra || 0) - (r0.invest || 0) + (r0.giften || 0);
-    r1.est.spaar = true; r0.svEst = sv; r0.svTn = A[y].tn; r0.svBase = base; r0.svKb = kbD;
+    const svModel = A[y].tn - base - r0.rente - (r0.aflossing || 0) + kbD;
+    const sv = own ? r1.spaar - r0.spaar + (r0.extra || 0) + (r0.invest || 0) - (r0.giften || 0) : svModel;
+    if (!own) { r1.spaar = r0.spaar + sv - (r0.extra || 0) - (r0.invest || 0) + (r0.giften || 0); r1.est.spaar = true; }
+    r0.svEst = sv; r0.svOwn = own; r0.svModel = svModel; r0.svTn = A[y].tn; r0.svBase = base; r0.svKb = kbD;
   }
 }
 const CALC_ERR = [];
@@ -1905,7 +1908,7 @@ function vermNu(at) {
   const pdWoz = h && H && H.g != null ? woz * Math.log(1 + H.g) / 365.25 : 0;
   const pdSp = sv != null ? (sv - (raw.invest || 0) + (raw.giften || 0)) / 365.25 : 0;
   const pd = { woz: pdWoz, hyp: -pdHyp, ow: pdWoz + pdHyp, sp: pdSp, net: pdWoz + pdHyp + pdSp };
-  pd.how = `waarde huis = de huizenprijsstijging van ${h && H && H.g != null ? `${PCT1.format(H.g)} per jaar (CBS-index)` : '0% (nog geen CBS-index)'}; aflossing = de gewone maandaflossing (${eur(Math.round(pdHyp * 365.25 / 12))}) omgerekend naar een dag; spaargeld = het verwachte spaarvermogen voor ${Y} (${eur(sv || 0)})${raw.invest ? ` min de investeringen (${eur(raw.invest)})` : ''}${raw.giften ? ` plus giften (${eur(raw.giften)})` : ''}, gedeeld door 365. Eenmalige verschuivingen, zoals een extra aflossing, tellen niet mee`;
+  pd.how = `waarde huis = de huizenprijsstijging van ${h && H && H.g != null ? `${PCT1.format(H.g)} per jaar (CBS-index)` : '0% (nog geen CBS-index)'}; aflossing = de gewone maandaflossing (${eur(Math.round(pdHyp * 365.25 / 12))}) omgerekend naar een dag; spaargeld = het verwachte spaarvermogen voor ${Y} (${eur(sv || 0)}${raw.svOwn ? `, uit jullie eigen schatting voor 1-1-${Y + 1}` : ''})${raw.invest ? ` min de investeringen (${eur(raw.invest)})` : ''}${raw.giften ? ` plus giften (${eur(raw.giften)})` : ''}, gedeeld door 365. Eenmalige verschuivingen, zoals een extra aflossing, tellen niet mee`;
   return { t: now, pd, woz, hyp, spaar, net: woz - hyp + spaar, v0, wozHow: h ? `WOZ ${eur(h.woz)} (1 jan ${h.year}) ${pct >= 0 ? '+' : '−'}${PCT1.format(Math.abs(pct))} via CBS-index${ext ? ', doorgetrokken tot vandaag' : ''}` : 'WOZ per 1 januari', hypHow, spHow };
 }
 // tegel 'groei per dag': waardestijging huis + aflossing (samen de overwaarde) + sparen
@@ -2459,12 +2462,13 @@ function renderMaandSummary() {
     const rows = [
       ['', 'Begroting', `Verwacht ${svR.year}`],
       ['Inkomsten', eur(t.in), eur(m(svR.svTn) + m(svR.svKb || 0))],
-      ['Overige uitgaven', '−' + eur(t.uit - hypB), '−' + eur(m(svR.svBase))],
+      // overige uitgaven = wat overblijft na sparen en hypotheek; bij de eigen rekenregel is dat precies de geschatte uitgaven
+      ['Overige uitgaven', '−' + eur(t.uit - hypB), '−' + eur(m(svR.svTn + (svR.svKb || 0) - svR.svEst - (svR.rente || 0) - (svR.aflossing || 0)))],
       ['Hypotheek', '−' + eur(hypB), '−' + eur(m((svR.rente || 0) + (svR.aflossing || 0)))],
       ['Sparen', eur(t.spaar), eur(m(svR.svEst))]
     ];
     $('#spDet').innerHTML = `<table class="sp-t">${rows.map((r, i) => `<tr class="${i === 0 ? 'h' : i === rows.length - 1 ? 'tot' : ''}">${r.map((c, j) => `<${i === 0 ? 'th' : 'td'}${j ? ' class="num"' : ''}>${c}</${i === 0 ? 'th' : 'td'}>`).join('')}</tr>`).join('')}</table>
-      <div class="tiny muted" style="margin-top:8px"><b>Begroting:</b> de posten uit in_uit, met de hypotheek van nu. <b>Verwacht ${svR.year}:</b> gemiddeld per maand over het hele jaar. Overige uitgaven zijn daar wat jullie in ${anc} werkelijk uitgaven, plus inflatie; dat is meestal meer dan begroot (vakanties, reparaties en andere losse uitgaven). De hypotheek is het jaargemiddelde${svR.extra ? ', met vóór de extra aflossing nog de oude maandlast' : ''}.</div>`;
+      <div class="tiny muted" style="margin-top:8px"><b>Begroting:</b> de posten uit in_uit, met de hypotheek van nu. <b>Verwacht ${svR.year}:</b> gemiddeld per maand over het hele jaar. ${svR.svOwn ? `Het sparen volgt uit jullie eigen schatting van het spaargeld op 1-1-${svR.year + 1}; de overige uitgaven zijn wat daaruit overblijft (de app zelf zou op ${eur(m(svR.svModel))} sparen per maand uitkomen).` : `Overige uitgaven zijn daar wat jullie in ${anc} werkelijk uitgaven, plus inflatie; dat is meestal meer dan begroot (vakanties, reparaties en andere losse uitgaven).`} De hypotheek is het jaargemiddelde${svR.extra ? ', met vóór de extra aflossing nog de oude maandlast' : ''}.</div>`;
   }
   applyDet();
   // één overzicht: per groep een balk; tik op een groep om de losse posten te zien
@@ -4121,7 +4125,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-28 10:30';
+const APP_VERSION = '2026-11-28 10:45';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
