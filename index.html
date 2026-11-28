@@ -143,6 +143,8 @@ table.schat tr.grp th { text-align: left; font-size: 11px; text-transform: upper
 .bn-wa > summary h3::before { content: '▸ '; color: var(--ink-3); }
 .bn-wa[open] > summary h3::before { content: '▾ '; }
 .bn-wa[open] > summary { margin-bottom: 10px; }
+#ibCard > summary { flex-wrap: wrap; }
+#ibCard .ibseg { flex-basis: 100%; margin-top: 8px; }
 .chg-tease { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
 .chgt { width: 100%; border-collapse: collapse; font-size: 13px; }
 .chgt th, .chgt td { padding: 5px 4px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
@@ -593,7 +595,7 @@ section.swiping .pinned-row { visibility: hidden; }
 
       <div class="card" id="bnChanges" style="display:none"></div>
 
-      <details class="card bn-wa" id="ibCard" style="display:none"><summary><h3 id="ibTitle">Inkomstenbelasting</h3><span class="small" id="ibSum"></span></summary><div id="ibBody"></div></details>
+      <details class="card bn-wa" id="ibCard" style="display:none"><summary><h3 id="ibTitle">Inkomstenbelasting</h3><span class="small" id="ibSum"></span><div class="seg ibseg" role="group" aria-label="Jaar van de aangifte" id="ibYearSeg"></div></summary><div id="ibBody"></div></details>
 
 
     </div>
@@ -2339,7 +2341,8 @@ function ibNet(Y) {
 // Van januari t/m april staat vorig jaar voorgeselecteerd: dan doe je de aangifte daarover.
 const ibHasPar = Y => !!(DATA && DATA.parY && Object.values(DATA.parY).some(o => o && o[Y] != null && o[Y] !== ''));
 let IB_YEAR = null;
-document.addEventListener('click', e => { const b = e.target.closest('[data-ibyear]'); if (!b) return; IB_YEAR = +b.dataset.ibyear; renderIB(); });
+// knoppen staan in de kop van het uitklapblok: niet open- of dichtklappen bij een tik op een jaar
+document.addEventListener('click', e => { const b = e.target.closest('[data-ibyear]'); if (!b) return; e.preventDefault(); IB_YEAR = +b.dataset.ibyear; renderIB(); });
 function ibYears() { return (ibHasPar(THIS_YEAR - 1) ? [THIS_YEAR - 1] : []).concat([THIS_YEAR, THIS_YEAR + 1]); }
 function renderIB() {
   const ysIB = ibYears();
@@ -2358,9 +2361,9 @@ function renderIB() {
   const anyHil = W.some(w => I.p[w].hil > 0.5), anyTa = W.some(w => I.p[w].ta > 0.5), anyAhk = W.some(w => I.p[w].ahk > 0.5);
   const proj = W.some(w => I.p[w].proj);
   $('#ibSum').innerHTML = res(tot);
-  $('#ibTitle').textContent = `Inkomstenbelasting ${I.Y}${IB_YEAR > THIS_YEAR ? ' (schatting)' : IB_YEAR < THIS_YEAR ? ' (aangifte)' : ''}`;
-  const ibSeg = `<div class="controls" style="margin:0 0 8px"><div class="seg" role="group" aria-label="Jaar van de aangifte" id="ibYearSeg">${ysIB.map(y => `<button type="button" data-ibyear="${y}" aria-pressed="${y === IB_YEAR}">${y}</button>`).join('')}</div></div>`;
-  $('#ibBody').innerHTML = ibSeg + `<div class="tablewrap"><table class="chgt"><thead><tr><th></th>${W.map(w => `<th>${nm[w]}</th>`).join('')}</tr></thead><tbody>
+  $('#ibTitle').textContent = 'Inkomstenbelasting';
+  $('#ibYearSeg').innerHTML = ysIB.map(y => `<button type="button" data-ibyear="${y}" aria-pressed="${y === IB_YEAR}">${y}${y < THIS_YEAR ? ' aangifte' : y > THIS_YEAR ? ' schatting' : ''}</button>`).join('');
+  $('#ibBody').innerHTML = `<div class="tablewrap"><table class="chgt"><thead><tr><th></th>${W.map(w => `<th>${nm[w]}</th>`).join('')}</tr></thead><tbody>
     ${row('Fiscaal loon', p => eur(p.werk))}
     ${row(`Eigenwoningforfait`, p => eur(p.ewf))}
     ${row(`Hypotheekrente`, p => e0(-p.rente))}
@@ -4154,7 +4157,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-28 13:25';
+const APP_VERSION = '2026-11-28 13:35';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
