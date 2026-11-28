@@ -580,8 +580,8 @@ section.swiping .pinned-row { visibility: hidden; }
         <div class="seg" role="group" aria-label="Jaar" id="bnYearSeg"></div>
       </div>
       <div class="card">
-        <div class="card-head">
-          <div><div class="small muted" id="bnNetLbl">Netto per maand</div><div class="big" id="bnNet">–</div></div>
+        <div class="card-head" style="flex-wrap:nowrap;align-items:flex-start">
+          <div style="min-width:0"><div class="small muted" id="bnNetLbl">Netto per maand</div><div class="big" id="bnNet">–</div></div>
           <div class="seg" role="group" aria-label="Periode">
             <button type="button" data-bnper="m" aria-pressed="true">Maand</button>
             <button type="button" data-bnper="j" aria-pressed="false">Jaar</button>
@@ -2093,7 +2093,8 @@ function renderBN() {
   const P = bnP(BN_YEAR), who = UI.person, x = UI.bn[who], base = UI.bnBase[who];
   const r = calcNet(withUitk(x, who, BN_YEAR, base), P), r0 = calcNet(withUitk(base, who, BN_YEAR), P);
   const future = BN_YEAR > THIS_YEAR, J = BN_PER === 'j';
-  $('#bnNetLbl').textContent = J ? `Netto per jaar ${BN_YEAR}` : `Netto per maand · ${future ? `januari ${BN_YEAR}` : base.lastD ? `salaris ${maandJaar(base.lastD)}` : 'nu'}`;
+  // twee korte regels, zodat de knoppen Maand/Jaar rechtsboven op hun plek blijven
+  $('#bnNetLbl').innerHTML = J ? `Netto per jaar<br>${BN_YEAR}` : `Netto per maand<br>${future ? `januari ${BN_YEAR}` : base.lastD ? `salaris ${maandJaar(base.lastD)}` : 'nu'}`;
   $('#bnNet').textContent = J ? eur(r.jaarNet) : eur2(r.netto);
   const d = J ? r.jaarNet - r0.jaarNet : r.netto - r0.netto, per = J ? 'per jaar' : 'per maand';
   const dEl = $('#bnDelta');
@@ -4164,7 +4165,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-28 13:45';
+const APP_VERSION = '2026-11-28 17:05';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
