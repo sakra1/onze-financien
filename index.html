@@ -2404,8 +2404,8 @@ function renderChanges() {
   el.style.display = '';
   const name = { S: 'Sander', E: 'Ellen' }[w], cls = v => v > 0.5 ? 'pos' : v < -0.5 ? 'neg' : 'muted';
   const lbl = m => esc(m.desc || m.k.replace(/_/g, ' '));
-  const effHTML = e ? `<div class="r"><span><b>${name}</b>, netto per maand</span><span class="${cls(e.mnd)}"><b>${signed2(e.mnd)}</b></span></div>
-    <div class="tiny muted" style="margin:-2px 0 4px">${signed(e.jaar)} per jaar, met vakantiegeld en eindejaarsuitkering</div>
+  const effHTML = e ? `<div class="r" style="border-bottom:0;padding-bottom:0"><span><b>${name}</b>, netto per maand</span><span class="${cls(e.mnd)}"><b>${signed2(e.mnd)}</b></span></div>
+    <div class="tiny muted" style="margin:0 0 4px">${signed(e.jaar)} per jaar, met vakantiegeld en eindejaarsuitkering</div>
     ${e.per.length ? `<ul class="chgl">${e.per.filter(p => Math.abs(p.mnd) >= 0.005).map(p => `<li><span>${esc(p.label)}</span><span class="${cls(p.mnd)}">${signed2(p.mnd)}</span></li>`).join('')}</ul>` : ''}` : '';
   const groups = []; for (const r of C.rows) { let g = groups.find(x => x.g === r.group); if (!g) groups.push(g = { g: r.group, rows: [] }); g.rows.push(r); }
   const table = C.rows.length ? `<details class="dp-more"><summary>Alle wijzigingen die jullie raken (${C.rows.length})</summary><div class="tablewrap"><table class="chgt"><thead><tr><th></th><th>${C.y0}</th><th>${C.y1}</th></tr></thead><tbody>${groups.map(g =>
@@ -4172,7 +4172,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rend
 /* ================= zelf bijwerken =================
    Een app op het beginscherm houdt een oude versie vast. Bij het openen vergelijkt de app zijn
    versienummer met dat van de versie op GitHub, en herlaadt zichzelf als die nieuwer is. */
-const APP_VERSION = '2026-11-28 20:05';
+const APP_VERSION = '2026-11-28 20:15';
 // opruimen: kaartgegevens van een eerdere versie
 try { for (const k of Object.keys(localStorage)) if (k.startsWith('of-geo-')) localStorage.removeItem(k); } catch (e) { }
 $('#appVer').textContent = APP_VERSION;
